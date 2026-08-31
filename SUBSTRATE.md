@@ -82,10 +82,16 @@ kind    = "render" | "link" | "splice"
 path    = "./CLAUDE.md"
 sources = ["canonical/policy/10-identity.md", "..."]
 marker  = "MACHINE-STATE POLICY"   # splice only
+comment = "html" | "hash" | "dash" # splice only
 ```
 
+Three keys on every target, plus two on `splice`. `comment` is stated explicitly rather than
+inferred from the file extension: guessing a comment syntax from a filename is precisely the
+content-awareness §4 forbids. The projector composes its delimiters from `marker` and `comment`
+alone — `<!-- BEGIN … -->` for `html`, `# BEGIN …` for `hash`, `-- BEGIN …` for `dash`.
+
 No conditionals, no templating language, no per-agent code paths. If an adapter needs logic, the
-design is wrong.
+design is wrong. The full schema, with a worked example, is in `adapters/README.md`.
 
 ## 4. Projection
 

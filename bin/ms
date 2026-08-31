@@ -1,0 +1,482 @@
+#!/usr/bin/env python3
+"""ms — the machine-state projector.
+
+Realises canonical content into the locations resident agents expect, one way only.
+See SUBSTRATE.md for the contract this implements.
+
+Stdlib only. Never invokes git. Never runs as root. Never touches the network.
+"""
+
+import hashlib
+import json
+import os
+import pathlib
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+import tomllib
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
+ADAPTERS = REPO / "adapters"
+TOOLING = REPO / "canonical" / "tooling"
+STATE = REPO / "state" / "projection.json"
+TOOLSTATE = REPO / "state" / "tooling.json"
+
+# marker wrappers, composed from `marker` + `comment` alone — never inferred from the file
+COMMENT = {
+    "html": ("<!-- BEGIN {m} -->", "<!-- END {m} -->"),
+    "hash": ("# BEGIN {m}", "# END {m}"),
+    "dash": ("-- BEGIN {m}", "-- END {m}"),
+}
+
+OK, DRIFT, MISSING, FOREIGN = "in-sync", "drifted", "missing", "foreign"
+
+
+def die(msg, code=2):
+    print(f"ms: {msg}", file=sys.stderr)
+    raise SystemExit(code)
+
+
+def sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+# ---------------------------------------------------------------- manifests
+
+def load_targets():
+    """Every target from every adapter, in file then declaration order."""
+    if not ADAPTERS.is_dir():
+        die(f"no adapters directory at {ADAPTERS}")
+    out = []
+    for toml in sorted(ADAPTERS.glob("*.toml")):
+        try:
+            doc = tomllib.loads(toml.read_text())
+        except tomllib.TOMLDecodeError as exc:
+            die(f"{toml.name}: {exc}")
+        for i, t in enumerate(doc.get("target", [])):
+            for key in ("kind", "path", "sources"):
+                if key not in t:
+                    die(f"{toml.name} target #{i + 1}: missing '{key}'")
+            if t["kind"] not in ("render", "link", "splice"):
+                die(f"{toml.name} target #{i + 1}: unknown kind {t['kind']!r}")
+            if t["kind"] == "splice":
+                for key in ("marker", "comment"):
+                    if key not in t:
+                        die(f"{toml.name} target #{i + 1}: splice needs '{key}'")
+                if t["comment"] not in COMMENT:
+                    die(f"{toml.name} target #{i + 1}: unknown comment {t['comment']!r}")
+            t = dict(t)
+            t["adapter"] = toml.stem
+            out.append(t)
+    return out
+
+
+def dest(t) -> pathlib.Path:
+    """Resolve the parent chain but never the final component.
+
+    A plain .resolve() follows the target's own symlink, so a `link` target would
+    read back as the directory it points at rather than as a symlink.
+    """
+    p = pathlib.Path(t["path"]).expanduser()
+    p = p if p.is_absolute() else (REPO / p)
+    return p.parent.resolve() / p.name
+
+
+def key(t) -> str:
+    return str(dest(t))
+
+
+def markers(t):
+    b, e = COMMENT[t["comment"]]
+    return b.format(m=t["marker"]).encode(), e.format(m=t["marker"]).encode()
+
+
+# ---------------------------------------------------------------- canonical
+
+def fragments(t) -> bytes:
+    """Concatenate sources in order: one blank line between, trailing newline."""
+    parts = []
+    for rel in t["sources"]:
+        src = REPO / rel
+        if not src.exists():
+            die(f"{t['adapter']}: source does not exist: {rel}")
+        parts.append(src.read_bytes().rstrip(b"\n"))
+    return b"\n\n".join(parts) + b"\n"
+
+
+def region(t) -> bytes:
+    b, e = markers(t)
+    return b + b"\n" + fragments(t) + e + b"\n"
+
+
+def link_source(t) -> pathlib.Path:
+    if len(t["sources"]) != 1:
+        die(f"{t['adapter']}: link takes exactly one source, got {len(t['sources'])}")
+    src = (REPO / t["sources"][0]).resolve()
+    if not src.is_dir():
+        die(f"{t['adapter']}: link source is not a directory: {t['sources'][0]}")
+    return src
+
+
+# ---------------------------------------------------------------- splice ops
+
+def find_region(text: bytes, begin: bytes, end: bytes):
+    """(start, stop) of our region including a trailing newline, or None."""
+    i = text.find(begin)
+    if i == -1:
+        return None
+    j = text.find(end, i)
+    if j == -1:
+        die(f"unbalanced markers: found {begin.decode()} without its END")
+    j += len(end)
+    if text[j:j + 1] == b"\n":
+        j += 1
+    return i, j
+
+
+def splice(text: bytes, begin: bytes, end: bytes, new: bytes) -> bytes:
+    span = find_region(text, begin, end)
+    if span is None:
+        if text == b"":
+            return new
+        # No cosmetic padding. Every byte we add outside our markers is a byte
+        # unproject cannot take back, so we add only the newline that keeps our
+        # BEGIN on a line of its own.
+        return text + (b"" if text.endswith(b"\n") else b"\n") + new
+    return text[:span[0]] + new + text[span[1]:]
+
+
+# ---------------------------------------------------------------- state file
+
+def load_state():
+    if not STATE.exists():
+        return {"schema": 1, "targets": {}}
+    try:
+        return json.loads(STATE.read_text())
+    except json.JSONDecodeError as exc:
+        die(f"{STATE}: {exc}")
+
+
+def save_state(state):
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    write_atomic(STATE, (json.dumps(state, indent=2, sort_keys=True) + "\n").encode())
+
+
+def write_atomic(path: pathlib.Path, data: bytes):
+    """Temp file in the same directory, then os.replace — a reader never sees a partial file.
+
+    mkstemp creates 0600, so the mode is set explicitly: an existing file keeps the mode it
+    had (splicing into a vendor file must not quietly change its permissions), and a new one
+    gets 0644 rather than inheriting the temp file's private mode.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        mode = path.stat().st_mode & 0o7777
+    except FileNotFoundError:
+        mode = 0o644
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+# ---------------------------------------------------------------- inspection
+
+def inspect(t, record):
+    """(status, detail). Never writes."""
+    p = dest(t)
+    if t["kind"] == "link":
+        want = link_source(t)
+        if not p.is_symlink() and not p.exists():
+            return MISSING, f"-> {want}"
+        if p.is_symlink():
+            have = pathlib.Path(os.readlink(p))
+            if have == want:
+                return OK, f"-> {want}"
+            if record:
+                return DRIFT, f"points at {have}, expected {want}"
+            return FOREIGN, f"symlink we have no record of, -> {have}"
+        return FOREIGN, "exists and is not a symlink"
+
+    if t["kind"] == "splice":
+        if not p.exists():
+            return MISSING, "file absent"
+        text = p.read_bytes()
+        b, e = markers(t)
+        span = find_region(text, b, e)
+        if span is None:
+            return MISSING, "our region is absent"
+        have = text[span[0]:span[1]]
+        return (OK, "region matches") if have == region(t) else (DRIFT, "region differs")
+
+    want = fragments(t)
+    if not p.exists():
+        return MISSING, ""
+    have = p.read_bytes()
+    if have == want:
+        return OK, ""
+    if record:
+        return DRIFT, "content differs from canonical"
+    return FOREIGN, "exists, we have no record of it, and it is not what canonical would produce"
+
+
+def may_write(status):
+    """Canonical wins over our own drift; it never wins over somebody else's file."""
+    return status != FOREIGN
+
+
+def orphans(state, targets):
+    """Records no live target claims — e.g. a target dropped from a manifest."""
+    live = {key(t) for t in targets}
+    return [(k, r) for k, r in sorted(state["targets"].items()) if k not in live]
+
+
+def remove_recorded(path: pathlib.Path, rec):
+    """Undo one projection using only its record. Conservative: never destroys an edit.
+
+    Used for both `unproject` and orphan reconciliation, so the two can never
+    diverge in how carefully they remove things.
+    """
+    kind = rec.get("kind")
+    if kind == "link":
+        if path.is_symlink():
+            path.unlink()
+            return "removed"
+        return "absent"
+
+    if kind == "splice":
+        if not path.exists():
+            return "absent"
+        begin = COMMENT[rec["comment"]][0].format(m=rec["marker"]).encode()
+        end = COMMENT[rec["comment"]][1].format(m=rec["marker"]).encode()
+        text = path.read_bytes()
+        span = find_region(text, begin, end)
+        if span is None:
+            return "absent"
+        write_atomic(path, text[:span[0]] + text[span[1]:])
+        return "removed"
+
+    if not path.exists():
+        return "absent"
+    if rec.get("sha") and sha(path.read_bytes()) != rec["sha"]:
+        return "edited"  # a human changed it after we wrote it; not ours to delete
+    path.unlink()
+    return "removed"
+
+
+# ---------------------------------------------------------------- subcommands
+
+def cmd_project(_argv):
+    state = load_state()
+    targets = load_targets()
+    refused = []
+    for t in targets:
+        k = key(t)
+        rec = state["targets"].get(k)
+        status, detail = inspect(t, rec)
+        if not may_write(status):
+            refused.append((t, detail))
+            print(f"  REFUSED  {t['kind']:<7} {t['path']}  ({detail})")
+            continue
+
+        p = dest(t)
+        if t["kind"] == "link":
+            src = link_source(t)
+            if status != OK:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                if p.is_symlink() or p.exists():
+                    p.unlink()
+                p.symlink_to(src)
+            state["targets"][k] = {"kind": "link", "adapter": t["adapter"], "source": str(src)}
+        elif t["kind"] == "splice":
+            text = p.read_bytes() if p.exists() else b""
+            b, e = markers(t)
+            new = region(t)
+            if status != OK:
+                write_atomic(p, splice(text, b, e, new))
+            state["targets"][k] = {
+                "kind": "splice", "adapter": t["adapter"], "marker": t["marker"],
+                "comment": t["comment"], "region_sha": sha(new), "sources": t["sources"],
+            }
+        else:
+            data = fragments(t)
+            if status != OK:
+                write_atomic(p, data)
+            state["targets"][k] = {
+                "kind": "render", "adapter": t["adapter"],
+                "sha": sha(data), "sources": t["sources"],
+            }
+        verb = "unchanged" if status == OK else ("created" if status == MISSING else "restored")
+        print(f"  {verb:<9} {t['kind']:<7} {t['path']}")
+
+    for k, rec in orphans(state, targets):
+        verb = remove_recorded(pathlib.Path(k), rec)
+        if verb == "edited":
+            print(f"  kept      orphan  {k}  (edited since we wrote it; left in place)")
+        else:
+            print(f"  {verb:<9} orphan  {k}")
+        state["targets"].pop(k, None)
+
+    save_state(state)
+    if refused:
+        print(f"\n{len(refused)} target(s) refused. Nothing was overwritten.", file=sys.stderr)
+        print("Promote the file into canonical, or retarget the adapter.", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_diff(_argv):
+    state = load_state()
+    targets = load_targets()
+    drifted = 0
+    for t in targets:
+        rec = state["targets"].get(key(t))
+        status, detail = inspect(t, rec)
+        if status != OK:
+            drifted += 1
+            print(f"  {status:<8} {t['kind']:<7} {t['path']}" + (f"  ({detail})" if detail else ""))
+    for k, rec in orphans(state, targets):
+        drifted += 1
+        print(f"  orphan   {rec.get('kind', '?'):<7} {k}  (no adapter claims it any more)")
+    if drifted:
+        print(f"\n{drifted} target(s) differ from canonical.", file=sys.stderr)
+        return 1
+    print("  all targets match canonical")
+    return 0
+
+
+def read_tool_checks():
+    """Machine-readable block inside each canonical/tooling/<tool>.md.
+
+    Reading our own canonical records is not a projection; the content-agnostic rule
+    in SUBSTRATE.md 4 constrains what the projector WRITES, not what status reads.
+    """
+    tools = []
+    if not TOOLING.is_dir():
+        return tools
+    for rec in sorted(TOOLING.glob("*.md")):
+        for block in re.findall(r"```toml\n(.*?)```", rec.read_text(), re.S):
+            try:
+                meta = tomllib.loads(block)
+            except tomllib.TOMLDecodeError:
+                continue
+            if "check" in meta or "version" in meta:
+                meta["name"] = rec.stem
+                tools.append(meta)
+                break
+    return tools
+
+
+def run(cmd, cwd=None):
+    try:
+        r = subprocess.run(shlex.split(cmd), cwd=cwd or REPO, capture_output=True,
+                           text=True, timeout=30)
+        return r.returncode, (r.stdout or r.stderr).strip()
+    except (OSError, subprocess.SubprocessError):
+        return None, ""
+
+
+def cmd_status(_argv):
+    state = load_state()
+    targets = load_targets()
+
+    print("Targets")
+    if not targets:
+        print("  (no adapters declare any targets yet)")
+    for t in targets:
+        rec = state["targets"].get(key(t))
+        status, detail = inspect(t, rec)
+        print(f"  {t['adapter']:<8} {t['kind']:<7} {t['path']:<34} {status}"
+              + (f"  ({detail})" if detail and status != OK else ""))
+    for k, rec in orphans(state, targets):
+        print(f"  {'-':<8} {rec.get('kind', '?'):<7} {k:<34} orphan  (no adapter claims it any more)")
+
+    tools = read_tool_checks()
+    observed = {}
+    if tools:
+        groups = {}
+        for tool in tools:
+            groups.setdefault(tool.get("group", "Tooling"), []).append(tool)
+        for group in sorted(groups):
+            print(f"\n{group}")
+            for tool in groups[group]:
+                version = "-"
+                if tool.get("version"):
+                    rc, out = run(tool["version"])
+                    if rc == 0 and out:
+                        version = out.splitlines()[0].strip()
+                        # Optional: pull the version out of a chattier line.
+                        # Explicit in the record — ms never guesses the shape.
+                        if tool.get("version_re"):
+                            m = re.search(tool["version_re"], version)
+                            version = m.group(1) if m and m.groups() else version
+                verdict = "unknown"
+                if tool.get("check"):
+                    rc, _ = run(tool["check"])
+                    verdict = tool.get("ok", "ok") if rc == 0 else (
+                        "unknown" if rc is None else tool.get("fail", "not configured"))
+                print(f"  {tool['name']:<8} {version:<12} {verdict}")
+                observed[tool["name"]] = {"version": version, "status": verdict}
+    else:
+        print("\n(no canonical/tooling records yet; nothing to verify)")
+
+    write_atomic(TOOLSTATE, (json.dumps(
+        {"schema": 1, "tooling": observed}, indent=2, sort_keys=True) + "\n").encode())
+    return 0
+
+
+def cmd_unproject(_argv):
+    """Remove every projection we hold a record for — manifest targets and orphans alike."""
+    state = load_state()
+    by_key = {key(t): t for t in load_targets()}
+    recorded = sorted(state["targets"].items())
+    kept = 0
+
+    for k, rec in recorded:
+        label = by_key[k]["path"] if k in by_key else k
+        verb = remove_recorded(pathlib.Path(k), rec)
+        if verb == "edited":
+            kept += 1
+            print(f"  kept      {rec.get('kind', '?'):<7} {label}  (edited since we wrote it; left in place)")
+            continue
+        print(f"  {verb:<9} {rec.get('kind', '?'):<7} {label}")
+        state["targets"].pop(k, None)
+
+    for k, t in by_key.items():
+        if k not in dict(recorded) and dest(t).exists():
+            print(f"  skipped   {t['kind']:<7} {t['path']}  (no record; not ours to remove)")
+
+    save_state(state)
+    if kept:
+        print(f"\n{kept} target(s) kept because they were edited after projection.", file=sys.stderr)
+    return 0
+
+
+COMMANDS = {"project": cmd_project, "diff": cmd_diff,
+            "status": cmd_status, "unproject": cmd_unproject}
+
+
+def main(argv):
+    if os.geteuid() == 0:
+        die("refusing to run as root; the substrate is user-scope only")
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        print("\nusage: ms {" + " | ".join(COMMANDS) + "}")
+        return 0 if len(argv) >= 2 else 2
+    if argv[1] not in COMMANDS:
+        die(f"unknown command {argv[1]!r}; expected one of {', '.join(COMMANDS)}")
+    return COMMANDS[argv[1]](argv[2:])
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
