@@ -1,0 +1,18 @@
+# Codex CLI. See adapters/README.md for the schema, SUBSTRATE.md for the contract.
+#
+# One target only. ~/.codex/ does not exist on this machine, and Codex reads AGENTS.md
+# per-project, so that is its real integration point today. The manifest grows when the
+# software does; we do not invent a home layout for software that is not installed.
+#
+# AGENTS.md is VENDOR-owned and already carries TWO bd blocks (BEADS INTEGRATION and
+# BEADS CODEX SETUP). splice leaves both untouched.
+[[target]]
+kind    = "splice"
+path    = "./AGENTS.md"
+marker  = "MACHINE-STATE POLICY"
+comment = "html"
+sources = [
+  "canonical/policy/00-generated.md",
+  "canonical/policy/10-substrate.md",
+  "canonical/policy/agents/codex-harness.md",
+]

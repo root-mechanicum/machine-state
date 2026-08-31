@@ -1,0 +1,21 @@
+# Claude Code. See adapters/README.md for the schema, SUBSTRATE.md for the contract.
+
+# CLAUDE.md is VENDOR-owned: bd setup claude writes its own marker block there.
+# splice, never render — we own our region and nothing else.
+[[target]]
+kind    = "splice"
+path    = "./CLAUDE.md"
+marker  = "MACHINE-STATE POLICY"
+comment = "html"
+sources = [
+  "canonical/policy/00-generated.md",
+  "canonical/policy/10-substrate.md",
+  "canonical/policy/agents/claude-harness.md",
+]
+
+# The one target that leaves the repository. We link the skill directory itself,
+# never the ~/.claude/skills container, which other installers may also populate.
+[[target]]
+kind    = "link"
+path    = "~/.claude/skills/machine-state"
+sources = ["canonical/skills/machine-state"]
