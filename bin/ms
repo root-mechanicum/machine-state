@@ -423,8 +423,14 @@ def cmd_status(_argv):
                 verdict = "unknown"
                 if tool.get("check"):
                     rc, _ = run(tool["check"])
-                    verdict = tool.get("ok", "ok") if rc == 0 else (
-                        "unknown" if rc is None else tool.get("fail", "not configured"))
+                    if rc == 0:
+                        verdict = tool.get("ok", "ok")
+                    elif rc is None:
+                        # the command could not be executed at all — the tool is absent,
+                        # which is a different fact from its check having failed
+                        verdict = tool.get("missing", "unknown")
+                    else:
+                        verdict = tool.get("fail", "not configured")
                 print(f"  {tool['name']:<8} {version:<12} {verdict}")
                 observed[tool["name"]] = {"version": version, "status": verdict}
     else:

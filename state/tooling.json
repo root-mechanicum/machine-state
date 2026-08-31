@@ -1,4 +1,21 @@
 {
   "schema": 1,
-  "tooling": {}
+  "tooling": {
+    "beads": {
+      "status": "operational",
+      "version": "1.2.2"
+    },
+    "claude": {
+      "status": "integration stale",
+      "version": "2.1.251"
+    },
+    "codex": {
+      "status": "not installed",
+      "version": "-"
+    },
+    "dcg": {
+      "status": "active",
+      "version": "0.13.9"
+    }
+  }
 }
