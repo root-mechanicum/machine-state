@@ -49,6 +49,16 @@ class Sandbox:
             else:
                 shutil.copy2(src, dst)
         (self.repo / "state" / "projection.json").write_text('{\n  "schema": 1,\n  "targets": {}\n}\n')
+        # Restore the pre-projection state. Once the live repo has been projected its
+        # vendor files already carry our region, and copying them would make "from a
+        # clean tree" quietly false: nothing would be created, and the before-snapshot
+        # would already contain what the test is about to add.
+        for name in ("CLAUDE.md", "AGENTS.md"):
+            p = self.repo / name
+            data = p.read_bytes()
+            span = region_span(data)
+            if span:
+                p.write_bytes(data[:span[0]] + data[span[1]:])
         return self
 
     def __exit__(self, *_):
@@ -64,13 +74,21 @@ class Sandbox:
         return (self.repo / rel).read_bytes()
 
 
-def region_of(data: bytes, marker=b"MACHINE-STATE POLICY"):
+def region_span(data: bytes, marker=b"MACHINE-STATE POLICY"):
+    """(start, stop) of our region including its trailing newline, or None."""
     begin, end = b"<!-- BEGIN " + marker + b" -->", b"<!-- END " + marker + b" -->"
     i = data.find(begin)
     if i == -1:
         return None
     j = data.find(end, i) + len(end)
-    return data[i:j]
+    if data[j:j + 1] == b"\n":
+        j += 1
+    return i, j
+
+
+def region_of(data: bytes, marker=b"MACHINE-STATE POLICY"):
+    span = region_span(data, marker)
+    return None if span is None else data[span[0]:span[1]].rstrip(b"\n")
 
 
 def shared_fragment_bytes():
