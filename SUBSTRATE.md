@@ -146,6 +146,18 @@ difference. A hand-edit is a **detectable, reportable condition — never a merg
 `ms status` reports one line per target and per tool, grouped. Every line is the result of running
 a declared check, never a hardcoded string. A check that cannot run reports `unknown`, never `ok`.
 
+**Its exit code carries a narrower meaning than the output.** Only a safety failure is fatal: a
+harness that is installed but not covered by the command guard prints `** UNGUARDED **` and exits
+non-zero. Health failures — a tracker that will not answer, a stale vendor integration, a tool
+present but not responding — are reported on their line and exit `0`. The distinction is
+deliberate: an agent operating without a guard is a different class of problem from an integration
+that has drifted. Read the output, not just the status.
+
+Every `check` in a tooling record must be **verified to fail**, not merely to pass. A check that
+cannot fail reports green for the wrong reason, which is the exact failure these records exist to
+prevent — and one that has already happened here once, when a record used a command that exits `0`
+even when its own checks fail.
+
 ## 6. Promotion
 
 The reverse path — a target edit becoming canonical — is **manual and human-initiated**. The
