@@ -17,6 +17,14 @@
     "dcg": {
       "status": "active",
       "version": "0.13.9"
+    },
+    "hypr": {
+      "status": "template pristine",
+      "version": "0.56.2"
+    },
+    "noctalia": {
+      "status": "config valid",
+      "version": "5.0.0"
     }
   }
 }
