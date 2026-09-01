@@ -29,7 +29,7 @@ canonical/policy/      agent-neutral operating rules, as ordered fragments
 canonical/policy/agents/   agent-specific rules — still canonical, selected by one adapter
 canonical/skills/      agent-neutral skill trees
 canonical/tooling/     one record per substrate tool
-canonical/desktop/     RESERVED for Hyprland and Noctalia; empty in v0.01
+canonical/desktop/     managed desktop config (Hyprland; Noctalia pending)
 ```
 
 Policy is **ordered fragments rather than one file** because two harnesses must share most rules
@@ -61,6 +61,9 @@ Current assignment:
 | `.beads/**` | VENDOR | bd's data dir, incl. generated `issues.jsonl` |
 | `.gitignore` | VENDOR | written by `bd init`; **no marker pair**, see below |
 | `state/**`, `adapters/**`, `bin/**` | PROJECTED / ours | |
+| `~/.config/hypr/config/machine-state.lua` | PROJECTED | a module we create, loaded last |
+| `~/.config/hypr/hyprland.lua` | VENDOR | CachyOS skel; we co-own one marker region |
+| the rest of `~/.config/hypr/**` | VENDOR | pristine copy of `/etc/skel`, package-maintained |
 
 Two paths need care:
 
@@ -73,8 +76,9 @@ A VENDOR file is **not ours to own, but may be ours to touch** — see §4.
 
 ## 3. Adapters
 
-`adapters/<agent>.toml`. A manifest, never content. Adding an agent is adding a manifest; it must
-never require editing `bin/ms`.
+`adapters/<name>.toml`. A manifest, never content. Adding an agent — or any other managed target
+system, such as a desktop compositor — is adding a manifest; it must never require editing
+`bin/ms`.
 
 ```toml
 [[target]]
@@ -131,9 +135,18 @@ the vendor would re-append it on its next install, and `ms diff` would report dr
 | --- | --- | --- | --- |
 | Claude | `splice` | `./CLAUDE.md` | `MACHINE-STATE POLICY` |
 | Codex | `splice` | `./AGENTS.md` | `MACHINE-STATE POLICY` |
+| Hyprland | `splice` | `~/.config/hypr/hyprland.lua` | `MACHINE-STATE` |
 
-The same marker name for both, so each harness receives identical canonical policy through an
+The same marker name for both harnesses, so each receives identical canonical policy through an
 identical mechanism. That is the interchangeability this substrate exists to buy.
+
+Hyprland is seamed differently and it is worth saying why. Its spliced region is a single
+`require` line; the content lives in a module we render alongside the template and load **last**,
+so what we set overrides what CachyOS ships. Of roughly a thousand template lines, two were ever
+ours. Canonicalising the rest would have forked a package-maintained template into `canonical/` —
+the same mistake as absorbing a vendor's boilerplate as policy. Verified on 2026-09-01: with both
+template files reverted to pristine `/etc/skel`, the live keyboard layout and monitor mode are
+held by our module alone.
 
 ## 5. Drift
 
@@ -213,7 +226,9 @@ Deliberately out of scope. Each is a decision, not an oversight.
 - No root, no `sudo`, no privileged execution.
 - No network access.
 - No package installation or system mutation.
-- No desktop config. `canonical/desktop/` is reserved and empty; Hyprland and Noctalia join later.
+- No Noctalia. Hyprland is managed as of 2026-09-01; Noctalia is deferred because it has no
+  include mechanism, TOML forbids the duplicate keys an override would need, and its config is
+  likely app-written. See `machine-state-uvc`.
 - No multi-machine or cross-machine sync.
 - No secrets management.
 - No LLM in the projection loop. `bin/ms` is deterministic; that is the point.

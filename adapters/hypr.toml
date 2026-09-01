@@ -1,0 +1,22 @@
+# Hyprland. Not an agent — managed desktop configuration.
+# See adapters/README.md for the schema, SUBSTRATE.md for the contract.
+#
+# ~/.config/hypr is a copy of /etc/skel/.config/hypr, itself owned by the
+# package cachyos-hypr-noctalia. Nothing regenerates the copy, but neither is
+# it ours: of ~1000 lines, exactly two are decisions we made. So we add a
+# module of our own and load it last, rather than forking the template.
+
+# A file we create, so render is legitimate and unproject removes only ours.
+[[target]]
+kind    = "render"
+path    = "~/.config/hypr/config/machine-state.lua"
+sources = ["canonical/desktop/hypr/machine-state.lua"]
+
+# One require line, spliced into the template's loader. Lua takes -- comments,
+# so the same splice mechanism the instruction files use works unchanged.
+[[target]]
+kind    = "splice"
+path    = "~/.config/hypr/hyprland.lua"
+marker  = "MACHINE-STATE"
+comment = "dash"
+sources = ["canonical/desktop/hypr/require.lua"]

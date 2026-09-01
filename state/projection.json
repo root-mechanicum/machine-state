@@ -6,6 +6,24 @@
       "kind": "link",
       "source": "/home/klaas/src/machine-state/canonical/skills/machine-state"
     },
+    "/home/klaas/.config/hypr/config/machine-state.lua": {
+      "adapter": "hypr",
+      "kind": "render",
+      "sha": "f3511b15b7b443e379823b449434a76d463863899d78886cc6203198cccc8ba0",
+      "sources": [
+        "canonical/desktop/hypr/machine-state.lua"
+      ]
+    },
+    "/home/klaas/.config/hypr/hyprland.lua": {
+      "adapter": "hypr",
+      "comment": "dash",
+      "kind": "splice",
+      "marker": "MACHINE-STATE",
+      "region_sha": "2aa6b2df74286bbc9035799d66eed1c8b4b425e9e256fc1a473719b3534538b6",
+      "sources": [
+        "canonical/desktop/hypr/require.lua"
+      ]
+    },
     "/home/klaas/src/machine-state/AGENTS.md": {
       "adapter": "codex",
       "comment": "html",

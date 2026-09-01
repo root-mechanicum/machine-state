@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 NEEDED = ["bin", "canonical", "adapters", "state", "CLAUDE.md", "AGENTS.md"]
@@ -91,6 +92,18 @@ def region_of(data: bytes, marker=b"MACHINE-STATE POLICY"):
     return None if span is None else data[span[0]:span[1]].rstrip(b"\n")
 
 
+def declared_target_count():
+    """How many targets the manifests declare — never a hardcoded number.
+
+    Asserting a literal count means the test breaks the day a manifest grows,
+    reporting a failure where the real answer is "and one more".
+    """
+    n = 0
+    for f in sorted((REPO / "adapters").glob("*.toml")):
+        n += len(tomllib.loads(f.read_text()).get("target", []))
+    return n
+
+
 def shared_fragment_bytes():
     parts = [(REPO / p).read_bytes().rstrip(b"\n")
              for p in ("canonical/policy/00-generated.md", "canonical/policy/10-substrate.md")]
@@ -103,13 +116,14 @@ def main():
         before = {f: box.read(f) for f in ("CLAUDE.md", "AGENTS.md")}
 
         # 1. PROJECT ---------------------------------------------------------
+        want = declared_target_count()
         rc, out = box.ms("project")
         skill = box.home / ".claude" / "skills" / "machine-state"
         claude_region = region_of(box.read("CLAUDE.md"))
         agents_region = region_of(box.read("AGENTS.md"))
         shared = shared_fragment_bytes()
-        check("1a project realises every target", rc == 0 and out.count("created") == 3,
-              out.strip().splitlines()[-1] if rc else "")
+        check("1a project realises every target", rc == 0 and out.count("created") == want,
+              f"{out.count('created')}/{want} created" if rc or out.count("created") != want else "")
         check("1b the HOME crossing is a symlink into canonical",
               skill.is_symlink() and skill.resolve() == (box.repo / "canonical/skills/machine-state").resolve())
         check("1c both harnesses receive the shared fragments byte-for-byte",
@@ -124,7 +138,7 @@ def main():
         state1 = box.read("state/projection.json")
         rc, out = box.ms("project")
         check("2  a second project changes nothing",
-              rc == 0 and "created" not in out and out.count("unchanged") == 3
+              rc == 0 and "created" not in out and out.count("unchanged") == want
               and all(snap[f] == box.read(f) for f in snap)
               and state1 == box.read("state/projection.json"))
 
