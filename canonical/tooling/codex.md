@@ -26,11 +26,22 @@ grows when the software arrives.
 
 - When Codex is installed, two things must follow before it is trusted here: the safety guard is
   wired for it, and its adapter grows whatever home-directory targets are then real.
-- **There is no `wiring` check in this record, and that is a real gap, not an oversight.**
-  `dcg install` has flags for Claude, Grok, agy, OpenCode and omp — but none for Codex, and
-  `dcg doctor` only inspects Claude's hook registration. So nothing can currently verify that
-  Codex is guarded. Establish the wiring by hand when Codex arrives, work out what command proves
-  it, and add `wiring` here. Until then this record reports presence only.
+- **Codex is installed and NOT dcg-guarded.** The `wiring` check below fails deliberately, so
+  `ms status` reports it rather than staying quiet about a live gap.
+
+  The obstacle is structural, not an installer gap as first recorded. Codex *does* support
+  pre-execution hooks — its binary carries `PreToolUse` with `permissionDecision` /
+  `permissionDecisionReason`, the same protocol shape Claude Code uses, and dcg emits
+  Codex-format JSON. But Codex reads hooks from exactly two files, project `.codex/hooks.json`
+  and user `~/.codex/hooks.json`, and `bd setup codex` owns **both**. JSON carries no comment
+  syntax, so `splice` cannot co-own either one, and no `hooks.d` drop-in exists. There is
+  therefore no seam.
+
+  Three ways out, none taken yet: dcg gains a `--codex` installer that merges rather than
+  replaces; bd's recipe grows room for a foreign `PreToolUse` entry; or we accept that Codex is
+  guarded by its own `codex sandbox` instead and amend the intent in
+  `canonical/tooling/dcg.md`. The third is the honest fallback, not a workaround — Codex is not
+  unguarded, just not guarded by *our* boundary.
 - Until then this record exists to make its absence explicit rather than an oversight.
 
 ## Verification
@@ -43,6 +54,7 @@ group      = "Harnesses"
 version    = "codex --version"
 version_re = "([0-9][0-9.]*)"
 check      = "codex --version"
+wiring     = "grep -q dcg /home/klaas/.codex/hooks.json"
 ok         = "installed"
 fail       = "present but not responding"
 missing    = "not installed"

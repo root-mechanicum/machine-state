@@ -11,8 +11,9 @@
       "version": "2.1.252"
     },
     "codex": {
-      "status": "not installed",
-      "version": "-"
+      "guarded": false,
+      "status": "installed",
+      "version": "0.151.0"
     },
     "dcg": {
       "status": "active",

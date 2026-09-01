@@ -43,8 +43,8 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-09-01T14:39:27.364Z",
-      "region_sha": "3f28c1e5137bd1e8785d805f21a40f730a16002664cf1b0f0fe1824d0ff1805a",
+      "projected_at": "2026-09-01T15:14:13.317Z",
+      "region_sha": "1322485d627f97342640dd064f821e71118df1dd253b9e43d1d97cef763e7ac5",
       "sources": [
         "canonical/policy/00-generated.md",
         "canonical/policy/10-substrate.md",

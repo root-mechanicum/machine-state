@@ -41,8 +41,14 @@ exists yet; see `machine-state-3r1`.
 manual step per harness, so this is the intent most at risk of silently lapsing. It is now checked
 rather than merely stated: a harness record may declare a `wiring` command, and a harness that is
 installed but unwired makes `ms status` exit non-zero. Absent harnesses are skipped — what is not
-installed cannot be unguarded. The check exists for Claude; see `canonical/tooling/codex.md` for
-why it does not yet exist for Codex.
+installed cannot be unguarded.
+
+**This intent is currently unmet.** Claude is wired; Codex, installed 2026-09-01, is not, and
+`ms status` reports it as `** UNGUARDED **` and exits non-zero. The obstacle is structural: Codex
+reads hooks only from two files that `bd setup codex` owns, and JSON offers no marker for
+co-ownership. See `canonical/tooling/codex.md`. Note the narrower true claim — Codex is not
+unguarded in the absolute, since it ships its own `codex sandbox`; it is not guarded by *this*
+boundary, which is a lesser thing than this record otherwise implies.
 
 **Never disabled to get a command through.** A refusal is answered by narrowing the command, or by
 an explicit allowlist entry with a recorded reason. Not by turning a pack off.
