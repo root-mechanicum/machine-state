@@ -194,6 +194,21 @@ Every realised target is recorded in `state/projection.json` with source and tar
 difference. A hand-edit is a **detectable, reportable condition — never a merge**. Canonical wins;
 `ms project` restores.
 
+**A difference has two possible causes, and they want opposite responses.** Either the target was
+changed by something else, or canonical moved ahead and has not been projected yet. Reporting both
+as "drifted" hides the only thing worth knowing, so every difference is annotated with its cause,
+determined from the hash recorded in `state/projection.json`: a target still matching what we last
+wrote differs only because canonical moved; a target matching neither was changed by something else.
+
+`ms propose` is the review seam. It reports what `ms project` would do — the cause and the line
+extent of each change — and changes nothing. It exits non-zero when anything is pending, so it
+answers "is there an unapplied change" without applying one.
+
+Note what `propose` is not. It is **review, not enforcement**: it makes a change visible before it
+reaches the machine, but it cannot stop an agent editing canonical and running `project` anyway.
+Since `canonical/` is agent-writable by design, an agent can still widen its own rules. Closing
+that needs the grants mechanism in `CAPABILITIES.md` §8, which is unresolved.
+
 `ms status` reports one line per target and per tool, grouped. Every line is the result of running
 a declared check, never a hardcoded string. A check that cannot run reports `unknown`, never `ok`.
 

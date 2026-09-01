@@ -8,6 +8,7 @@ Stdlib only. Never invokes git. Never runs as root. Never touches the network.
 """
 
 import datetime
+import difflib
 import hashlib
 import json
 import os
@@ -421,6 +422,98 @@ def attribute(path: pathlib.Path, since):
             f"             evidence: {cmd}")
 
 
+def current_bytes(t):
+    """What is actually at the target now: the whole file, or just our region."""
+    p = dest(t)
+    if not p.exists():
+        return None
+    if t["kind"] != "splice":
+        return p.read_bytes()
+    text = p.read_bytes()
+    span = find_region(text, *markers(t))
+    return text[span[0]:span[1]] if span else None
+
+
+def cause(t, rec, status):
+    """Why does this target differ — did canonical move, or was the target changed?
+
+    state/projection.json records the hash of what we last wrote. A target still
+    matching that hash differs only because canonical has moved ahead of it. A
+    target matching neither was changed by something else. These want opposite
+    responses, so reporting both as "drifted" hides the only thing worth knowing.
+    """
+    if status == MISSING:
+        return "not projected yet"
+    if status == FOREIGN:
+        return "we have no record of creating it"
+    if not rec:
+        return "no record"
+    if t["kind"] == "link":
+        return "link points somewhere else"
+    have = current_bytes(t)
+    if have is None:
+        return "our region is gone"
+    recorded = rec.get("region_sha") if t["kind"] == "splice" else rec.get("sha")
+    if recorded and sha(have) == recorded:
+        return "canonical moved ahead — this is our own unapplied change"
+    return "target changed since we wrote it"
+
+
+def line_delta(t):
+    """(+added, -removed) lines between what is there and what canonical would produce."""
+    if t["kind"] == "link":
+        return None
+    have = current_bytes(t) or b""
+    want = region(t) if t["kind"] == "splice" else fragments(t)
+    add = rem = 0
+    for line in difflib.unified_diff(have.decode(errors="replace").splitlines(),
+                                     want.decode(errors="replace").splitlines(), n=0):
+        if line.startswith("+") and not line.startswith("+++"):
+            add += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            rem += 1
+    return add, rem
+
+
+def cmd_propose(_argv):
+    """Dry run. What would `ms project` change, and why — changing nothing.
+
+    This is a REVIEW seam, not enforcement. It makes a change visible before it
+    reaches the machine. It does not stop an agent editing canonical and running
+    project anyway; that needs the grants mechanism in CAPABILITIES.md section 8.
+    """
+    state = load_state()
+    targets = load_targets()
+    pending = 0
+
+    for t in targets:
+        rec = state["targets"].get(key(t))
+        status, detail = inspect(t, rec)
+        if status == OK:
+            continue
+        pending += 1
+        if status == FOREIGN:
+            print(f"  REFUSE    {t['kind']:<7} {t['path']}")
+            print(f"            {detail}")
+            continue
+        verb = "create" if status == MISSING else "update"
+        d = line_delta(t)
+        extent = f"  (+{d[0]} -{d[1]} lines)" if d else ""
+        print(f"  {verb:<9} {t['kind']:<7} {t['path']}{extent}")
+        print(f"            {cause(t, rec, status)}")
+
+    for k, rec in orphans(state, targets):
+        pending += 1
+        print(f"  remove    {rec.get('kind', '?'):<7} {k}")
+        print(f"            no adapter claims it any more")
+
+    if not pending:
+        print("  nothing pending — the machine matches canonical")
+        return 0
+    print(f"\n{pending} change(s) pending. Run 'ms project' to apply.", file=sys.stderr)
+    return 1
+
+
 def cmd_diff(_argv):
     state = load_state()
     targets = load_targets()
@@ -431,6 +524,7 @@ def cmd_diff(_argv):
         if status != OK:
             drifted += 1
             print(f"  {status:<8} {t['kind']:<7} {t['path']}" + (f"  ({detail})" if detail else ""))
+            print(f"           ↳ {cause(t, rec, status)}")
             if status in (DRIFT, FOREIGN):
                 print(f"           ↳ {attribute(dest(t), (rec or {}).get('projected_at'))}")
     for k, rec in orphans(state, targets):
@@ -577,7 +671,7 @@ def cmd_unproject(_argv):
     return 0
 
 
-COMMANDS = {"project": cmd_project, "diff": cmd_diff,
+COMMANDS = {"project": cmd_project, "propose": cmd_propose, "diff": cmd_diff,
             "status": cmd_status, "unproject": cmd_unproject}
 
 

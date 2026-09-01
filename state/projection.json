@@ -63,7 +63,7 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-09-01T14:39:27.363Z",
+      "projected_at": "2026-09-01T20:26:09.429Z",
       "region_sha": "a5d981ebe02909a4eb8d79bc0bef84c292649b12bbc739e85fc45341dafc6fe4",
       "sources": [
         "canonical/policy/00-generated.md",
