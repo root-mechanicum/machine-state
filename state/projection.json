@@ -11,10 +11,11 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "region_sha": "04f4d5a50558a54220a8bffd40c7d4e4ac9d7748e36098190bfe3447fd4dded5",
+      "region_sha": "3f28c1e5137bd1e8785d805f21a40f730a16002664cf1b0f0fe1824d0ff1805a",
       "sources": [
         "canonical/policy/00-generated.md",
         "canonical/policy/10-substrate.md",
+        "canonical/policy/20-operating.md",
         "canonical/policy/agents/codex-harness.md"
       ]
     },
@@ -23,10 +24,11 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "region_sha": "4504f86d1a517543a32f2952010ea91631884582e1eac7ee4ab1ed53d25352c3",
+      "region_sha": "a5d981ebe02909a4eb8d79bc0bef84c292649b12bbc739e85fc45341dafc6fe4",
       "sources": [
         "canonical/policy/00-generated.md",
         "canonical/policy/10-substrate.md",
+        "canonical/policy/20-operating.md",
         "canonical/policy/agents/claude-harness.md"
       ]
     }

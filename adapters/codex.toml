@@ -14,5 +14,6 @@ comment = "html"
 sources = [
   "canonical/policy/00-generated.md",
   "canonical/policy/10-substrate.md",
+  "canonical/policy/20-operating.md",
   "canonical/policy/agents/codex-harness.md",
 ]
