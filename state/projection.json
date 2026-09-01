@@ -24,6 +24,16 @@
         "canonical/desktop/hypr/require.lua"
       ]
     },
+    "/home/klaas/src/machine-state/.beads/hooks/pre-push": {
+      "adapter": "git",
+      "comment": "hash",
+      "kind": "splice",
+      "marker": "MACHINE-STATE",
+      "region_sha": "c22bf26d6803828d2b20a74063b3edcc3500ae5bdd207018409aaa013de1220a",
+      "sources": [
+        "canonical/hooks/pre-push.sh"
+      ]
+    },
     "/home/klaas/src/machine-state/AGENTS.md": {
       "adapter": "codex",
       "comment": "html",

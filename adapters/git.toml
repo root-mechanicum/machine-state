@@ -1,0 +1,13 @@
+# Git hooks. Not an agent — repository tooling.
+#
+# core.hooksPath points at .beads/hooks, so bd owns these files and manages its
+# own marked block in each. Shell takes # comments, so the same splice the
+# instruction files use works here unchanged: we add our region after bd's and
+# neither owner touches the other's.
+
+[[target]]
+kind    = "splice"
+path    = ".beads/hooks/pre-push"
+marker  = "MACHINE-STATE"
+comment = "hash"
+sources = ["canonical/hooks/pre-push.sh"]
