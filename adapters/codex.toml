@@ -17,3 +17,11 @@ sources = [
   "canonical/policy/20-operating.md",
   "canonical/policy/agents/codex-harness.md",
 ]
+
+# The same canonical skill Claude gets, through the same mechanism. Codex uses
+# an identical layout — <name>/SKILL.md with YAML frontmatter — and namespaces
+# its own under .system/, so a sibling directory is ours without collision.
+[[target]]
+kind    = "link"
+path    = "~/.codex/skills/machine-state"
+sources = ["canonical/skills/machine-state"]
