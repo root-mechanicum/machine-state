@@ -7,6 +7,7 @@ See SUBSTRATE.md for the contract this implements.
 Stdlib only. Never invokes git. Never runs as root. Never touches the network.
 """
 
+import datetime
 import hashlib
 import json
 import os
@@ -41,6 +42,11 @@ def die(msg, code=2):
 
 def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def now_iso() -> str:
+    """UTC, in the same shape dcg's journal uses, so the two compare directly."""
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 # ---------------------------------------------------------------- manifests
@@ -290,6 +296,10 @@ def cmd_project(_argv):
             continue
 
         p = dest(t)
+        # "when we last WROTE this target", not "when we last ran project" — a
+        # fresh timestamp on an unchanged target would make projection
+        # non-idempotent, and would move the attribution window for no reason.
+        stamp = rec.get("projected_at", now_iso()) if (rec and status == OK) else now_iso()
         if t["kind"] == "link":
             src = link_source(t)
             if status != OK:
@@ -297,7 +307,8 @@ def cmd_project(_argv):
                 if p.is_symlink() or p.exists():
                     p.unlink()
                 p.symlink_to(src)
-            state["targets"][k] = {"kind": "link", "adapter": t["adapter"], "source": str(src)}
+            state["targets"][k] = {"kind": "link", "adapter": t["adapter"], "source": str(src),
+                                   "projected_at": stamp}
         elif t["kind"] == "splice":
             text = p.read_bytes() if p.exists() else b""
             b, e = markers(t)
@@ -307,6 +318,7 @@ def cmd_project(_argv):
             state["targets"][k] = {
                 "kind": "splice", "adapter": t["adapter"], "marker": t["marker"],
                 "comment": t["comment"], "region_sha": sha(new), "sources": t["sources"],
+                "projected_at": stamp,
             }
         else:
             data = fragments(t)
@@ -314,7 +326,7 @@ def cmd_project(_argv):
                 write_atomic(p, data)
             state["targets"][k] = {
                 "kind": "render", "adapter": t["adapter"],
-                "sha": sha(data), "sources": t["sources"],
+                "sha": sha(data), "sources": t["sources"], "projected_at": stamp,
             }
         verb = "unchanged" if status == OK else ("created" if status == MISSING else "restored")
         print(f"  {verb:<9} {t['kind']:<7} {t['path']}")
@@ -335,6 +347,80 @@ def cmd_project(_argv):
     return 0
 
 
+_journal_cache = None
+
+
+def journal():
+    """The agent action journal, from dcg's command history.
+
+    dcg records every command an agent runs through its hook, tagged with
+    agent_type and session_id. That is not what it was built for, but it is the
+    only agent-neutral record on this machine of what an agent actually did.
+    Returns [] when history is disabled or dcg is absent — attribution then
+    degrades to "unknown", never to a false accusation.
+    """
+    global _journal_cache
+    if _journal_cache is None:
+        _journal_cache = []
+        try:
+            r = subprocess.run(shlex.split("dcg history export -f json"),
+                               capture_output=True, text=True, timeout=30)
+            if r.returncode == 0 and r.stdout.strip():
+                rows = json.loads(r.stdout)
+                if isinstance(rows, list):
+                    _journal_cache = rows
+                else:
+                    _journal_cache = rows.get("commands") or rows.get("entries") or []
+        except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+            pass
+    return _journal_cache
+
+
+def attribute(path: pathlib.Path, since):
+    """Did an agent touch this path since we last projected it?
+
+    A HINT, NEVER A VERDICT. The journal sees shell commands only: a harness's
+    own file-editing tools write elsewhere, and another agent's may write
+    nowhere at all. Absence of an entry is therefore not evidence that a human
+    made the change — only that this record cannot say.
+    """
+    rows = journal()
+    if not rows:
+        return "no journal — dcg history is unavailable, so nothing can be attributed"
+    needles = [str(path)]
+    try:
+        needles.append(str(path.relative_to(REPO)))
+    except ValueError:
+        pass
+    needles.append(path.name)
+
+    hits = sorted((r for r in rows if any(n in r.get("command", "") for n in needles)),
+                  key=lambda r: r.get("timestamp", ""), reverse=True)
+    if not hits:
+        return "no agent command names it — but the journal sees shell only, so this is not proof"
+
+    # SHOW THE EVIDENCE, DO NOT INFER FROM IT. dcg journals an entire shell block
+    # as one entry, so a single record routinely holds a read of one file, a write
+    # to another, and the projection that followed. Which of those touched this
+    # path is not recoverable from the record. Anything claiming to know is
+    # guessing, and a confident wrong attribution is worse than none — it names a
+    # culprit and gets believed. So: report the most recent entry mentioning the
+    # path and let the reader judge causation from the command itself.
+    last = hits[0]
+    who = last.get("agent_type", "an agent")
+    stamp = last.get("timestamp", "")
+    when = stamp[:19].replace("T", " ")
+    rel = "since" if since and stamp > since else "before"
+    # Window the excerpt around the mention. A block can be hundreds of
+    # characters; the first 88 of them are rarely the reason it matched.
+    cmd = " ".join(last.get("command", "").split())
+    at = min((cmd.find(n) for n in needles if cmd.find(n) >= 0), default=0)
+    lo, hi = max(0, at - 34), min(len(cmd), at + 54)
+    cmd = ("…" if lo else "") + cmd[lo:hi] + ("…" if hi < len(cmd) else "")
+    return (f"{who} mentioned it {len(hits)}x, last {when}Z ({rel} this projection)\n"
+            f"             evidence: {cmd}")
+
+
 def cmd_diff(_argv):
     state = load_state()
     targets = load_targets()
@@ -345,6 +431,8 @@ def cmd_diff(_argv):
         if status != OK:
             drifted += 1
             print(f"  {status:<8} {t['kind']:<7} {t['path']}" + (f"  ({detail})" if detail else ""))
+            if status in (DRIFT, FOREIGN):
+                print(f"           ↳ {attribute(dest(t), (rec or {}).get('projected_at'))}")
     for k, rec in orphans(state, targets):
         drifted += 1
         print(f"  orphan   {rec.get('kind', '?'):<7} {k}  (no adapter claims it any more)")

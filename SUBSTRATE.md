@@ -171,6 +171,33 @@ cannot fail reports green for the wrong reason, which is the exact failure these
 prevent — and one that has already happened here once, when a record used a command that exits `0`
 even when its own checks fail.
 
+### Attribution
+
+`ms diff` answers *what* differs. For an agent acting as a control surface, the useful question is
+*who* — because the right response differs entirely: your own change probably wants promoting to
+canonical, a vendor's wants leaving alone, a human's wants offering rather than overwriting.
+
+So a drifted or foreign target is annotated from the **agent action journal**: `dcg history`, which
+records every command an agent runs through its hook with `agent_type`, `session_id`, `working_dir`
+and `timestamp`. That is not what dcg was built for, but it is the only agent-neutral record on
+this machine of what an agent actually did. Records carry `projected_at`, so the annotation can say
+whether a mention came before or since the projection.
+
+This is deliberately **evidence, not inference**. The annotation reports the most recent journal
+entry naming the path, excerpted around the mention, and draws no conclusion. Three reasons, each
+learned the hard way:
+
+- dcg journals an **entire shell block as one entry**. A single record routinely holds a read of one
+  file, a write to another, and the projection that followed. Which of them touched this path is
+  not recoverable, so any "X changed this" claim is a guess.
+- The journal **sees shell only**. A harness's own file-editing tools write elsewhere, and another
+  agent's may write nowhere. Absence of a mention is not evidence a human did it.
+- The timestamp is when a command was **submitted**, not when each part of it ran, so a change and
+  the projection that followed it can appear in the wrong order.
+
+A confident wrong attribution is worse than none: it names a culprit and gets believed. Show the
+command; let the reader judge.
+
 ## 6. Promotion
 
 The reverse path — a target edit becoming canonical — is **manual and human-initiated**. The
