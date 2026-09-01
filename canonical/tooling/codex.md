@@ -24,8 +24,13 @@ grows when the software arrives.
 
 ## Intent
 
-- When Codex is installed, two things must follow before it is trusted here: `dcg install` wires
-  the safety guard for it, and its adapter grows whatever home-directory targets are then real.
+- When Codex is installed, two things must follow before it is trusted here: the safety guard is
+  wired for it, and its adapter grows whatever home-directory targets are then real.
+- **There is no `wiring` check in this record, and that is a real gap, not an oversight.**
+  `dcg install` has flags for Claude, Grok, agy, OpenCode and omp — but none for Codex, and
+  `dcg doctor` only inspects Claude's hook registration. So nothing can currently verify that
+  Codex is guarded. Establish the wiring by hand when Codex arrives, work out what command proves
+  it, and add `wiring` here. Until then this record reports presence only.
 - Until then this record exists to make its absence explicit rather than an oversight.
 
 ## Verification

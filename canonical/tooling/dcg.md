@@ -38,8 +38,11 @@ exists yet; see `machine-state-3r1`.
 ## Intent
 
 **Wiring.** Every supported harness installed on this machine is dcg-wired. Wiring is a separate
-manual `dcg install` per harness, so this is the intent most at risk of silently lapsing — nothing
-currently checks it, and today only Claude is wired.
+manual step per harness, so this is the intent most at risk of silently lapsing. It is now checked
+rather than merely stated: a harness record may declare a `wiring` command, and a harness that is
+installed but unwired makes `ms status` exit non-zero. Absent harnesses are skipped — what is not
+installed cannot be unguarded. The check exists for Claude; see `canonical/tooling/codex.md` for
+why it does not yet exist for Codex.
 
 **Never disabled to get a command through.** A refusal is answered by narrowing the command, or by
 an explicit allowlist entry with a recorded reason. Not by turning a pack off.
@@ -81,14 +84,16 @@ smoke test. All checks must pass, and hook wiring must report exactly one dcg ho
 **A green line here is a weaker claim than it looks.** `dcg doctor` verifies *installation*, not
 *posture*. With no config file it reports `USING DEFAULTS` as a pass; with one it reports
 `OK (1 file source)` — which confirms a config loaded, not that it says the right things. Nothing
-in `ms status` currently checks that `fail_closed` is true, that the intended packs are enabled, or
-that a newly installed harness has been dcg-wired. Those gaps are real and unclosed; the table
-above is the record of what *should* be true, and `dcg config` is how you confirm it by hand.
+checks that `fail_closed` is true or that the intended packs are enabled; the table above is the
+record of what *should* be true, and `dcg config` is how you confirm it by hand.
+
+`--strict` is not optional here. Plain `dcg doctor` exits 0 **even when its checks fail**, so a
+record using it would report this guard as healthy no matter what went wrong.
 
 ```toml
 group      = "Safety"
 version    = "dcg --version"
-check      = "dcg doctor"
+check      = "dcg doctor --strict"
 ok         = "active"
 fail       = "degraded"
 missing    = "not installed"

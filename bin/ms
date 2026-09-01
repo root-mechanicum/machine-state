@@ -403,6 +403,7 @@ def cmd_status(_argv):
 
     tools = read_tool_checks()
     observed = {}
+    unguarded = []
     if tools:
         groups = {}
         for tool in tools:
@@ -420,7 +421,7 @@ def cmd_status(_argv):
                         if tool.get("version_re"):
                             m = re.search(tool["version_re"], version)
                             version = m.group(1) if m and m.groups() else version
-                verdict = "unknown"
+                verdict, rc = "unknown", None
                 if tool.get("check"):
                     rc, _ = run(tool["check"])
                     if rc == 0:
@@ -431,13 +432,33 @@ def cmd_status(_argv):
                         verdict = tool.get("missing", "unknown")
                     else:
                         verdict = tool.get("fail", "not configured")
-                print(f"  {tool['name']:<8} {version:<12} {verdict}")
+
+                # A harness that is present but not covered by the command guard is a
+                # louder problem than anything else on this line, so it fails the run.
+                # Absent tools are skipped: what is not installed cannot be unguarded.
+                guarded = None
+                if tool.get("wiring") and rc is not None:
+                    guarded = run(tool["wiring"])[0] == 0
+                    if not guarded:
+                        unguarded.append(tool["name"])
+
+                suffix = "" if guarded is not False else "   ** UNGUARDED **"
+                print(f"  {tool['name']:<8} {version:<12} {verdict}{suffix}")
                 observed[tool["name"]] = {"version": version, "status": verdict}
+                if guarded is not None:
+                    observed[tool["name"]]["guarded"] = guarded
     else:
         print("\n(no canonical/tooling records yet; nothing to verify)")
 
     write_atomic(TOOLSTATE, (json.dumps(
         {"schema": 1, "tooling": observed}, indent=2, sort_keys=True) + "\n").encode())
+
+    if unguarded:
+        print(f"\n{', '.join(unguarded)}: installed but not covered by the command guard.",
+              file=sys.stderr)
+        print("Wire it before trusting an agent in it — see canonical/tooling/dcg.md.",
+              file=sys.stderr)
+        return 1
     return 0
 
 

@@ -32,13 +32,22 @@ Ours by narrow region only:
 
 ## Verification
 
-Presence and version from the binary; integration health from bd's own recipe check.
+Presence and version from the binary; integration health from bd's own recipe check; and a
+`wiring` check that this harness is actually covered by the command guard. A harness that is
+installed but unwired makes `ms status` exit non-zero.
+
+The wiring check is `dcg doctor --strict`, the same command the dcg record uses, because dcg's
+doctor is Claude-specific today — it verifies Claude Code settings and hook registration and
+nothing else. The two lines answer different questions (is the guard healthy / is *this harness*
+guarded) and will diverge as soon as a second harness exists. Note the `--strict`: plain
+`dcg doctor` exits 0 even when its checks fail.
 
 ```toml
 group      = "Harnesses"
 version    = "claude --version"
 version_re = "([0-9][0-9.]*)"
 check      = "bd setup claude --check"
+wiring     = "dcg doctor --strict"
 ok         = "integrated"
 fail       = "integration stale"
 missing    = "not installed"
