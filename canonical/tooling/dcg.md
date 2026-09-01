@@ -43,15 +43,18 @@ rather than merely stated: a harness record may declare a `wiring` command, and 
 installed but unwired makes `ms status` exit non-zero. Absent harnesses are skipped — what is not
 installed cannot be unguarded.
 
-**This intent is currently unmet, but reachable.** dcg is proven to work with Codex: a
-`PreToolUse` entry fired and the command reached the journal tagged `codex-cli`. What stands in
-the way is hook trust plus file ownership, not capability — see `canonical/tooling/codex.md`.
-Claude is wired; Codex, installed 2026-09-01, is not, and
-`ms status` reports it as `** UNGUARDED **` and exits non-zero. The obstacle is structural: Codex
-reads hooks only from two files that `bd setup codex` owns, and JSON offers no marker for
-co-ownership. See `canonical/tooling/codex.md`. Note the narrower true claim — Codex is not
-unguarded in the absolute, since it ships its own `codex sandbox`; it is not guarded by *this*
-boundary, which is a lesser thing than this record otherwise implies.
+**This intent is currently unmet, but reachable.** Claude is wired. Codex, installed 2026-09-01,
+is not: `ms status` reports it `** UNGUARDED **` and exits non-zero.
+
+Capability is not the problem — dcg is *proven* to work with Codex, firing as a `PreToolUse` hook
+with the command reaching the journal tagged `codex-cli`. Two narrower things stand in the way:
+Codex will not run a hook whose SHA-256 it has not recorded as trusted, and `bd setup codex` owns
+both files a hook could go in. Neither is a dead end; both are recorded in
+`canonical/tooling/codex.md`.
+
+Note the narrower true claim while it stands. Codex is not unguarded in the absolute — it ships
+its own `codex sandbox`. It is not guarded by *this* boundary, which is a lesser thing than the
+Role section above otherwise implies.
 
 **Never disabled to get a command through.** A refusal is answered by narrowing the command, or by
 an explicit allowlist entry with a recorded reason. Not by turning a pack off.
