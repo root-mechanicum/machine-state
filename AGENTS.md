@@ -123,7 +123,9 @@ needed to avoid a hang — reach for it only when force is actually meant.
 **A refusal from `dcg` is answered by narrowing the command**, or by an allowlist entry with a
 recorded reason — never by disabling the guard. See `canonical/tooling/dcg.md`.
 
-**In this harness:** there is no SessionStart injection, so run `bd prime` explicitly when beads
-context is missing or stale. The beads skill is at `.agents/skills/beads/SKILL.md`. Codex 0.129.0+
-supports native hooks, which can be inspected or toggled with `/hooks`.
+**In this harness:** beads context loads through native hooks — `bd setup codex` registered
+`SessionStart`, `UserPromptSubmit`, `PreCompact` and `PostCompact` in `.codex/hooks.json`, and
+`.codex/config.toml` sets `features.hooks = true`. Inspect or toggle them with `/hooks`; run
+`bd prime` by hand only if that context is missing or stale. The beads skill is at
+`.agents/skills/beads/SKILL.md`.
 <!-- END MACHINE-STATE POLICY -->
