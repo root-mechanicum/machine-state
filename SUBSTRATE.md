@@ -15,6 +15,29 @@ auditability are kept independent of any single harness precisely so that *the a
 swapped without renegotiating how the machine is governed. If replacing the agent means
 re-deciding what it may touch, the substrate has failed.
 
+### What "operated" means here, and what it does not
+
+Operated means **reactive and scheduled**: an agent acts because something happened — mail
+arrived, a process crashed, a monitor was connected, a timer fired — and it acts through a
+bounded capability whose authority is declared in advance. A timer is just another event, so
+one model covers both.
+
+It does **not** mean sustained autonomous work: an agent turned loose on a backlog for hours,
+unsupervised. That is a real thing to want and a genuinely different problem — it needs admission
+control, scope freezing, budgets, and an answer for what an agent's death means. It belongs on a
+machine dedicated to it, as its own system, and this repository should not grow toward it.
+
+The distinction is load-bearing rather than fussy. Reactive and scheduled work needs no admission
+control, because the event *is* the admission decision and the payload bounds the scope. The
+failure modes that dominate sustained autonomy — an agent running for an hour producing nothing,
+or dying with uncommitted work — are properties of long-lived agents and simply do not arise
+here. Conflating the two would import all of that machinery to solve problems this machine does
+not have.
+
+Note also that **unattended is not the same as auto-approved.** A capability that runs on an event
+without a human present is not an agent holding blanket permission; what makes it safe is that its
+consequence class was declared before it ran.
+
 ## The contract
 
 `machine-state` is the canonical source of truth for this workstation's configuration and agent
@@ -272,6 +295,9 @@ Deliberately out of scope. Each is a decision, not an oversight.
   include mechanism, TOML forbids the duplicate keys an override would need, and its config is
   likely app-written. See `machine-state-uvc`.
 - No multi-machine or cross-machine sync.
+- No sustained autonomous agent work — no admission control, scope freezing, budgets, or death
+  interpretation. Reactive and scheduled operation only; see Purpose. A machine dedicated to
+  unattended grinding is a different system and should stay one.
 - No secrets management.
 - No LLM in the projection loop. `bin/ms` is deterministic; that is the point.
 - No daemon, no timer, no background process. `ms` runs when invoked.
