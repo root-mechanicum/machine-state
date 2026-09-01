@@ -1,6 +1,21 @@
 # SUBSTRATE.md
 
-The contract for how this repository governs the machine it describes.
+## Purpose
+
+This workstation is meant to be **operated** by agents — not merely to run them.
+
+The difference is the whole point. An agent delivered as an application is a tool you open
+alongside your other tools. An agent as a control surface is something the machine is arranged
+around: it holds window and workspace control, application use, services and notifications, and
+whatever comes after, as a policy-governed layer over the OS and the user session rather than a
+window on the desktop.
+
+Everything below serves that. Canonical policy, adapters, safety boundaries, provenance and
+auditability are kept independent of any single harness precisely so that *the agent* can be
+swapped without renegotiating how the machine is governed. If replacing the agent means
+re-deciding what it may touch, the substrate has failed.
+
+## The contract
 
 `machine-state` is the canonical source of truth for this workstation's configuration and agent
 policy. The resident agents are Claude Code, Codex, and whatever local agents come later; this
