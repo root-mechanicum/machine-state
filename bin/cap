@@ -814,6 +814,15 @@ def cmd_list(argv):
                 "unattended": UNATTENDED_AVAILABLE,
                 "unattended_reason":
                     "no enforcement or grant mechanism exists yet (machine-state-bru.5)",
+                # Stated rather than left to be inferred from enforcement=advisory.
+                # An agent reading a mutating action beside an `invoke.propose`
+                # string can reasonably conclude the proposal is required. It is
+                # not, and a convention the caller is free to skip should say so
+                # in the surface the caller actually reads.
+                "propose_required": False,
+                "propose_reason":
+                    "convention only: act does not check for a prior proposal "
+                    "(machine-state-bru.5)",
                 "declared": True,
                 "implemented": implemented,
                 "available": available,
@@ -869,8 +878,17 @@ def cmd_act(argv):
                       "unavailable" if implemented else "unimplemented")
     started = now()
     plan, outcome = prov[1](*( [args["role"]] if "role" in args else [] ))
-    # A person pressing a key has already expressed intent; an agent proposes
-    # first. Same action identity, different authorization context.
+    # CONVENTION, NOT ENFORCEMENT. Nothing above required a proposal, checked
+    # the consequence class, or consulted a grant: this line is reached whether
+    # the caller proposed or not. The convention is that a person pressing a key
+    # has already expressed intent while an agent proposes first, and it holds
+    # only because callers currently follow it.
+    #
+    # This comment used to state that convention as though it described the code,
+    # sitting directly above the call that ignores it. ENFORCEMENT and
+    # UNATTENDED_AVAILABLE are the honest report; a comment that contradicts them
+    # is worse than no comment, because it is read as documentation of behaviour.
+    # machine-state-bru.5 is where the requirement becomes real.
     record(action=name, caller=caller, phase="act", inputs=args,
            outcome=outcome, plan=plan, started=started)
     print(f"  {outcome}: {plan['detail']}"

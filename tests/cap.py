@@ -475,6 +475,28 @@ label  = "In the computed family"
               "1 read, 0 computed, 0 unrecognised of 1" in out,
               "counting it either way would be wrong")
 
+    # --- the catalogue does not overstate enforcement (8cy.5) ---------------
+
+    with Box() as b:
+        rc, out = b.cap("list", "--json")
+        cat = json.loads(out)
+        mutating = [a for a in cat if a["mutating"]]
+        check("33 the catalogue says propose is not required, rather than implying it",
+              rc == 0 and mutating
+              and all(a["propose_required"] is False for a in cat)
+              and all(a["enforcement"] == "advisory" for a in cat)
+              and all(a["unattended"] is False for a in cat),
+              "an agent reads this, and invoke.propose alone reads as a requirement")
+
+        # THIS ASSERTION IS MEANT TO FAIL when bru.5 lands. It records the
+        # current absence of enforcement as a fact rather than a comment, so
+        # making propose mandatory cannot happen without updating what the
+        # catalogue claims in the same change.
+        rc2, out2 = b.cap("act", "desktop.workspace.arrange")
+        check("34 act does not require a prior proposal — as the catalogue states",
+              "not implemented" in out2 and "propose" not in out2.lower(),
+              "reached the action without proposing; bru.5 must flip this and line 33 together")
+
     # --- negative controls -------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
 

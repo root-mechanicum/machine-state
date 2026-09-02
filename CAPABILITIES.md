@@ -287,6 +287,40 @@ Also inherited, unchanged:
 - **No agent spawning.** The broker invokes capabilities. It does not start agents, which is what
   would drag every one of the above back in.
 
+## 7.1 Accepted limitations, and what ends each acceptance
+
+Three properties of the current implementation are known, deliberate, and wrong to leave implicit.
+Acceptance that is not written down is indistinguishable from having missed the thing.
+
+**Roles are an execution path.** `role.command` reaches `subprocess.Popen` through `shlex.split`.
+There is no shell, so no injection, but an arbitrary executable with arbitrary arguments is exactly
+what a role declaration selects — that is what a role *is*. This is the same hole already recorded
+for `canonical/` in §6: anything that can edit canonical state and project it can widen its own
+rules. Recording it twice as though it were two problems would obscure that it is one.
+
+*Acceptance ends when* an agent may invoke actions unattended. At that point the boundary is no
+longer "a human authored this repository", and the command shape needs constraining — an allowlist
+of executables, or roles resolved against installed desktop entries rather than free text.
+
+**The action journal is not concurrency-safe.** `record()` opens `state/actions.jsonl` in append
+mode and writes: no lock, no `fsync`, no handling of a failed write. Appends under the pipe buffer
+size are atomic enough in practice for the current traffic, which is one attended invocation at a
+time.
+
+*Acceptance ends when* concurrent invocation arrives — that is, before the event work in
+`machine-state-bru.4`, not after it. A key, an agent and an event firing together is exactly the
+case this does not survive, and a corrupted corpus cannot be repaired retrospectively.
+
+**Generated bindings embed the absolute repository path.** `render_text` writes
+`/home/klaas/src/machine-state/bin/cap` into every binding, so relocating or renaming the
+repository breaks every key at once, silently, until one is pressed. This is a deliberate
+machine-local assumption: there is one canonical workstation and one clone of this repository on
+it.
+
+*Acceptance ends when* a second machine or a second clone exists, or when the repository moves. The
+fix is a stable installed command path rather than a resolved one, which is a packaging decision
+this project has not needed to make yet.
+
 ## 8. Open questions, in the order they matter
 
 1. ~~Where do grants live so agents cannot widen them?~~ **Answered 2026-09-02** — see §6. Root
