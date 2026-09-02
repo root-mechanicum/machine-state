@@ -109,8 +109,35 @@ def key_bindings():
     return out
 
 
+# Canonical modifier order. Hyprland does not care in which order a declaration
+# lists modifiers, so neither may we: SUPER + SHIFT + X and SHIFT + SUPER + X are
+# the same chord and must collide. Comparing the declared strings would miss it.
+MOD_ORDER = {"SUPER": 0, "CTRL": 1, "CONTROL": 1, "ALT": 2, "SHIFT": 3}
+
+
 def chord_of(b):
+    """The chord as DECLARED, for display."""
     return " + ".join(b["keys"])
+
+
+def normalize_chord(keys):
+    """The chord as MEANT, for comparison.
+
+    Modifiers sorted into a canonical order and upper-cased, the key last. Two
+    declarations that differ only in the order they list modifiers normalise to
+    one string and therefore conflict, which is what the compositor would do.
+    """
+    ks = [k.upper() for k in keys]
+    # dict.fromkeys de-duplicates while preserving order, so a declaration that
+    # lists a modifier twice normalises the same as one that lists it once.
+    mods = sorted(dict.fromkeys(k for k in ks if k in MOD_ORDER),
+                  key=lambda k: MOD_ORDER[k])
+    rest = [k for k in ks if k not in MOD_ORDER]
+    return " + ".join(mods + rest)
+
+
+def norm_of(b):
+    return normalize_chord(b["keys"])
 
 
 # ---------------------------------------------------------------- vendor chords
@@ -145,12 +172,18 @@ def check_chord(chord, ours=None):
     different one: the vendor case means do not take it, the self case means the
     declarations disagree with each other.
     """
-    v = vendor_chords()
-    if chord in v:
-        return False, f"vendor: {v[chord]}"
-    mine = [b for b in (ours if ours is not None else key_bindings()) if chord_of(b) == chord]
+    norm = normalize_chord(chord.split(" + ")) if isinstance(chord, str) else chord
+    v = {normalize_chord(k.split(" + ")): body for k, body in vendor_chords().items()}
+    if norm in v:
+        return False, f"vendor: {v[norm]}"
+    # Both claimants are named with their provenance, because "conflict" without
+    # saying which two declarations conflict leaves the reader to grep for it.
+    mine = [b for b in (ours if ours is not None else key_bindings()) if norm_of(b) == norm]
     if len(mine) > 1:
-        return False, f"declared {len(mine)}x by us: " + ", ".join(b["action"] for b in mine)
+        who = "; ".join(f"{b['action']} ({b.get('_source','?')}"
+                        + (f", declared as {chord_of(b)}" if chord_of(b) != norm else "") + ")"
+                        for b in mine)
+        return False, f"claimed {len(mine)}x by us: {who}"
     return True, None
 
 

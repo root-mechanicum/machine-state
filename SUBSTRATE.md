@@ -224,6 +224,14 @@ cannot fail reports green for the wrong reason, which is the exact failure these
 prevent — and one that has already happened here once, when a record used a command that exits `0`
 even when its own checks fail.
 
+**A negative control must disable exactly the mechanism under test, and demonstrate that the
+positive assertion would then miss the defect.** Anything less manufactures confidence. This has
+been got wrong twice here: once by disabling an existence check rather than the comparison beneath
+it, so the code fell through to a different error and a problem was still reported; and once by
+asserting on an exit code that two independent mechanisms could set, so the control passed for the
+wrong reason. Both times the control looked correct and tested nothing. When a control passes,
+confirm it passed *because* the mechanism was disabled.
+
 ### Attribution
 
 `ms diff` answers *what* differs. For an agent acting as a control surface, the useful question is

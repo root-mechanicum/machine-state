@@ -73,7 +73,8 @@ class Box:
         out = []
         for b in entries:
             out.append("[[key_binding]]")
-            out.append('keys   = ["%s", "%s"]' % tuple(b["keys"]))
+            # any arity, not just two — a chord may carry several modifiers
+            out.append("keys   = [" + ", ".join(f'"{k}"' for k in b["keys"]) + "]")
             out.append('action = "%s"' % b["action"])
             if b.get("args"):
                 out.append('args   = { role = "%s" }' % b["args"]["role"])
@@ -126,6 +127,66 @@ def main():
         b.cap("render")
         check("6  same input yields the same bytes", one == b.artifact())
 
+    # --- conflict pressure (bru.7.3) ---------------------------------------
+    with Box() as b:
+        p = b.repo / "canonical/bindings/keys.toml"
+        p.write_text(p.read_text() + '''
+[[key_binding]]
+keys   = ["SUPER", "SHIFT", "X"]
+action = "desktop.window.list"
+label  = "One order"
+
+[[key_binding]]
+keys   = ["SHIFT", "SUPER", "X"]
+action = "desktop.window.list"
+label  = "The other order"
+''')
+        rc, out = b.cap("check")
+        check("7  equivalent modifier orders collide",
+              rc != 0 and "CONFLICT" in out,
+              "SUPER+SHIFT+X and SHIFT+SUPER+X are one chord")
+        check("8  both claimants are named with their provenance",
+              out.count("keys.toml") >= 2 and "declared as" in out)
+
+        # removing one claimant restores validity, and touches nothing else
+        keep = [k for k in b.bindings() if k["keys"] != ["SHIFT", "SUPER", "X"]]
+        b.write_bindings(keep)
+        b.cap("render")   # else check fails on staleness, not on a conflict
+        rc, out = b.cap("check")
+        check("9  removing one claimant restores validity",
+              rc == 0 and "CONFLICT" not in out and out.count("ok   ") >= len(keep),
+              f"{len(keep)} bindings, none conflicting")
+
+    with Box() as b:
+        # coordinated rename: action and every reference together
+        for f in ("canonical/actions/desktop.toml", "canonical/bindings/keys.toml"):
+            q = b.repo / f
+            q.write_text(q.read_text().replace("desktop.application.ensure", "desktop.app.open"))
+        rc, _ = b.cap("render")
+        art = b.artifact()
+        first = art
+        b.cap("render")
+        check("10 coordinated rename succeeds and drops the old identity",
+              rc == 0 and "application.ensure" not in art and "desktop.app.open" in art
+              and art == b.artifact(), f"exit={rc}, deterministic")
+
+    with Box() as b:
+        # THE RACE: vendor claims the chord after render, before project.
+        # cap render re-reads vendor state so it cannot render into a KNOWN
+        # conflict, but nothing stops the vendor changing afterwards.
+        vend = b.dir / ".config/hypr/config"
+        vend.mkdir(parents=True, exist_ok=True)
+        (vend / "binds.lua").write_text('-- fake\n')
+        b.cap("render")
+        rc_before, _ = b.cap("check")
+        (vend / "binds.lua").write_text(
+            '-- fake\nhl.bind(mainMod .. " + M", hl.dsp.exec_cmd("something-else"))\n')
+        rc_after, out = b.cap("check")
+        check("11 a vendor claim after render is detected, not prevented",
+              rc_before == 0 and rc_after != 0 and "CONFLICT" in out
+              and "ok       artifact" in out,
+              "artifact is not stale — the world changed, not the file")
+
     # --- negative controls -------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
 
@@ -155,6 +216,31 @@ def main():
         check("Xn a broken surface never resembles an empty one",
               rc != 0 and stdout_only.stdout.strip() == "" and "could not be built" in out,
               "no header, no partial rows, clear error, non-zero exit")
+
+    with Box() as b:
+        # Disable normalisation itself, so chords are compared as declared.
+        cap = b.repo / "bin" / "cap"
+        cap.write_text(cap.read_text().replace(
+            '    mods = sorted(dict.fromkeys(k for k in ks if k in MOD_ORDER),\n'
+            '                  key=lambda k: MOD_ORDER[k])',
+            '    mods = [k for k in ks if k in MOD_ORDER]'))
+        p = b.repo / "canonical/bindings/keys.toml"
+        p.write_text(p.read_text() + '''
+[[key_binding]]
+keys   = ["SUPER", "SHIFT", "X"]
+action = "desktop.window.list"
+label  = "One order"
+
+[[key_binding]]
+keys   = ["SHIFT", "SUPER", "X"]
+action = "desktop.window.list"
+label  = "The other order"
+''')
+        b.cap("render")   # isolate the control from the staleness check
+        rc, out = b.cap("check")
+        check("7n normalisation disabled -> assertion 7 fails",
+              rc == 0 and "CONFLICT" not in out,
+              "equivalent orders no longer collide, as expected")
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
