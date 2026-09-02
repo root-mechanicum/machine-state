@@ -83,8 +83,14 @@ once the log justifies it, is the last step of this decision — not a separate 
 **Layer.** The posture lives in `~/.config/dcg/config.toml`, the only layer that applies to every
 directory rather than one repository. It is authored by hand and **deliberately not projected**:
 that layer has full control and can *loosen* as well as tighten, so a bad edit in `canonical/`
-would let `ms project` silently weaken the boundary. The substrate does not get authority over the
-guard that sits beneath it. A project-level `.dcg.toml` is different — dcg treats it as
+would let `ms project` silently weaken the boundary.
+
+**Be precise about what that buys, because it is less than it sounds.** Not projecting this file
+keeps `ms` out of it. It does **not** keep an agent out of it: the file is owned by this user and
+mode 644, and a write setting `fail_closed = false` tests as `ALLOWED` — dcg does not guard its own
+configuration. So this is a convention that prevents *systematic* weakening through projection, not
+a boundary that prevents deliberate weakening. The only real boundary on this machine is root
+ownership; see `CAPABILITIES.md` §6. A project-level `.dcg.toml` is different — dcg treats it as
 enforcement-only, able to tighten but never loosen — and would therefore be safe to manage from
 `canonical/` if per-repo tightening is ever wanted.
 

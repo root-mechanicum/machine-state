@@ -170,8 +170,30 @@ There is no daemon here to compile into, so the split is by file:
 | **grants** | **not agents** | which bindings may run unattended, at which class |
 
 A capability declaring itself `observe` means nothing unless a grant outside agent reach agrees.
-The mechanism for that is unresolved — see §8 — and it is the single most important open question
-here, not a detail.
+
+**Grants live at `/etc/machine-state/grants.toml`, root-owned.** That is the only boundary
+available on this machine, and it was chosen after establishing what the alternatives actually are
+rather than by preference:
+
+- Everything under `$HOME` is agent-writable — *including dcg's own config*. A write setting
+  `fail_closed = false` tests as `ALLOWED`. Not projecting a file keeps `ms` out of it; it does not
+  keep an agent out of it.
+- dcg's config layering cannot substitute. Its system layer, `/etc/dcg/config.toml`, is the
+  **lowest** priority, so a user-writable `~/.config/dcg/config.toml` overrides it. Only the
+  project-level `.dcg.toml` is enforcement-only, and that lives in the agent-writable repository.
+- `sudo` requires a password here (`sudo -n true` exits 1). Root is therefore a real boundary, and
+  the only one, absent new machinery.
+
+The **directory** must be root-owned too, not merely the file. Deleting a file needs write
+permission on its directory, so a user-writable directory would let an agent replace the grants
+wholesale while the file itself still looked correctly owned.
+
+**Fail-closed, and absence is the safe initial state.** No grants file means nothing runs
+unattended. That is not a degraded condition to be fixed; it is where the machine should start.
+
+**The substrate verifies its own boundary.** `ms status` reports the grants state and exits
+non-zero if the file or its directory has become writable by this user. A boundary that cannot
+report its own compromise is not one.
 
 Also inherited, unchanged:
 
@@ -193,9 +215,9 @@ Also inherited, unchanged:
 
 ## 8. Open questions, in the order they matter
 
-1. **Where do grants live so agents cannot widen them?** Candidates: a root-owned file; or dcg's
-   *enforcement-only* pattern, where a project-level file can tighten but never loosen — the one
-   shape that is provably safe to hand an agent. Unresolved, and everything else rests on it.
+1. ~~Where do grants live so agents cannot widen them?~~ **Answered 2026-09-02** — see §6. Root
+   ownership, verified as a real boundary, with the substrate checking its own boundary and the
+   check proven able to fail.
 2. **Does the broker need to be resident?** Listening to a socket implies a process, and a process
    implies exactly the lifecycle concerns this design avoids elsewhere. A systemd user unit is the
    obvious answer; `Linger=no` on this machine means it lives only inside the login session, which

@@ -26,6 +26,12 @@ TOOLING = REPO / "canonical" / "tooling"
 STATE = REPO / "state" / "projection.json"
 TOOLSTATE = REPO / "state" / "tooling.json"
 
+# Grants say what may run unattended. They cannot live in canonical/: that is
+# agent-writable by design, so an agent could widen its own authority. Root
+# ownership is the only boundary available on this machine without new
+# machinery — verified 2026-09-02, sudo requires a password here.
+GRANTS = pathlib.Path("/etc/machine-state/grants.toml")
+
 # marker wrappers, composed from `marker` + `comment` alone — never inferred from the file
 COMMENT = {
     "html": ("<!-- BEGIN {m} -->", "<!-- END {m} -->"),
@@ -475,6 +481,30 @@ def line_delta(t):
     return add, rem
 
 
+def grants_state():
+    """(label, intact) — is the authority boundary standing?
+
+    Two things are checked, not one. A file we cannot write is not enough: on
+    POSIX, deleting a file needs write permission on its DIRECTORY, so a
+    user-writable directory would let an agent replace the grants wholesale
+    while the file itself looked correctly owned.
+
+    Absence is safe and reported as such. Fail-closed means no grants is not a
+    degraded state, it is the initial one: nothing runs unattended until
+    something outside the agent's reach says otherwise.
+    """
+    d = GRANTS.parent
+    if not d.exists():
+        return f"no grants — nothing may run unattended ({d} absent)", True
+    if os.access(d, os.W_OK):
+        return f"COMPROMISED: {d} is writable by this user; grants can be replaced", False
+    if not GRANTS.exists():
+        return f"no grants — nothing may run unattended ({d} is root-owned)", True
+    if os.access(GRANTS, os.W_OK) or GRANTS.stat().st_uid != 0:
+        return f"COMPROMISED: {GRANTS} is writable by this user", False
+    return "intact — root-owned, readable, not writable by this user", True
+
+
 def cmd_propose(_argv):
     """Dry run. What would `ms project` change, and why — changing nothing.
 
@@ -583,6 +613,9 @@ def cmd_status(_argv):
     for k, rec in orphans(state, targets):
         print(f"  {'-':<8} {rec.get('kind', '?'):<7} {k:<34} orphan  (no adapter claims it any more)")
 
+    label, intact = grants_state()
+    print(f"\nBoundary\n  grants   {'':<12} {label}")
+
     tools = read_tool_checks()
     observed = {}
     unguarded = []
@@ -634,6 +667,13 @@ def cmd_status(_argv):
 
     write_atomic(TOOLSTATE, (json.dumps(
         {"schema": 1, "tooling": observed}, indent=2, sort_keys=True) + "\n").encode())
+
+    if not intact:
+        print("\nThe authority boundary is compromised. Grants decide what may run",
+              file=sys.stderr)
+        print("unattended; if this user can write them, an agent can widen its own.",
+              file=sys.stderr)
+        return 1
 
     if unguarded:
         print(f"\n{', '.join(unguarded)}: installed but not covered by the command guard.",
