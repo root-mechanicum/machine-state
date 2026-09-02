@@ -184,6 +184,19 @@ So `cap check` has three states, not two: `ok`, `CONFLICT`, and `UNKNOWN` — th
 whose modifier set matches a binding whose key is computed. Calling it free would be a claim the
 evidence does not support; calling it conflicted would refuse work on a guess.
 
+**The accounting is checked against the file, not against a fixture.** Every mention of `hl.bind`
+in code must become a call site, and every call site must land in *resolved* or *unreadable*. When
+the counts disagree, the difference is reported as **unrecognised** — the file writes a binding in a
+shape this parser does not know, and that binding holds a real chord. `cap check` prints the
+arithmetic on every run (`72 read, 3 computed, 0 unrecognised of 75`), and `cap render` refuses,
+on the same footing as `UNKNOWN`: we cannot show those chords are free.
+
+The cost is deliberate and worth naming. A vendor grammar change will block rendering until the
+parser is taught the new shape. The alternative is projecting keys while blind to what holds them,
+and this file has already demonstrated which of those failures is worse. A test could only ever
+prove the parser handles shapes someone thought of; this notices the day the vendor writes one
+nobody did.
+
 This is not a presentational preference. The parser that produced the pretty version read 30 of the
 75 bindings and silently discarded the other 45 — which meant `cap check` reported 45 vendor-held
 chords as **free**. The safeguard and the display are the same parse, and a parser that drops what

@@ -296,6 +296,39 @@ def _resolve(expr, consts):
     return "".join(out)
 
 
+def _code_lines(text):
+    """Lines that are not whole-line comments. A commented-out bind is not a binding."""
+    return [(n, l) for n, l in enumerate(text.splitlines(), 1)
+            if not l.lstrip().startswith("--")]
+
+
+def _bind_sites(text):
+    """Every `hl.bind(` call site, including several on one line.
+
+    Scanning per line and taking only the first match would undercount silently,
+    which is the failure this whole function exists to make impossible.
+    """
+    sites = []
+    for n, line in _code_lines(text):
+        i = line.find("hl.bind(")
+        while i >= 0:
+            sites.append((n, line[i + len("hl.bind("):]))
+            i = line.find("hl.bind(", i + 1)
+    return sites
+
+
+def _mentions(text):
+    """Every mention of hl.bind in code, however it is written.
+
+    The accounting check compares this against the call sites found. They differ
+    exactly when the file writes a binding in a shape the scanner does not
+    recognise — `hl.bind (x)` with a space, a call opened at the end of a line,
+    an alias like `local b = hl.bind`. Those bindings hold real chords, and
+    counting only what we can parse would report the rest as free.
+    """
+    return sum(l.count("hl.bind") for _, l in _code_lines(text))
+
+
 def vendor_bindings():
     """Every hl.bind in the compositor's configuration, with its provenance.
 
@@ -303,22 +336,24 @@ def vendor_bindings():
     for ever: a CachyOS update can claim it, and a preview that trusted a stale
     observation would document a binding that no longer behaves as described.
 
-    Returns (resolved, unresolved). The second list is not a parser failure to be
-    swallowed — it is the honest count of bindings this file holds that cannot be
-    read statically, and both the preview and check must say so. Silently
-    dropping them is what made 45 vendor-held chords read as free.
+    Returns (resolved, unresolved, unrecognised). Neither of the last two is a
+    parser failure to be swallowed. `unresolved` is the honest count of bindings
+    whose chord is assembled at load time; `unrecognised` is the count of
+    hl.bind mentions this scanner could not turn into call sites at all —
+    the shape that would otherwise vanish. Both the preview and check must say
+    so. Silently dropping bindings is what made 45 vendor-held chords read as
+    free, and the invariant below is what stops that recurring for a shape
+    nobody has seen yet.
     """
     if not VENDOR_BINDS.exists():
-        return {}, []
+        return {}, [], 0
     text = VENDOR_BINDS.read_text()
     src = str(VENDOR_BINDS).replace(str(pathlib.Path.home()), "~")
     consts = dict(re.findall(r'^local\s+(\w+)\s*=\s*"([^"]*)"', text, re.M))
     resolved, unresolved = {}, []
-    for n, line in enumerate(text.splitlines(), 1):
-        i = line.find("hl.bind(")
-        if i < 0:
-            continue
-        first, rest = _split_top(line[i + len("hl.bind("):])
+    sites = _bind_sites(text)
+    for n, tail in sites:
+        first, rest = _split_top(tail)
         # MINIMAL normalisation only: trim whitespace, then the single trailing
         # paren that closes hl.bind itself, so the expression stays balanced.
         # Nothing here tries to infer that a command means "open the file
@@ -334,11 +369,18 @@ def vendor_bindings():
         declared = " + ".join(k.strip() for k in chord.split("+") if k.strip())
         resolved.setdefault(normalize_chord([k.strip() for k in chord.split("+")]),
                             {**rec, "declared": declared})
-    return resolved, unresolved
+    # THE ACCOUNTING INVARIANT, checked against the live file rather than against
+    # a fixture. A test can only prove the parser handles shapes someone thought
+    # of; this notices the day the vendor writes one nobody did.
+    return resolved, unresolved, max(0, _mentions(text) - len(sites))
 
 
 def vendor_chords():
     return vendor_bindings()[0]
+
+
+def vendor_unrecognised():
+    return vendor_bindings()[2]
 
 
 def unreadable_risk(norm, unreadable=None):
@@ -857,7 +899,7 @@ def cmd_preview(_argv):
     """
     try:
         acts = actions()
-        vend, unreadable = vendor_bindings()
+        vend, unreadable, unrecognised = vendor_bindings()
         owned, mine = [], key_bindings()
         for b in mine:
             chord, a = chord_of(b), acts.get(b["action"])
@@ -900,6 +942,10 @@ def cmd_preview(_argv):
             conflict = "CONFLICT" if norm in claimed else "-"
             print(f"  {e['declared']:<{w2}}  {':' + str(e['line']):<6} {conflict:<9} {e['raw']}")
 
+    if unrecognised:
+        print(f"\n  UNRECOGNISED — {unrecognised} mention(s) of hl.bind that this parser could not")
+        print("  read as a call site. The file's grammar has moved; chords may be hidden in them.")
+
     if unreadable:
         print(f"\n  UNREADABLE — {len(unreadable)} binding(s) whose chord is assembled at load time")
         print("  These hold chords that cannot be listed above, so this table is not the whole keymap.")
@@ -939,6 +985,15 @@ def cmd_check(_argv):
     for chord, role in dangling_roles():
         print(f"  DANGLING {chord:<18} role={role}  <- no such role")
         problems.append(f"{chord} references missing role {role!r}")
+
+    _, unreadable_v, unrecognised = vendor_bindings()
+    total = len(vendor_chords()) + len(unreadable_v) + unrecognised
+    state = "ok      " if not unrecognised else "UNKNOWN "
+    print(f"  {state} {'vendor':<18} {len(vendor_chords())} read, "
+          f"{len(unreadable_v)} computed, {unrecognised} unrecognised of {total} binding(s)")
+    if unrecognised:
+        problems.append(f"{unrecognised} hl.bind mention(s) were not recognised as call sites; "
+                        f"the vendor file's grammar has moved and chords may be hidden in them")
 
     if RENDERED.exists():
         on_disk, expected = RENDERED.read_text(), render_text()
@@ -994,14 +1049,14 @@ def cmd_render(_argv):
     # noticing a line of output; refusing puts it on choosing a different chord.
     # The refusal names the vendor line so that choice is informed.
     mine = key_bindings()
-    unreadable = vendor_bindings()[1]
+    _, unreadable, unrecognised = vendor_bindings()
     conflicts = [chord_of(b) for b in mine if not check_chord(chord_of(b), mine)[0]]
     unknown = [(chord_of(b), r[0]) for b in mine
                if check_chord(chord_of(b), mine)[0]
                and (r := unreadable_risk(norm_of(b), unreadable))]
     dang = dangling_bindings()
     dangr = dangling_roles()
-    if conflicts or unknown or dang or dangr:
+    if conflicts or unknown or dang or dangr or unrecognised:
         for c in conflicts:
             print(f"cap: chord {c} conflicts", file=sys.stderr)
         for c, why in unknown:
@@ -1010,6 +1065,14 @@ def cmd_render(_argv):
             print(f"cap: {chord} references missing action {name!r}", file=sys.stderr)
         for chord, role in dangr:
             print(f"cap: {chord} references missing role {role!r}", file=sys.stderr)
+        if unrecognised:
+            # Same footing as UNKNOWN: we cannot show these chords are free.
+            # The cost is real — a vendor grammar change blocks rendering until
+            # the parser is taught the new shape — and it is the right cost.
+            # The alternative is projecting keys while blind to what holds them.
+            print(f"cap: {unrecognised} hl.bind mention(s) in {VENDOR_BINDS} are not "
+                  f"recognised as call sites; teach the parser the new shape before "
+                  f"rendering", file=sys.stderr)
         die("refusing to render; the previous artifact is left untouched", 1)
     data = render_text().encode()
     RENDERED.parent.mkdir(parents=True, exist_ok=True)

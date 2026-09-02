@@ -35,6 +35,19 @@ def check(name, ok, detail=""):
     return ok
 
 
+def patch(path, old, new):
+    """Rewrite a file for a negative control, asserting the edit actually landed.
+
+    A control whose anchor has drifted replaces nothing, leaves the mechanism
+    intact, and PASSES — reporting that a disabled check still fails when it was
+    never disabled. See tests/cap.py, where that happened twice in one session.
+    """
+    text = path.read_text()
+    if old not in text:
+        raise AssertionError(f"negative control anchor not found: {old[:70]!r}")
+    path.write_text(text.replace(old, new))
+
+
 class Sandbox:
     def __enter__(self):
         self.dir = pathlib.Path(tempfile.mkdtemp(prefix="ms-acceptance-"))
@@ -204,9 +217,9 @@ def main():
     print("\n  negative controls (the mechanism is broken on purpose):")
     with Sandbox() as box:
         ms = box.repo / "bin" / "ms"
-        ms.write_text(ms.read_text().replace(
-            'return (OK, "region matches") if have == region(t) else (DRIFT, "region differs")',
-            'return OK, "region matches"'))
+        patch(ms,
+              'return (OK, "region matches") if have == region(t) else (DRIFT, "region differs")',
+              'return OK, "region matches"')
         box.ms("project")
         p = box.repo / "CLAUDE.md"
         p.write_bytes(box.read("CLAUDE.md").replace(b"<!-- END MACHINE-STATE POLICY -->",
@@ -217,7 +230,7 @@ def main():
 
     with Sandbox() as box:
         ms = box.repo / "bin" / "ms"
-        ms.write_text(ms.read_text().replace("    return status != FOREIGN", "    return True"))
+        patch(ms, "    return status != FOREIGN", "    return True")
         foreign = box.repo / "HANDWRITTEN.md"
         foreign.write_bytes(b"a human wrote this and it was never projected\n")
         (box.repo / "adapters" / "zz-scratch.toml").write_text(
@@ -232,8 +245,8 @@ def main():
         # Remove the enforcement, leaving the rule as prose again — which is the
         # state that let a generated file become a canonical source unnoticed.
         ms = b.repo / "bin" / "ms"
-        ms.write_text(ms.read_text().replace(
-            "            for rel in t[\"sources\"]:\n                check_source(t, rel)\n", ""))
+        patch(ms, "            for rel in t[\"sources\"]:\n"
+                  "                check_source(t, rel)\n", "")
         man = b.repo / "adapters" / "src.toml"
         man.write_text('[[target]]\nkind    = "render"\npath    = "~/.probe"\n'
                        'sources = ["CLAUDE.md"]\n')

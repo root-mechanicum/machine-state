@@ -40,6 +40,21 @@ def check(name, ok, detail=""):
     return ok
 
 
+def patch(path, old, new):
+    """Rewrite a file for a negative control, asserting the edit actually landed.
+
+    A control whose anchor has drifted replaces nothing, leaves the mechanism
+    intact, and PASSES — reporting that a disabled check still fails when it was
+    never disabled. That happened twice here in one session, both times because
+    a composite condition gained another term. So the anchor is verified rather
+    than trusted, and controls anchor on the smallest thing they mean to break.
+    """
+    text = path.read_text()
+    if old not in text:
+        raise AssertionError(f"negative control anchor not found: {old[:70]!r}")
+    path.write_text(text.replace(old, new))
+
+
 class Box:
     def __enter__(self):
         self.dir = pathlib.Path(tempfile.mkdtemp(prefix="cap-lifecycle-"))
@@ -422,6 +437,44 @@ label  = "In the computed family"
               and "missing role" in out2,
               "check reports it and render refuses, rather than the key dying on press")
 
+    # --- the accounting invariant, on the input (8cy.7) ---------------------
+
+    TWO_ON_A_LINE = ('local mainMod = "SUPER"\n'
+                     'hl.bind(mainMod .. " + E", a()) hl.bind(mainMod .. " + F", b())\n')
+    ODD_SHAPE     = ('local mainMod = "SUPER"\n'
+                     'hl.bind(mainMod .. " + E", a())\n'
+                     'hl.bind (mainMod .. " + F", b())\n')   # space before the paren
+    COMMENTED     = ('local mainMod = "SUPER"\n'
+                     '-- hl.bind(mainMod .. " + E", a())\n'
+                     'hl.bind(mainMod .. " + F", b())\n')
+
+    with Box() as b:
+        with_vendor(b, TWO_ON_A_LINE)
+        rc, out = b.cap("check")
+        check("29 several call sites on one line are all found",
+              "2 read, 0 computed, 0 unrecognised of 2" in out,
+              "scanning per line and taking the first would undercount silently")
+
+    with Box() as b:
+        with_vendor(b, ODD_SHAPE)
+        rc, out = b.cap("check")
+        before = b.artifact()
+        rc2, out2 = b.cap("render")
+        check("30 a shape the parser cannot read is counted, not dropped",
+              "1 unrecognised" in out and rc != 0,
+              "the file mentions hl.bind twice and yields one call site")
+        check("31 an unrecognised shape refuses to render",
+              rc2 != 0 and "not recognised as call sites" in out2
+              and b.artifact() == before,
+              "a chord may be hidden in it, so it cannot be shown free")
+
+    with Box() as b:
+        with_vendor(b, COMMENTED)
+        rc, out = b.cap("check")
+        check("32 a commented-out bind is neither a binding nor unrecognised",
+              "1 read, 0 computed, 0 unrecognised of 1" in out,
+              "counting it either way would be wrong")
+
     # --- negative controls -------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
 
@@ -431,8 +484,8 @@ label  = "In the computed family"
         # `if RENDERED.exists()` falls through to the elif that reports a
         # missing artifact, so a problem is still raised and the control would
         # test nothing. The first attempt did exactly that.
-        cap.write_text(cap.read_text().replace(
-            "        if on_disk != expected:", "        if False:"))
+        patch(cap,
+            "        if on_disk != expected:", "        if False:")
         b.cap("render")
         (b.repo / ART).write_text("-- hand edited, nothing else\n")
         rc, _ = b.cap("check")
@@ -442,9 +495,9 @@ label  = "In the computed family"
     with Box() as b:
         # the failure that made a broken surface look like an empty one
         cap = b.repo / "bin" / "cap"
-        cap.write_text(cap.read_text().replace(
+        patch(cap,
             "            free, holder = check_chord(chord, mine)",
-            "            free, holder = check_chord(chord, mine); STALE_REFERENCE_LIKE_THE_OLD_BUG"))
+            "            free, holder = check_chord(chord, mine); STALE_REFERENCE_LIKE_THE_OLD_BUG")
         rc, out = b.cap("preview")
         stdout_only = subprocess.run([str(cap), "preview"], capture_output=True, text=True,
                                      cwd=b.repo, env={"HOME": str(b.dir), "PATH": "/usr/bin:/bin"})
@@ -455,10 +508,10 @@ label  = "In the computed family"
     with Box() as b:
         # Disable normalisation itself, so chords are compared as declared.
         cap = b.repo / "bin" / "cap"
-        cap.write_text(cap.read_text().replace(
+        patch(cap,
             '    mods = sorted(dict.fromkeys(k for k in ks if k in MOD_ORDER),\n'
             '                  key=lambda k: MOD_ORDER[k])',
-            '    mods = [k for k in ks if k in MOD_ORDER]'))
+            '    mods = [k for k in ks if k in MOD_ORDER]')
         p = b.repo / "canonical/bindings/keys.toml"
         p.write_text(p.read_text() + '''
 [[key_binding]]
@@ -482,11 +535,11 @@ label  = "The other order"
         # chords. It read 30 of the real file's 75 bindings and reported the
         # other 45 as free. Nothing failed; the safeguard was just wrong.
         cap = b.repo / "bin" / "cap"
-        cap.write_text(cap.read_text().replace(
+        patch(cap,
             '        chord = _resolve(first, consts)',
             '        chord = _resolve(first, consts)\n'
             '        if chord and chord.count("+") > 1: chord = None\n'
-            '        if chord is None: continue'))
+            '        if chord is None: continue')
         with_vendor(b)
         rc, out = b.cap("preview")
         check("12n narrow parsing -> assertion 12 fails",
@@ -497,8 +550,8 @@ label  = "The other order"
     with Box() as b:
         # Disable the family match, so a computed key is treated as no evidence.
         cap = b.repo / "bin" / "cap"
-        cap.write_text(cap.read_text().replace(
-            "        if pm == mods:", "        if False:"))
+        patch(cap,
+            "        if pm == mods:", "        if False:")
         with_vendor(b)
         p_ = b.repo / "canonical/bindings/keys.toml"
         p_.write_text(p_.read_text() + '''
@@ -517,9 +570,9 @@ label  = "In the computed family"
         # Collapse the refusal states back into one message, as they were when a
         # keypress on SUPER + G reported an unimplemented action as unavailable.
         cap = b.repo / "bin" / "cap"
-        cap.write_text(cap.read_text().replace(
+        patch(cap,
             '    title, template = REFUSAL[state]',
-            '    title, template = REFUSAL["unavailable"]'))
+            '    title, template = REFUSAL["unavailable"]')
         rc, out = b.cap("act", "desktop.workspace.arrange")
         check("20n one shared wording -> assertion 20 fails",
               rc != 0 and "is unavailable" in out and "not implemented" not in out,
@@ -529,9 +582,11 @@ label  = "In the computed family"
         # Disable render's UNKNOWN gate, leaving check's report intact. This is
         # the state the reviewer found: render writes, check objects afterwards.
         cap = b.repo / "bin" / "cap"
-        cap.write_text(cap.read_text().replace(
-            "    if conflicts or unknown or dang or dangr:",
-            "    if conflicts or dang or dangr:"))
+        patch(cap,
+              "    unknown = [(chord_of(b), r[0]) for b in mine\n"
+              "               if check_chord(chord_of(b), mine)[0]\n"
+              "               and (r := unreadable_risk(norm_of(b), unreadable))]",
+              "    unknown = []")
         with_vendor(b)
         p_ = b.repo / "canonical/bindings/keys.toml"
         p_.write_text(p_.read_text() + ALT_BINDING)
@@ -544,9 +599,9 @@ label  = "In the computed family"
     with Box() as b:
         # Accept the alias instead of rejecting it, as MOD_ORDER used to.
         cap = b.repo / "bin" / "cap"
-        cap.write_text(cap.read_text().replace(
+        patch(cap,
             'MOD_ORDER = {"SUPER": 0, "CONTROL": 1, "ALT": 2, "SHIFT": 3, "MOD5": 4}',
-            'MOD_ORDER = {"SUPER": 0, "CONTROL": 1, "CTRL": 1, "ALT": 2, "SHIFT": 3, "MOD5": 4}'))
+            'MOD_ORDER = {"SUPER": 0, "CONTROL": 1, "CTRL": 1, "ALT": 2, "SHIFT": 3, "MOD5": 4}')
         p_ = b.repo / "canonical/bindings/keys.toml"
         p_.write_text(p_.read_text().replace('keys   = ["SUPER", "G"]',
                                              'keys   = ["CTRL", "G"]'))
@@ -558,14 +613,28 @@ label  = "In the computed family"
     with Box() as b:
         # Drop the bare-token rejection, restoring the silent discard.
         cap = b.repo / "bin" / "cap"
-        cap.write_text(cap.read_text().replace(
-            '        if "=" not in tok:', '        if False:').replace(
-            '        k, v = tok.split("=", 1)',
-            '        if "=" not in tok: continue\n        k, v = tok.split("=", 1)'))
+        patch(cap, '        if "=" not in tok:', '        if False:')
+        patch(cap, '        k, v = tok.split("=", 1)',
+              '        if "=" not in tok: continue\n        k, v = tok.split("=", 1)')
         rc, out = b.cap("act", "desktop.application.ensure", "mail")
         check("25n bare-token rejection removed -> assertion 25 fails",
               "not name=value" not in out,
               "the word is dropped again and the failure moves elsewhere")
+
+    with Box() as b:
+        # Disable the invariant itself: report nothing unrecognised, whatever the
+        # file says. This is the state the reviewer flagged — the accounting held
+        # only in a fixture, so a shape nobody anticipated would just vanish.
+        cap = b.repo / "bin" / "cap"
+        patch(cap,
+            "    return resolved, unresolved, max(0, _mentions(text) - len(sites))",
+            "    return resolved, unresolved, 0")
+        with_vendor(b, ODD_SHAPE)
+        rc, out = b.cap("check")
+        rc2, _ = b.cap("render")
+        check("30n the invariant disabled -> assertions 30 and 31 fail",
+              "unrecognised" in out and "0 unrecognised" in out and rc2 == 0,
+              "the hidden binding is gone from the accounting and render proceeds")
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
