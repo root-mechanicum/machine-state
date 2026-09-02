@@ -16,6 +16,8 @@ is not an assertion.
 Exit 0 = the substrate works.
 """
 
+import hashlib
+import json
 import pathlib
 import shutil
 import subprocess
@@ -213,6 +215,28 @@ def main():
               and "outside" in out_vendor and "outside" in out_out,
               "a vendor path and an escaping path are both refused")
 
+    # --- a projection record belongs to one repo and one home (8cy / 7.5) ---
+
+    with Sandbox() as box:
+        # A record inherited from elsewhere names absolute paths outside this
+        # tree. Orphan reconciliation acts on records no manifest claims, so
+        # acting on a foreign record reaches out of the sandbox — which is
+        # exactly how tests/machine.py unprojected the live workstation once.
+        decoy = box.dir / "decoy.md"
+        decoy.write_bytes(b"a real file belonging to another checkout\n")
+        (box.repo / "state").mkdir(exist_ok=True)
+        (box.repo / "state" / "projection.json").write_text(json.dumps({
+            "schema": 1,
+            "for": {"repo": "/elsewhere/machine-state", "home": "/elsewhere"},
+            "targets": {str(decoy): {
+                "kind": "render", "adapter": "gone",
+                "sha": hashlib.sha256(decoy.read_bytes()).hexdigest(),
+                "sources": ["canonical/policy/10-substrate.md"]}}}))
+        rc, out = box.ms("project")
+        check("13 a projection record from another repo or home is not acted on",
+              decoy.exists() and "ignoring" in out,
+              "its records name paths outside this tree, so they are left alone")
+
     # negative controls ------------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
     with Sandbox() as box:
@@ -255,6 +279,25 @@ def main():
         check("12n source enforcement removed -> assertion 12 fails",
               "outside" not in out,
               "a vendor path is accepted as a source again, silently")
+
+    with Sandbox() as box:
+        # Remove the identity check, and the foreign record is obeyed again.
+        ms = box.repo / "bin" / "ms"
+        patch(ms, "    if was is not None and was != ident:", "    if False:")
+        decoy = box.dir / "decoy.md"
+        decoy.write_bytes(b"a real file belonging to another checkout\n")
+        (box.repo / "state").mkdir(exist_ok=True)
+        (box.repo / "state" / "projection.json").write_text(json.dumps({
+            "schema": 1,
+            "for": {"repo": "/elsewhere/machine-state", "home": "/elsewhere"},
+            "targets": {str(decoy): {
+                "kind": "render", "adapter": "gone",
+                "sha": hashlib.sha256(decoy.read_bytes()).hexdigest(),
+                "sources": ["canonical/policy/10-substrate.md"]}}}))
+        box.ms("project")
+        check("13n identity check removed -> assertion 13 fails",
+              not decoy.exists(),
+              "a file in another checkout is deleted by this one")
 
     failed = [n for n, ok, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

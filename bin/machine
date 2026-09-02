@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""machine — sequence cap and ms, attended.
+
+A thin coordinator, built only after machine-state-bru.7.5 measured the friction
+it removes. It holds NO logic of its own: it runs bin/cap and bin/ms as
+subprocesses and reports what they say. Anything it decided for itself would be
+a third opinion about a machine that is supposed to have one.
+
+WHY IT EXISTS. The eval measured six ordinary editing changes at three stages
+each. Three of the six need `cap render` then `ms project`; for those three, the
+pattern was invariant:
+
+    declaration edited, not rendered   cap check FAILS   ms diff says "in sync"
+    rendered, not projected            cap check clean   ms diff FAILS
+
+Whichever step is outstanding, THE OTHER TOOL REPORTS SUCCESS. Neither ever
+reports both, so no single command answered "is the machine current with my
+declarations?" and asking the wrong one returned a confident, wrong yes. A
+missing signal invites checking; a reassuring one does not. That is the friction
+this removes — not the typing.
+
+WHAT IT IS NOT. It does not merge the tools and must never grow to. `cap` owns
+semantic declarations and the artifact derived from them; `ms` owns projection
+onto the machine and drift from it. Those are different responsibilities with
+different failure modes, and the boundary between them is why the artifact can
+be checked independently of the machine. This composes them; it does not absorb
+either.
+
+Stdlib only. Never root, never sudo, no network.
+"""
+
+import hashlib
+import os
+import pathlib
+import subprocess
+import sys
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
+CAP = REPO / "bin" / "cap"
+MS = REPO / "bin" / "ms"
+RENDERED = REPO / "derived" / "hypr" / "bindings.lua"
+
+# The vendor file whose chords cap checks against. Fingerprinted around the
+# render/project window because a package upgrade landing in that window is the
+# one case where a check that passed no longer describes the world it passed in.
+VENDOR = pathlib.Path.home() / ".config" / "hypr" / "config" / "binds.lua"
+
+
+def run(tool, *args):
+    r = subprocess.run([str(tool), *args], capture_output=True, text=True)
+    return r.returncode, r.stdout + r.stderr
+
+
+def fingerprint(p):
+    """None when absent, so 'appeared' and 'changed' are different facts."""
+    return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
+
+
+def say(step, ok, detail=""):
+    print(f"  {'ok  ' if ok else 'FAIL'}  {step}" + (f"  — {detail}" if detail else ""))
+    sys.stdout.flush()
+
+
+def warn(*lines):
+    """stderr, after stdout has caught up.
+
+    Without the flush, the buffered progress lines arrive after the unbuffered
+    error, and the reader sees the remedy before the problem it answers.
+    """
+    sys.stdout.flush()
+    for line in lines:
+        print(line, file=sys.stderr)
+    sys.stderr.flush()
+
+
+def cmd_status(_argv):
+    """One question, both answers.
+
+    Reports the artifact and the machine separately, because they are separate
+    facts that fail for separate reasons — but reports them TOGETHER, which is
+    the thing neither tool could do alone.
+    """
+    cap_rc, cap_out = run(CAP, "check")
+    ms_rc, ms_out = run(MS, "diff")
+
+    say("declarations -> artifact", cap_rc == 0,
+        "cap check" if cap_rc == 0 else "cap render is pending")
+    say("artifact -> machine", ms_rc == 0,
+        "ms diff" if ms_rc == 0 else "ms project is pending")
+
+    if cap_rc or ms_rc:
+        print()
+        if cap_rc:
+            for line in cap_out.splitlines():
+                if any(w in line for w in ("STALE", "CONFLICT", "DANGLING", "MISSING", "UNKNOWN")):
+                    print(f"    {line.strip()}")
+        if ms_rc:
+            print(f"    the machine does not match {RENDERED.relative_to(REPO)}")
+        warn("\n  run 'machine apply' to bring the machine up to the declarations")
+        return 1
+    print("\n  the machine matches the declarations")
+    return 0
+
+
+def cmd_apply(_argv):
+    """Render, project, and verify — with the previous projection recoverable.
+
+    The sequence, and why each step is here rather than assumed:
+
+      1. fingerprint the vendor file
+      2. keep the current artifact, so there is something to go back to
+      3. cap render        — refuses on conflict, UNKNOWN, or unrecognised shapes
+      4. fingerprint again — the render/project race: cap checked the vendor file
+                             during step 3, and a package upgrade landing now
+                             would mean that check described a world that no
+                             longer exists. Detected here, before projection.
+      5. ms project
+      6. cap check         — the post-check. Step 3 proved the artifact matches
+                             the declarations; this proves it still holds after
+                             the machine was touched.
+      7. on failure, restore the kept artifact and re-project, then say so.
+
+    RECOVERY IS WHOLE-ARTIFACT, NOT PER-BINDING. Disabling only a newly
+    introduced chord would mean this tool deciding which declaration to ignore,
+    and a projection that silently omits one binding is a machine that disagrees
+    with its own declarations — the exact failure everything here exists to
+    prevent. Reverting to the last known-good projection keeps that invariant.
+    The cost is that an unrelated pending change reverts with it, which is
+    visible in the output and recoverable by editing and applying again.
+    """
+    before_vendor = fingerprint(VENDOR)
+    kept = RENDERED.read_bytes() if RENDERED.exists() else None
+    say("vendor fingerprint", True,
+        (before_vendor[:16] if before_vendor else "no vendor file"))
+
+    rc, out = run(CAP, "render")
+    say("cap render", rc == 0, "" if rc == 0 else "refused; nothing was projected")
+    if rc:
+        warn(out.rstrip())
+        return 1
+
+    after_vendor = fingerprint(VENDOR)
+    if after_vendor != before_vendor:
+        say("vendor unchanged", False, "the vendor file changed during render")
+        warn("\n  cap checked chords against a version of "
+             f"{VENDOR} that no longer exists.\n"
+             "  Nothing was projected. Run 'machine apply' again to re-check "
+             "against the new file.")
+        if kept is not None:
+            RENDERED.write_bytes(kept)
+        return 1
+    say("vendor unchanged", True, "the race window closed clean")
+
+    rc, out = run(MS, "project")
+    say("ms project", rc == 0)
+    if rc:
+        warn(out.rstrip())
+        return rollback(kept, "ms project failed")
+
+    rc, out = run(CAP, "check")
+    say("post-check", rc == 0)
+    if rc:
+        warn(out.rstrip())
+        return rollback(kept, "the post-check failed after projection")
+
+    print("\n  the machine matches the declarations")
+    return 0
+
+
+def rollback(kept, why):
+    """Put the last known-good projection back, and be loud about having done it."""
+    warn(f"\n  ROLLING BACK — {why}")
+    if kept is None:
+        warn("  There is no previous artifact to restore: this was the first "
+             "projection. The machine is left as ms projected it, and "
+             "'machine status' will report the problem.")
+        return 1
+    RENDERED.write_bytes(kept)
+    rc, out = run(MS, "project")
+    if rc:
+        warn("  THE ROLLBACK ITSELF FAILED. The machine is in neither the old "
+             "state nor the new one.\n"
+             f"  Restore by hand from git and run 'ms project'.\n{out.rstrip()}")
+        return 2
+    warn("  The previous projection is restored. Any other pending change "
+         "reverted with it — that is deliberate: a projection missing one "
+         "binding disagrees with its own declarations.")
+    return 1
+
+
+COMMANDS = {"status": cmd_status, "apply": cmd_apply}
+
+
+def main(argv):
+    if os.geteuid() == 0:
+        die = "machine: refusing to run as root"
+        print(die, file=sys.stderr)
+        return 2
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        print("\nusage: machine {" + " | ".join(COMMANDS) + "}")
+        return 0 if len(argv) >= 2 else 2
+    if argv[1] not in COMMANDS:
+        print(f"machine: unknown command {argv[1]!r}; expected one of "
+              f"{', '.join(COMMANDS)}", file=sys.stderr)
+        return 2
+    return COMMANDS[argv[1]](argv[2:])
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

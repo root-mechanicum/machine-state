@@ -1,22 +1,26 @@
 {
+  "for": {
+    "home": "/home/klaas",
+    "repo": "/home/klaas/src/machine-state"
+  },
   "schema": 1,
   "targets": {
     "/home/klaas/.claude/skills/machine-state": {
       "adapter": "claude",
       "kind": "link",
-      "projected_at": "2026-09-01T14:39:27.363Z",
+      "projected_at": "2026-09-02T20:43:39.358Z",
       "source": "/home/klaas/src/machine-state/canonical/skills/machine-state"
     },
     "/home/klaas/.codex/skills/machine-state": {
       "adapter": "codex",
       "kind": "link",
-      "projected_at": "2026-09-01T15:33:34.486Z",
+      "projected_at": "2026-09-02T20:43:39.358Z",
       "source": "/home/klaas/src/machine-state/canonical/skills/machine-state"
     },
     "/home/klaas/.config/hypr/config/machine-state.lua": {
       "adapter": "hypr",
       "kind": "render",
-      "projected_at": "2026-09-02T15:15:03.258Z",
+      "projected_at": "2026-09-02T20:43:39.359Z",
       "sha": "9269a5fd193671dd65774a7746f1d1ee06dab56f7867385cdbd5b89801942ced",
       "sources": [
         "canonical/desktop/hypr/machine-state.lua",
@@ -28,7 +32,7 @@
       "comment": "dash",
       "kind": "splice",
       "marker": "MACHINE-STATE",
-      "projected_at": "2026-09-01T14:39:27.364Z",
+      "projected_at": "2026-09-02T20:43:39.359Z",
       "region_sha": "2aa6b2df74286bbc9035799d66eed1c8b4b425e9e256fc1a473719b3534538b6",
       "sources": [
         "canonical/desktop/hypr/require.lua"
@@ -39,7 +43,7 @@
       "comment": "hash",
       "kind": "splice",
       "marker": "MACHINE-STATE",
-      "projected_at": "2026-09-02T15:16:29.161Z",
+      "projected_at": "2026-09-02T20:43:39.358Z",
       "region_sha": "337a36db26e6e4864d3152ba4b92c089fcc6920b383d5aa148c70a9d0ff4d7fb",
       "sources": [
         "canonical/hooks/pre-push.sh"
@@ -50,7 +54,7 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-09-01T15:14:13.317Z",
+      "projected_at": "2026-09-02T20:43:39.358Z",
       "region_sha": "1322485d627f97342640dd064f821e71118df1dd253b9e43d1d97cef763e7ac5",
       "sources": [
         "canonical/policy/00-generated.md",
@@ -64,7 +68,7 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-09-01T20:26:09.429Z",
+      "projected_at": "2026-09-02T20:43:39.357Z",
       "region_sha": "a5d981ebe02909a4eb8d79bc0bef84c292649b12bbc739e85fc45341dafc6fe4",
       "sources": [
         "canonical/policy/00-generated.md",

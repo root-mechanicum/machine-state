@@ -214,6 +214,22 @@ held by our module alone.
 
 Every realised target is recorded in `state/projection.json` with source and target hashes.
 
+**The record belongs to one repository and one `$HOME`, and says so.** Its paths are absolute, so it
+means nothing anywhere else — and acting on it elsewhere is not merely useless but destructive,
+because orphan reconciliation removes recorded targets that no manifest claims any more. `ms` stores
+the pair it was written for and ignores a record written for another.
+
+That guard was bought. A test copied the live `state/` into its sandbox, dropped all but one adapter,
+and ran `project`; the six now-unclaimed records still named the real `$HOME` and the real
+repository, so a supposedly hermetic test unprojected the live workstation — `CLAUDE.md` and
+`AGENTS.md` lost their regions, both skill symlinks went, and the Hyprland fragment was deleted.
+Everything was restored by `ms project` and verified byte-identical, which is the one part that
+worked as designed.
+
+The lesson generalises past this file: **a copy is not a sandbox if it inherits something that
+points outside itself.** The tree was faithfully copied and the one file holding absolute paths made
+the copy an alias for the original.
+
 `ms diff` compares each target against what canonical would produce now and exits non-zero on any
 difference. A hand-edit is a **detectable, reportable condition — never a merge**. Canonical wins;
 `ms project` restores.
@@ -316,6 +332,42 @@ saying `none available`, so the gap stays visible rather than papered over.
 Versions do not belong here. `state/tooling.json` is derived by `ms status`. `BASELINE.md` is a
 frozen point-in-time capture and is **not** maintained as an inventory — it already omits `bd`,
 having been written twelve minutes before `bd init` ran.
+
+### 7.1 Our own tools, and why there are three
+
+`bin/ms` projects canonical content onto the machine and reports drift from it. `bin/cap` derives
+the desktop's key bindings and action surface from semantic declarations. `bin/machine` sequences
+the two. They are peers; none imports another.
+
+The third one was **built only after it was measured**, and the measurement is worth keeping because
+it contradicts the obvious reason for building it. Six ordinary editing changes were made and each
+was observed at three stages. Three of the six needed the two steps at all — the derived artifact
+carries only *chord → action + arguments*, so labels, role commands and window classes resolve at
+invocation and need nothing rendered or projected. For the three that did, this held every time:
+
+| outstanding step | `cap check` | `ms diff` |
+| --- | --- | --- |
+| render | **fails** | "all targets match canonical" |
+| project | ok | **fails** |
+
+The problem was never that a forgotten step goes undetected. It is that **the other tool reports
+success** — so there was no single command that answered "is the machine current with my
+declarations?", and asking the wrong one returned a confident, wrong yes. A missing signal invites
+checking; a reassuring one does not.
+
+`machine status` asks both. `machine apply` runs the sequence with the render/project race closed:
+fingerprint the vendor file, render, confirm the fingerprint is unchanged, project, post-check, and
+on failure restore the previous projection and say so loudly.
+
+**Recovery is whole-artifact, not per-binding.** Disabling only a newly introduced chord would mean
+a tool deciding which declaration to ignore, and a projection that silently omits one binding is a
+machine that disagrees with its own declarations — the failure everything here exists to prevent.
+An unrelated pending change reverts along with the bad one; that is visible in the output and fixed
+by editing and applying again.
+
+`machine` must never grow logic of its own. It runs the other two as subprocesses and reports what
+they say, because anything it decided for itself would be a third opinion about a machine that is
+supposed to have one.
 
 ## 8. Boundary
 

@@ -191,16 +191,43 @@ def splice(text: bytes, begin: bytes, end: bytes, new: bytes) -> bytes:
 # ---------------------------------------------------------------- state file
 
 def load_state():
+    """The record, refused if it was written by a different repo or a different HOME.
+
+    A projection record holds ABSOLUTE paths, so it is specific to one checkout
+    on one machine and means nothing anywhere else. Carrying it somewhere else is
+    not merely useless, it is dangerous: orphan reconciliation removes recorded
+    targets that no manifest claims any more, and a record inherited from
+    elsewhere names targets outside this tree entirely.
+
+    That is not hypothetical. A test copied the live `state/` into a sandbox,
+    dropped all but one adapter, and ran project; the six now-unclaimed records
+    still pointed at the real $HOME and the real repository, so a supposedly
+    hermetic test unprojected the live workstation. The sandbox was a copy of
+    everything except the one file that pointed outside it.
+
+    So identity is recorded and checked. A foreign record is ignored rather than
+    acted on, and a fresh one is written for this pair.
+    """
+    ident = {"repo": str(REPO), "home": str(pathlib.Path.home())}
     if not STATE.exists():
-        return {"schema": 1, "targets": {}}
+        return {"schema": 1, "for": ident, "targets": {}}
     try:
-        return json.loads(STATE.read_text())
+        state = json.loads(STATE.read_text())
     except json.JSONDecodeError as exc:
         die(f"{STATE}: {exc}")
+    was = state.get("for")
+    if was is not None and was != ident:
+        print(f"ms: ignoring {STATE.name}: it was written for repo {was.get('repo')} "
+              f"and home {was.get('home')}, not this pair. Its records name paths "
+              f"outside this tree and will not be touched.", file=sys.stderr)
+        return {"schema": 1, "for": ident, "targets": {}}
+    state["for"] = ident
+    return state
 
 
 def save_state(state):
     STATE.parent.mkdir(parents=True, exist_ok=True)
+    state.setdefault("for", {"repo": str(REPO), "home": str(pathlib.Path.home())})
     write_atomic(STATE, (json.dumps(state, indent=2, sort_keys=True) + "\n").encode())
 
 
