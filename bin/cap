@@ -98,6 +98,27 @@ def actions():
     return acts
 
 
+def check_keys(keys, where):
+    """A chord is modifiers then one key. Anything else is rejected, not guessed.
+
+    An unaccepted modifier name is a declaration the compositor may read
+    differently from us, and a chord we and it disagree about is precisely the
+    thing every other check here exists to prevent.
+    """
+    if not keys:
+        die(f"{where}: key binding declares no keys")
+    for k in keys[:-1]:
+        u = k.upper()
+        if u in MOD_ORDER:
+            continue
+        if u in MOD_ALIASES:
+            die(f"{where}: modifier {k!r} is not accepted here; write "
+                f"{MOD_ALIASES[u]!r} instead — one spelling per modifier, so two "
+                f"declarations cannot name one chord and evade collision")
+        die(f"{where}: {k!r} is not a modifier; expected one of "
+            f"{', '.join(sorted(MOD_ORDER))} before the key")
+
+
 def key_bindings():
     """Our declared chords. Vendor chords are observed separately, never declared here."""
     out = []
@@ -105,6 +126,7 @@ def key_bindings():
         doc = tomllib.loads(f.read_text())
         for b in doc.get("key_binding", []):
             b["_source"] = str(f.relative_to(REPO))
+            check_keys(b.get("keys", []), b["_source"])
             out.append(b)
     return out
 
@@ -112,7 +134,34 @@ def key_bindings():
 # Canonical modifier order. Hyprland does not care in which order a declaration
 # lists modifiers, so neither may we: SUPER + SHIFT + X and SHIFT + SUPER + X are
 # the same chord and must collide. Comparing the declared strings would miss it.
-MOD_ORDER = {"SUPER": 0, "CTRL": 1, "CONTROL": 1, "ALT": 2, "SHIFT": 3}
+MOD_ORDER = {"SUPER": 0, "CONTROL": 1, "ALT": 2, "SHIFT": 3, "MOD5": 4}
+
+# ONE SPELLING PER MODIFIER, deliberately narrower than the compositor.
+#
+# Evidence for the accepted names: the modifier table compiled into
+# /usr/bin/Hyprland (0.56.2) reads SHIFT, CONTROL, ALT, SUPER, WIN, MOD4, META,
+# MOD5 as one contiguous run, with LOGO separately; CTRL, CAPS, MOD2 and MOD3 do
+# not appear at all. Live modmasks agree with that table — 68 is SUPER+CONTROL,
+# 69 adds SHIFT, 72 is SUPER+ALT.
+#
+# Why reject the aliases rather than fold them in: WIN, LOGO, MOD4 and META are
+# very likely SUPER, but "very likely" is the wrong footing for chord identity.
+# If they are aliases and we keep them distinct, WIN + X and SUPER + X are one
+# chord that collision detection misses. If we canonicalise them on a guess and
+# the guess is wrong, we invent a collision that does not exist. Accepting one
+# spelling removes the question instead of answering it wrongly — and these are
+# OUR declarations, so narrowing our own input language costs nothing. The
+# vendor's file may spell them however it likes; it is read, not authored here.
+#
+# CTRL is rejected on the same footing, and it is the one that motivated this.
+# It sat in MOD_ORDER as though valid. If the compositor takes it as an alias for
+# CONTROL, then CTRL + X and CONTROL + X were one chord we treated as two. If it
+# does not take it at all — which is what this binary indicates — a declaration
+# using it rendered a binding that never loaded, while preview reported it
+# owned and ok. Both are the same failure: a key described as working that is
+# not. Rejecting the spelling closes both without needing to know which it was.
+MOD_ALIASES = {"CTRL": "CONTROL", "WIN": "SUPER", "LOGO": "SUPER",
+               "MOD4": "SUPER", "META": "SUPER"}
 
 
 def chord_of(b):
@@ -377,12 +426,65 @@ def plan_ensure(role_name):
             "detail": f"launch {role['command']}, wait for its window, then focus it"}
 
 
+def active_window():
+    try:
+        r = subprocess.run(["hyprctl", "activewindow", "-j"],
+                           capture_output=True, text=True, timeout=5)
+        return json.loads(r.stdout) if r.returncode == 0 and r.stdout.strip() else None
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return None
+
+
+def focus_window(addr):
+    """(outcome, detail) — success is READ BACK, never assumed.
+
+    Three separate lessons are compiled into this, each learned from this
+    compositor rather than from documentation:
+
+    1. The call form. Under the Lua config `hyprctl dispatch focuswindow
+       address:X` is a SYNTAX ERROR — hyprctl wraps its argument as
+       `return hl.dispatch(<arg>)`, so the argument must be a Lua expression.
+       The previous code used the legacy form, which exits 7 every time. It had
+       therefore never once focused a window, and reported ok for all of them.
+
+    2. The exit code is not an outcome. A failed focus prints
+       `warning: hl.focus: window not found` and STILL EXITS 0. Any check of
+       returncode alone would have kept reporting success. `hyprctl eval` is
+       worse: it swallows the warning entirely, which is why dispatch is used.
+
+    3. Accepted is not done. Even a clean `ok` means the dispatcher took the
+       request, so the focused window is read back and compared. When it cannot
+       be confirmed the outcome is `unverified` — distinct from both ok and
+       failed, because "we could not tell" is a different fact from "it did not
+       work", and flattening them would put a guess in the journal.
+    """
+    try:
+        r = subprocess.run(
+            ["hyprctl", "dispatch", f'hl.dsp.focus({{ window = "address:{addr}" }})'],
+            capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return "failed", f"hyprctl did not run: {exc!r}"
+    out = (r.stdout or r.stderr or "").strip()
+    if r.returncode != 0:
+        return "failed", f"hyprctl exited {r.returncode}: {out[:120]}"
+    if out != "ok":
+        return "failed", f"hyprctl: {out[:120]}"
+    seen = active_window()
+    if seen is None:
+        return "unverified", "dispatch accepted; the focused window could not be read back"
+    if seen.get("address") != addr:
+        return "unverified", (f"dispatch accepted; focus is {seen.get('address')}, "
+                              f"not {addr}")
+    return "ok", None
+
+
 def do_ensure(role_name, timeout=20.0):
     plan = plan_ensure(role_name)
     if plan["branch"] == "focus":
-        subprocess.run(["hyprctl", "dispatch", "focuswindow", f"address:{plan['window']}"],
-                       capture_output=True, timeout=10)
-        return plan, "ok"
+        outcome, detail = focus_window(plan["window"])
+        if detail:
+            plan["outcome_detail"] = detail
+        return plan, outcome
     _, role = resolve_role(role_name)
     subprocess.Popen(shlex.split(role["command"]), start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -391,9 +493,11 @@ def do_ensure(role_name, timeout=20.0):
     while time.time() < deadline:
         wins, _ = resolve_role(role_name)
         if wins:
-            subprocess.run(["hyprctl", "dispatch", "focuswindow", f"address:{wins[0]['address']}"],
-                           capture_output=True, timeout=10)
-            return plan, "ok"
+            outcome, detail = focus_window(wins[0]["address"])
+            plan["window"] = wins[0]["address"]
+            if detail:
+                plan["outcome_detail"] = detail
+            return plan, outcome
         time.sleep(0.4)
     return plan, "timeout"
 
@@ -575,7 +679,8 @@ def cmd_act(argv):
     # first. Same action identity, different authorization context.
     record(action=name, caller=caller, phase="act", inputs=args,
            outcome=outcome, plan=plan, started=started)
-    print(f"  {outcome}: {plan['detail']}")
+    print(f"  {outcome}: {plan['detail']}"
+          + (f"\n  {plan['outcome_detail']}" if plan.get("outcome_detail") else ""))
     return 0 if outcome == "ok" else 1
 
 
@@ -721,12 +826,29 @@ def cmd_render(_argv):
     # Refuse BEFORE writing anything. A dangling reference would otherwise be
     # baked into the artifact as a stale identity, and the key would call an
     # action that cannot be found.
-    conflicts = [c for c in (chord_of(b) for b in key_bindings())
-                 if not check_chord(c)[0]]
+    #
+    # RENDER AND CHECK MUST AGREE ABOUT WHAT IS SAFE. They ask one question at
+    # two moments, and a gate laxer than the report that follows it is not a
+    # gate: render would write the artifact and say "run ms project", and only a
+    # later check would object — after the key was already on the machine.
+    #
+    # So UNKNOWN refuses here too, deliberately, rather than warning. UNKNOWN
+    # means the evidence cannot show the chord is free, and this is the step that
+    # decides what reaches the machine. Warning would put the burden on someone
+    # noticing a line of output; refusing puts it on choosing a different chord.
+    # The refusal names the vendor line so that choice is informed.
+    mine = key_bindings()
+    unreadable = vendor_bindings()[1]
+    conflicts = [chord_of(b) for b in mine if not check_chord(chord_of(b), mine)[0]]
+    unknown = [(chord_of(b), r[0]) for b in mine
+               if check_chord(chord_of(b), mine)[0]
+               and (r := unreadable_risk(norm_of(b), unreadable))]
     dang = dangling_bindings()
-    if conflicts or dang:
+    if conflicts or unknown or dang:
         for c in conflicts:
             print(f"cap: chord {c} conflicts", file=sys.stderr)
+        for c, why in unknown:
+            print(f"cap: chord {c} cannot be shown free — {why}", file=sys.stderr)
         for chord, name in dang:
             print(f"cap: {chord} references missing action {name!r}", file=sys.stderr)
         die("refusing to render; the previous artifact is left untouched", 1)

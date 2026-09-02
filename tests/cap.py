@@ -262,6 +262,43 @@ label  = "In the computed family"
               divergent and attributed,
               "packaged bytes name their package; edited bytes claim no owner")
 
+    # --- review findings 8cy.1 and 8cy.3 ------------------------------------
+
+    ALT_BINDING = '''
+[[key_binding]]
+keys   = ["SUPER", "ALT", "Q"]
+action = "desktop.window.list"
+label  = "In the computed family"
+'''
+
+    with Box() as b:
+        with_vendor(b)
+        p_ = b.repo / "canonical/bindings/keys.toml"
+        p_.write_text(p_.read_text() + ALT_BINDING)
+        before = b.artifact()
+        rc, out = b.cap("render")
+        check("17 render refuses a chord check would call UNKNOWN",
+              rc != 0 and "cannot be shown free" in out and b.artifact() == before,
+              "the gate and the report ask one question")
+
+    with Box() as b:
+        # an unaccepted modifier spelling, the one that sat in MOD_ORDER as valid
+        p_ = b.repo / "canonical/bindings/keys.toml"
+        p_.write_text(p_.read_text().replace('keys   = ["SUPER", "G"]',
+                                             'keys   = ["CTRL", "G"]'))
+        before = b.artifact()
+        rc, out = b.cap("render")
+        check("18 an unaccepted modifier spelling is refused, naming the accepted one",
+              rc != 0 and "CTRL" in out and "\'CONTROL\'" in out
+              and b.artifact() == before,
+              "one spelling per modifier, so two declarations cannot name one chord")
+
+        p_.write_text(p_.read_text().replace('keys   = ["CTRL", "G"]',
+                                             'keys   = ["HYPER", "G"]'))
+        rc, out = b.cap("render")
+        check("19 a token that is not a modifier at all is refused",
+              rc != 0 and "is not a modifier" in out, "rejected, not treated as a key")
+
     # --- negative controls -------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
 
@@ -352,6 +389,35 @@ label  = "In the computed family"
         check("15n family matching disabled -> assertion 15 fails",
               rc == 0 and "UNKNOWN" not in out,
               "the unprovable chord is reported free again")
+
+    with Box() as b:
+        # Disable render's UNKNOWN gate, leaving check's report intact. This is
+        # the state the reviewer found: render writes, check objects afterwards.
+        cap = b.repo / "bin" / "cap"
+        cap.write_text(cap.read_text().replace(
+            "    if conflicts or unknown or dang:", "    if conflicts or dang:"))
+        with_vendor(b)
+        p_ = b.repo / "canonical/bindings/keys.toml"
+        p_.write_text(p_.read_text() + ALT_BINDING)
+        rc, out = b.cap("render")
+        rc2, _ = b.cap("check")
+        check("17n render's UNKNOWN gate disabled -> assertion 17 fails",
+              rc == 0 and rc2 != 0,
+              "render writes and advises project; only the later check objects")
+
+    with Box() as b:
+        # Accept the alias instead of rejecting it, as MOD_ORDER used to.
+        cap = b.repo / "bin" / "cap"
+        cap.write_text(cap.read_text().replace(
+            'MOD_ORDER = {"SUPER": 0, "CONTROL": 1, "ALT": 2, "SHIFT": 3, "MOD5": 4}',
+            'MOD_ORDER = {"SUPER": 0, "CONTROL": 1, "CTRL": 1, "ALT": 2, "SHIFT": 3, "MOD5": 4}'))
+        p_ = b.repo / "canonical/bindings/keys.toml"
+        p_.write_text(p_.read_text().replace('keys   = ["SUPER", "G"]',
+                                             'keys   = ["CTRL", "G"]'))
+        rc, out = b.cap("render")
+        check("18n the alias accepted again -> assertion 18 fails",
+              rc == 0 and "CTRL + G" in b.artifact(),
+              "a spelling this compositor's table does not contain reaches the artifact")
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
