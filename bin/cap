@@ -75,8 +75,27 @@ def roles():
     return _load(ROLES, "role")
 
 
+VALID_CONSEQUENCE = {"observe", "report", "adjust", "commit"}
+
+
 def actions():
-    return _load(ACTIONS, "action")
+    """Declared actions, with malformed ones REJECTED rather than tolerated.
+
+    Invalid is a third state, distinct from unimplemented and unavailable: the
+    declaration itself is wrong, so keeping it would put a lie in the catalogue.
+    """
+    acts = _load(ACTIONS, "action")
+    for name, a in acts.items():
+        where = a.get("_source", "?")
+        if "." not in name:
+            die(f"{where}: action {name!r} is not namespaced")
+        if not a.get("label"):
+            die(f"{where}: action {name!r} has no label")
+        c = a.get("consequence")
+        if c not in VALID_CONSEQUENCE:
+            die(f"{where}: action {name!r} has unknown consequence {c!r}; "
+                f"expected one of {', '.join(sorted(VALID_CONSEQUENCE))}")
+    return acts
 
 
 def key_bindings():
@@ -224,12 +243,53 @@ def do_list(role_name=None):
     return plan_list(role_name), "ok"
 
 
-# Declarations are DATA; implementations are CODE. Adding a role or a key binding
-# is purely declarative and needed no change here. Adding an ACTION requires an
-# entry in this table, so the registry is not yet fully declarative and the
-# catalogue says so by reporting an action with no implementation as unavailable.
-IMPL = {"desktop.application.ensure": (plan_ensure, do_ensure),
-        "desktop.window.list": (plan_list, do_list)}
+def requires_hyprland():
+    try:
+        r = subprocess.run(["hyprctl", "version"], capture_output=True, timeout=5)
+        return (True, None) if r.returncode == 0 else (False, "Hyprland is not responding")
+    except (OSError, subprocess.SubprocessError):
+        return False, "hyprctl is not installed"
+
+
+# DECLARATIONS COMPOSE THE SYSTEM; IMPLEMENTATIONS EXTEND ITS ABILITIES.
+#
+# Roles, bindings, labels, previews and catalogue entries are pure data and need
+# no change here. A new semantic BEHAVIOUR needs provider code. That asymmetry is
+# the point: it keeps the registry a protocol rather than a configuration-shaped
+# programming language.
+#
+# Keys are provider OPERATION IDENTIFIERS, never shell commands. An identifier
+# with no entry here is unimplemented — it is never executed as a command and
+# never silently omitted.
+PROVIDERS = {
+    "desktop.application.ensure": (plan_ensure, do_ensure, requires_hyprland),
+    "desktop.window.list": (plan_list, do_list, requires_hyprland),
+}
+
+
+def action_state(a):
+    """(implemented, available, reason) — three independent facts, not one flag.
+
+    unimplemented  a valid semantic action no provider implements; kept and shown
+    unavailable    implemented, but its runtime dependency is absent; reason given
+    """
+    ident = a.get("implementation")
+    if not ident:
+        return False, False, "declaration names no implementation"
+    prov = PROVIDERS.get(ident)
+    if prov is None:
+        return False, False, f"no provider implements {ident!r}"
+    ok, why = prov[2]()
+    return True, ok, None if ok else why
+
+
+def provider_for(name, acts=None):
+    a = (acts or actions()).get(name)
+    if a is None:
+        die(f"no such action: {name}")
+    ident = a.get("implementation")
+    prov = PROVIDERS.get(ident) if ident else None
+    return a, prov
 
 # Enforcement is a property of the SYSTEM, never of a declaration. An action
 # declares its consequence class; it cannot declare that anything checks it.
@@ -244,27 +304,51 @@ UNATTENDED_AVAILABLE = False
 
 # ---------------------------------------------------------------- commands
 
+def refuse(name, args, phase, reason, caller="agent"):
+    """A declared action that cannot run says so, rather than doing nothing.
+
+    A key bound to an unimplemented action still renders and still fires; pressing
+    it produces an explanation instead of apparent silence. That keeps the
+    binding, the preview and the catalogue in agreement while letting a
+    declaration precede its implementation without presenting false capability.
+    """
+    msg = f"{name} is unavailable: {reason}"
+    print(f"  refused: {msg}", file=sys.stderr)
+    if caller == "keypress":
+        subprocess.run(["notify-send", "--app-name=cap", "--urgency=normal",
+                        "Action unavailable", msg], capture_output=True)
+    record(action=name, caller=caller, phase=phase, inputs=args,
+           outcome="refused", reason=reason)
+    return 1
+
+
 def cmd_list(argv):
     """The agent-readable surface. Same actions the key and the preview name."""
     acts = actions()
     if "--json" in argv:
         out = []
         for name, a in sorted(acts.items()):
-            out.append({"action": name, "label": a.get("label"), "category": a.get("category"),
-                        "args": a.get("args", {}), "mutating": a.get("mutating", True),
-                        "consequence": a.get("consequence"),
-                        "enforcement": ENFORCEMENT,
-                        "unattended": UNATTENDED_AVAILABLE,
-                        "unattended_reason":
-                            "no enforcement or grant mechanism exists yet (machine-state-bru.5)",
-                        "available": name in IMPL,
-                        "unavailable_reason": None if name in IMPL else "no implementation registered",
-                        "invoke": {"propose": f"cap propose {name}", "act": f"cap act {name}"}})
+            implemented, available, reason = action_state(a)
+            out.append({
+                "action": name, "label": a.get("label"), "category": a.get("category"),
+                "args": a.get("args", {}), "mutating": a.get("mutating", True),
+                "consequence": a.get("consequence"),
+                "enforcement": ENFORCEMENT,
+                "unattended": UNATTENDED_AVAILABLE,
+                "unattended_reason":
+                    "no enforcement or grant mechanism exists yet (machine-state-bru.5)",
+                "declared": True,
+                "implemented": implemented,
+                "available": available,
+                "reason": reason,
+                "invoke": {"propose": f"cap propose {name}", "act": f"cap act {name}"}})
         print(json.dumps(out, indent=2))
         return 0
     for name, a in sorted(acts.items()):
-        mark = " " if name in IMPL else "!"
-        print(f"  {mark} {name:<34} {a.get('label','')}")
+        implemented, available, reason = action_state(a)
+        mark = " " if available else ("!" if not implemented else "x")
+        note = "" if available else f"   [{reason}]"
+        print(f"  {mark} {name:<34} {a.get('label','')}{note}")
     if not acts:
         print("  (no actions declared)")
     return 0
@@ -274,9 +358,10 @@ def cmd_propose(argv):
     if not argv:
         die("usage: cap propose <action> [role=<name>]")
     name, args = argv[0], dict(a.split("=", 1) for a in argv[1:] if "=" in a)
-    if name not in IMPL:
-        die(f"no implementation for {name}")
-    plan = IMPL[name][0](*( [args["role"]] if "role" in args else [] ))
+    a, prov = provider_for(name)
+    if prov is None:
+        return refuse(name, args, "propose", action_state(a)[2])
+    plan = prov[0](*( [args["role"]] if "role" in args else [] ))
     print(f"  {name}")
     print(f"  branch : {plan['branch']}")
     print(f"  would  : {plan['detail']}")
@@ -289,11 +374,13 @@ def cmd_act(argv):
     if not argv:
         die("usage: cap act <action> [role=<name>]")
     name, args = argv[0], dict(a.split("=", 1) for a in argv[1:] if "=" in a)
-    if name not in IMPL:
-        die(f"no implementation for {name}")
+    a, prov = provider_for(name)
     caller = os.environ.get("CAP_CALLER", "agent")
+    implemented, available, reason = action_state(a)
+    if not available:
+        return refuse(name, args, "act", reason, caller)
     started = now()
-    plan, outcome = IMPL[name][1](*( [args["role"]] if "role" in args else [] ))
+    plan, outcome = prov[1](*( [args["role"]] if "role" in args else [] ))
     # A person pressing a key has already expressed intent; an agent proposes
     # first. Same action identity, different authorization context.
     record(action=name, caller=caller, phase="act", inputs=args,
@@ -317,7 +404,11 @@ def cmd_preview(_argv):
         a = acts.get(b["action"], {})
         free, holder = check_chord(chord)
         status = "ok" if free else f"CONFLICT ({holder})"
-        avail = "" if b["action"] in IMPL else "  [action unavailable]"
+        # A binding to an unavailable action still appears, and says why. The key
+        # is still rendered and still fires; pressing it explains rather than
+        # doing nothing, so binding, preview and catalogue keep agreeing.
+        _, av, why = action_state(a) if a else (False, False, "no such action")
+        avail = "" if av else f"  [{why}]"
         # The BINDING's label wins over the action's. The action label is the
         # generic name of the operation; the binding label says what THIS chord
         # does. At n=1 the difference was invisible. At n=2, two chords invoking

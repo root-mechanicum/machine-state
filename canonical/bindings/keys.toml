@@ -18,3 +18,8 @@ keys   = ["SUPER", "B"]
 action = "desktop.application.ensure"
 args   = { role = "browser" }
 label  = "Open browser"
+
+[[key_binding]]
+keys   = ["SUPER", "G"]
+action = "desktop.workspace.arrange"
+label  = "Arrange workspace (not yet implemented)"

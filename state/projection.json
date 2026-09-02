@@ -16,8 +16,8 @@
     "/home/klaas/.config/hypr/config/machine-state.lua": {
       "adapter": "hypr",
       "kind": "render",
-      "projected_at": "2026-09-02T15:03:49.775Z",
-      "sha": "3e8a08c76ad902917cd9dedcfe8ed816f6063502ee4d7b505110b40e85dc179b",
+      "projected_at": "2026-09-02T15:07:08.017Z",
+      "sha": "64d773ad0db2302b1f1c69a9138418922f285744b13a3737bd72eb7fb66202ea",
       "sources": [
         "canonical/desktop/hypr/machine-state.lua",
         "canonical/desktop/hypr/bindings.lua"

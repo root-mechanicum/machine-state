@@ -2,6 +2,7 @@
 # same action. An action never embeds an opaque shell command.
 
 [action."desktop.application.ensure"]
+implementation = "desktop.application.ensure"
 label       = "Open or focus an application"
 category    = "Applications"
 args        = { role = "role name" }
@@ -14,8 +15,18 @@ consequence = "adjust"
 # action must be fully usable by an agent while absent from the key surface. If
 # it cannot exist without a chord, the separation is nominal.
 [action."desktop.window.list"]
+implementation = "desktop.window.list"
 label       = "List open windows"
 category    = "Desktop"
 args        = { role = "optional role name" }
 mutating    = false
 consequence = "observe"
+
+# Declared ahead of its implementation on purpose: the catalogue must show it as
+# unimplemented rather than pretending it works or hiding it.
+[action."desktop.workspace.arrange"]
+implementation = "desktop.workspace.arrange"
+label          = "Arrange a workspace"
+category       = "Desktop"
+mutating       = true
+consequence    = "adjust"
