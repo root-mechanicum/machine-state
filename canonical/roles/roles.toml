@@ -1,0 +1,9 @@
+# Application roles. Workflows target a role, never an executable, so replacing
+# an application changes one association instead of every workflow.
+#
+# PROVISIONAL LAYOUT. machine-state-bru.7 defines this registry properly.
+
+[role.mail]
+label        = "Mail"
+command      = "proton-mail"
+window_class = ["Proton Mail", "proton-mail"]

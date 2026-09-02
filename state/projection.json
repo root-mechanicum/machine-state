@@ -16,10 +16,11 @@
     "/home/klaas/.config/hypr/config/machine-state.lua": {
       "adapter": "hypr",
       "kind": "render",
-      "projected_at": "2026-09-01T14:39:27.364Z",
-      "sha": "f3511b15b7b443e379823b449434a76d463863899d78886cc6203198cccc8ba0",
+      "projected_at": "2026-09-02T14:52:02.579Z",
+      "sha": "57090d81f082c8d394be232163aaad9fc55e3e426bb00a91747e68c025f9d2b5",
       "sources": [
-        "canonical/desktop/hypr/machine-state.lua"
+        "canonical/desktop/hypr/machine-state.lua",
+        "canonical/desktop/hypr/bindings.lua"
       ]
     },
     "/home/klaas/.config/hypr/hyprland.lua": {

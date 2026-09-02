@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+"""cap — the capability surface for this workstation.
+
+A peer to bin/ms, never part of it. ms governs durable projection and drift; cap
+governs runtime action. See CAPABILITIES.md.
+
+This is the machine-state-bru.6 slice: the smallest thing that proves human,
+desktop and agent operate from one model. A declaration set — one role, one
+action, one key binding — drives three surfaces:
+
+    the live Hyprland key      via `cap render` then `ms project`
+    the shortcut preview       via `cap preview`
+    the agent-readable action  via `cap list --json`
+
+If those three can disagree there is no shared model.
+
+PROVISIONAL. The file layout under canonical/ is an experimental fixture, not the
+registry schema. machine-state-bru.7 defines roles, actions and key bindings as
+separate registries properly, and is expected to move all of this.
+
+Stdlib only. Never root, never sudo, no network.
+"""
+
+import datetime
+import json
+import os
+import pathlib
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+import tomllib
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
+ROLES = REPO / "canonical" / "roles"
+ACTIONS = REPO / "canonical" / "actions"
+BINDINGS = REPO / "canonical" / "bindings"
+RENDERED = REPO / "canonical" / "desktop" / "hypr" / "bindings.lua"
+JOURNAL = REPO / "state" / "actions.jsonl"
+
+# The compositor's own binding file, read to answer "is this chord already taken".
+VENDOR_BINDS = pathlib.Path.home() / ".config" / "hypr" / "config" / "binds.lua"
+
+
+def die(msg, code=2):
+    print(f"cap: {msg}", file=sys.stderr)
+    raise SystemExit(code)
+
+
+def now():
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+# ---------------------------------------------------------------- declarations
+
+def _load(d, key):
+    out = {}
+    if not d.is_dir():
+        return out
+    for f in sorted(d.glob("*.toml")):
+        try:
+            doc = tomllib.loads(f.read_text())
+        except tomllib.TOMLDecodeError as exc:
+            die(f"{f.name}: {exc}")
+        for name, body in doc.get(key, {}).items():
+            if name in out:
+                die(f"duplicate {key} {name!r} in {f.name}")
+            body["_source"] = str(f.relative_to(REPO))
+            out[name] = body
+    return out
+
+
+def roles():
+    return _load(ROLES, "role")
+
+
+def actions():
+    return _load(ACTIONS, "action")
+
+
+def key_bindings():
+    """Our declared chords. Vendor chords are observed separately, never declared here."""
+    out = []
+    for f in sorted(BINDINGS.glob("*.toml")) if BINDINGS.is_dir() else []:
+        doc = tomllib.loads(f.read_text())
+        for b in doc.get("key_binding", []):
+            b["_source"] = str(f.relative_to(REPO))
+            out.append(b)
+    return out
+
+
+def chord_of(b):
+    return " + ".join(b["keys"])
+
+
+# ---------------------------------------------------------------- vendor chords
+
+def vendor_chords():
+    """Chords bound by the compositor's own configuration.
+
+    Read live rather than cached. A chord observed free on one day is not free
+    for ever: a CachyOS update can claim it, and a preview that trusted a stale
+    observation would document a binding that no longer behaves as described.
+    """
+    if not VENDOR_BINDS.exists():
+        return {}
+    text = VENDOR_BINDS.read_text()
+    found = {}
+    for mod, key, body in re.findall(
+            r'hl\.bind\(\s*(mainMod|mainMod \.\. " \+ SHIFT")\s*\.\.\s*"\s*\+\s*([A-Za-z0-9]+)"\s*,\s*([^\n]*)',
+            text):
+        prefix = "SUPER" if mod == "mainMod" else "SUPER + SHIFT"
+        chord = f"{prefix} + {key.upper()}"
+        found.setdefault(chord, body.strip().rstrip("),")[:56])
+    return found
+
+
+def check_chord(chord, ours=None):
+    """(free, holder). The safeguard: verified against the live config each time.
+
+    A chord observed free on one day is not free for ever — a CachyOS update can
+    claim it — so this is never cached and never assumed from a prior run.
+
+    Two of our own declarations claiming one chord is also a conflict, and a
+    different one: the vendor case means do not take it, the self case means the
+    declarations disagree with each other.
+    """
+    v = vendor_chords()
+    if chord in v:
+        return False, f"vendor: {v[chord]}"
+    mine = [b for b in (ours if ours is not None else key_bindings()) if chord_of(b) == chord]
+    if len(mine) > 1:
+        return False, f"declared {len(mine)}x by us: " + ", ".join(b["action"] for b in mine)
+    return True, None
+
+
+# ---------------------------------------------------------------- hyprland facts
+
+def clients():
+    r = subprocess.run(["hyprctl", "-j", "clients"], capture_output=True, text=True, timeout=10)
+    if r.returncode != 0:
+        die("hyprctl unavailable; is Hyprland running?")
+    return json.loads(r.stdout)
+
+
+def resolve_role(role_name):
+    """Windows belonging to a role, by the role's declared identity.
+
+    An agent asks for the mail role. It never guesses a title and never names an
+    executable, which is the whole point of the role indirection.
+    """
+    r = roles().get(role_name)
+    if not r:
+        die(f"no such role: {role_name}")
+    want = [w.lower() for w in r.get("window_class", [])]
+    return [c for c in clients()
+            if c.get("class", "").lower() in want or c.get("initialClass", "").lower() in want], r
+
+
+# ---------------------------------------------------------------- provenance
+
+def record(**fields):
+    JOURNAL.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps({"schema": 1, "at": now(), **fields}, sort_keys=True) + "\n"
+    with open(JOURNAL, "a") as fh:
+        fh.write(line)
+
+
+# ---------------------------------------------------------------- the action
+
+def plan_ensure(role_name):
+    """What ensure WOULD do. Running and not-running are different branches and
+    the proposal must say which, because 'open' and 'focus' disagree exactly when
+    the application is absent."""
+    wins, role = resolve_role(role_name)
+    if wins:
+        w = wins[0]
+        return {"branch": "focus", "role": role_name, "window": w["address"],
+                "title": w.get("title", ""), "workspace": w["workspace"]["name"],
+                "detail": f"focus existing window {w['address']} on workspace {w['workspace']['name']}"}
+    return {"branch": "launch", "role": role_name, "command": role["command"],
+            "detail": f"launch {role['command']}, wait for its window, then focus it"}
+
+
+def do_ensure(role_name, timeout=20.0):
+    plan = plan_ensure(role_name)
+    if plan["branch"] == "focus":
+        subprocess.run(["hyprctl", "dispatch", "focuswindow", f"address:{plan['window']}"],
+                       capture_output=True, timeout=10)
+        return plan, "ok"
+    _, role = resolve_role(role_name)
+    subprocess.Popen(shlex.split(role["command"]), start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        wins, _ = resolve_role(role_name)
+        if wins:
+            subprocess.run(["hyprctl", "dispatch", "focuswindow", f"address:{wins[0]['address']}"],
+                           capture_output=True, timeout=10)
+            return plan, "ok"
+        time.sleep(0.4)
+    return plan, "timeout"
+
+
+IMPL = {"desktop.application.ensure": (plan_ensure, do_ensure)}
+
+
+# ---------------------------------------------------------------- commands
+
+def cmd_list(argv):
+    """The agent-readable surface. Same actions the key and the preview name."""
+    acts = actions()
+    if "--json" in argv:
+        out = []
+        for name, a in sorted(acts.items()):
+            out.append({"action": name, "label": a.get("label"), "category": a.get("category"),
+                        "args": a.get("args", {}), "mutating": a.get("mutating", True),
+                        "consequence": a.get("consequence"),
+                        "available": name in IMPL,
+                        "unavailable_reason": None if name in IMPL else "no implementation registered",
+                        "invoke": {"propose": f"cap propose {name}", "act": f"cap act {name}"}})
+        print(json.dumps(out, indent=2))
+        return 0
+    for name, a in sorted(acts.items()):
+        mark = " " if name in IMPL else "!"
+        print(f"  {mark} {name:<34} {a.get('label','')}")
+    if not acts:
+        print("  (no actions declared)")
+    return 0
+
+
+def cmd_propose(argv):
+    if not argv:
+        die("usage: cap propose <action> [role=<name>]")
+    name, args = argv[0], dict(a.split("=", 1) for a in argv[1:] if "=" in a)
+    if name not in IMPL:
+        die(f"no implementation for {name}")
+    plan = IMPL[name][0](args.get("role", "mail"))
+    print(f"  {name}")
+    print(f"  branch : {plan['branch']}")
+    print(f"  would  : {plan['detail']}")
+    record(action=name, caller=os.environ.get("CAP_CALLER", "agent"),
+           phase="propose", inputs=args, outcome="ok", plan=plan)
+    return 0
+
+
+def cmd_act(argv):
+    if not argv:
+        die("usage: cap act <action> [role=<name>]")
+    name, args = argv[0], dict(a.split("=", 1) for a in argv[1:] if "=" in a)
+    if name not in IMPL:
+        die(f"no implementation for {name}")
+    caller = os.environ.get("CAP_CALLER", "agent")
+    started = now()
+    plan, outcome = IMPL[name][1](args.get("role", "mail"))
+    # A person pressing a key has already expressed intent; an agent proposes
+    # first. Same action identity, different authorization context.
+    record(action=name, caller=caller, phase="act", inputs=args,
+           outcome=outcome, plan=plan, started=started)
+    print(f"  {outcome}: {plan['detail']}")
+    return 0 if outcome == "ok" else 1
+
+
+def cmd_preview(_argv):
+    """Generated from the same declarations that produce the live bindings.
+
+    A preview maintained separately from the bindings will eventually disagree
+    with the keys, and a preview that can disagree with reality is worse than no
+    preview at all.
+    """
+    acts, v = actions(), vendor_chords()
+    print(f"  {'CHORD':<18} {'LABEL':<24} {'ACTION':<34} {'OWNER':<9} STATUS")
+    rows = []
+    for b in key_bindings():
+        chord = chord_of(b)
+        a = acts.get(b["action"], {})
+        free, holder = check_chord(chord)
+        status = "ok" if free else f"CONFLICT ({holder})"
+        avail = "" if b["action"] in IMPL else "  [action unavailable]"
+        rows.append((chord, a.get("label", b.get("label", "")), b["action"], "owned", status + avail))
+    for chord, body in sorted(v.items()):
+        rows.append((chord, body, "-", "observed", "vendor"))
+    for r in sorted(rows, key=lambda r: (r[3] != "owned", r[0])):
+        print(f"  {r[0]:<18} {r[1][:24]:<24} {r[2]:<34} {r[3]:<9} {r[4]}")
+    return 0
+
+
+def cmd_check(_argv):
+    """Every declared chord, verified against the live compositor config now."""
+    bad = 0
+    for b in key_bindings():
+        chord = chord_of(b)
+        free, holder = check_chord(chord)
+        print(f"  {'ok      ' if free else 'CONFLICT'} {chord:<18} {b['action']}"
+              + ("" if free else f"  <- {holder}"))
+        bad += 0 if free else 1
+    if bad:
+        print(f"\n{bad} declared chord(s) conflict — with the compositor's bindings, or with "
+              f"each other.", file=sys.stderr)
+    return 1 if bad else 0
+
+
+def cmd_render(_argv):
+    """Emit the Hyprland fragment for our declared bindings.
+
+    Written into canonical/ and projected by ms, so the key on the machine and
+    the preview above come from one declaration. The keypress calls `act`
+    directly: the person has already expressed intent.
+    """
+    if cmd_check([]) != 0:
+        die("refusing to render while a declared chord conflicts", 1)
+    lines = ["-- Generated by bin/cap from canonical/bindings/. Do not edit by hand.",
+             "-- Change the declaration and run: cap render && ms project", ""]
+    for b in key_bindings():
+        cmd = f"{REPO}/bin/cap act {b['action']} role={b.get('args', {}).get('role', 'mail')}"
+        lines.append(f'hl.bind("{chord_of(b)}", hl.dsp.exec_cmd("env CAP_CALLER=keypress {cmd}"))')
+    data = ("\n".join(lines) + "\n").encode()
+    RENDERED.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=RENDERED.parent, prefix=".bindings.", suffix=".tmp")
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(data)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, RENDERED)
+    print(f"  rendered {len(key_bindings())} binding(s) -> {RENDERED.relative_to(REPO)}")
+    print("  run 'ms project' to put it on the machine")
+    return 0
+
+
+COMMANDS = {"list": cmd_list, "propose": cmd_propose, "act": cmd_act,
+            "preview": cmd_preview, "check": cmd_check, "render": cmd_render}
+
+
+def main(argv):
+    if os.geteuid() == 0:
+        die("refusing to run as root")
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        print("\nusage: cap {" + " | ".join(COMMANDS) + "}")
+        return 0 if len(argv) >= 2 else 2
+    if argv[1] not in COMMANDS:
+        die(f"unknown command {argv[1]!r}; expected one of {', '.join(COMMANDS)}")
+    return COMMANDS[argv[1]](argv[2:])
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

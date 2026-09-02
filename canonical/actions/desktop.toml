@@ -1,0 +1,11 @@
+# Semantic actions. A key, a menu, an agent and an event binding all name the
+# same action. An action never embeds an opaque shell command.
+
+[action."desktop.application.ensure"]
+label       = "Open or focus an application"
+category    = "Applications"
+args        = { role = "role name" }
+mutating    = true
+consequence = "adjust"
+# ensure, not open and not focus: those disagree exactly when the application is
+# not running. The proposal states which branch it will take.

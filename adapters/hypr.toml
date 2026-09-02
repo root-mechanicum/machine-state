@@ -10,7 +10,8 @@
 [[target]]
 kind    = "render"
 path    = "~/.config/hypr/config/machine-state.lua"
-sources = ["canonical/desktop/hypr/machine-state.lua"]
+sources = ["canonical/desktop/hypr/machine-state.lua",
+           "canonical/desktop/hypr/bindings.lua"]
 
 # One require line, spliced into the template's loader. Lua takes -- comments,
 # so the same splice mechanism the instruction files use works unchanged.

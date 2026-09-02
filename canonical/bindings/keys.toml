@@ -1,0 +1,12 @@
+# Key bindings we own. Vendor chords are OBSERVED from the compositor's own
+# config at read time, never copied here.
+#
+# SUPER + E was the original proposal and is wrong: binds.lua binds it to the
+# file manager. Deliberately redefining a vendor chord is a legitimate
+# experiment about ownership, but it should be chosen, not stumbled into.
+
+[[key_binding]]
+keys   = ["SUPER", "M"]
+action = "desktop.application.ensure"
+args   = { role = "mail" }
+label  = "Open mail"
