@@ -206,6 +206,16 @@ def do_ensure(role_name, timeout=20.0):
 
 IMPL = {"desktop.application.ensure": (plan_ensure, do_ensure)}
 
+# Enforcement is a property of the SYSTEM, never of a declaration. An action
+# declares its consequence class; it cannot declare that anything checks it.
+# Nothing here reads the class before acting and no grant is consulted, so the
+# class is advisory and unattended invocation is unavailable. A declared-but-
+# unenforced safety property must be VISIBLY incomplete, or the catalogue
+# implies a guarantee the system does not make.
+# machine-state-bru.5 is where these become "enforced" and grant-dependent.
+ENFORCEMENT = "advisory"
+UNATTENDED_AVAILABLE = False
+
 
 # ---------------------------------------------------------------- commands
 
@@ -218,6 +228,10 @@ def cmd_list(argv):
             out.append({"action": name, "label": a.get("label"), "category": a.get("category"),
                         "args": a.get("args", {}), "mutating": a.get("mutating", True),
                         "consequence": a.get("consequence"),
+                        "enforcement": ENFORCEMENT,
+                        "unattended": UNATTENDED_AVAILABLE,
+                        "unattended_reason":
+                            "no enforcement or grant mechanism exists yet (machine-state-bru.5)",
                         "available": name in IMPL,
                         "unavailable_reason": None if name in IMPL else "no implementation registered",
                         "invoke": {"propose": f"cap propose {name}", "act": f"cap act {name}"}})
