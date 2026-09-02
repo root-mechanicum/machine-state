@@ -19,6 +19,7 @@ assertion, and one of these — that a broken surface never looks like an empty 
 — exists because that exact failure happened here.
 """
 
+import json
 import pathlib
 import shutil
 import subprocess
@@ -299,6 +300,43 @@ label  = "In the computed family"
         check("19 a token that is not a modifier at all is refused",
               rc != 0 and "is not a modifier" in out, "rejected, not treated as a key")
 
+    # --- refusal states name the right fact (from a keypress, 8cy.9) --------
+
+    with Box() as b:
+        # Start from an empty journal. The sandbox copies state/ from the repo,
+        # so the live journal comes with it — and its older refusals predate the
+        # state field, which would make this assertion read them as failures.
+        (b.repo / "state" / "actions.jsonl").unlink(missing_ok=True)
+
+        # unimplemented: a declared action no provider implements
+        rc, out = b.cap("act", "desktop.workspace.arrange")
+        unimpl = rc != 0 and "declared but not implemented" in out and "unavailable" not in out
+
+        # unavailable: implemented, but its runtime dependency is absent. The
+        # sandbox PATH has no hyprctl, so requires_hyprland fails honestly.
+        rc2, out2 = b.cap("act", "desktop.window.list", "role=mail")
+        unavail = rc2 != 0 and "is unavailable" in out2 and "not implemented" not in out2
+
+        rc3, out3 = b.cap("act", "desktop.no.such.action")
+        unknown = rc3 != 0 and "no such action" in out3
+
+        check("20 each refusal names its own state, not a shared one",
+              unimpl and unavail and unknown,
+              "not implemented / unavailable / no such action stay distinct")
+
+        j = b.repo / "state" / "actions.jsonl"
+        states = [json.loads(l).get("state") for l in j.read_text().splitlines()
+                  if json.loads(l).get("outcome") == "refused"]
+        check("21 the journal records which refusal it was",
+              set(states) == {"unimplemented", "unavailable", "unknown"},
+              "a corpus of bare 'refused' cannot tell absent code from an absent desktop")
+
+        # the surfaces must agree about the same action
+        rcp, prev = b.cap("preview")
+        check("22 preview and refusal agree about one action",
+              "missing" in prev and unimpl,
+              "preview says missing, the refusal says not implemented — one fact")
+
     # --- negative controls -------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
 
@@ -389,6 +427,18 @@ label  = "In the computed family"
         check("15n family matching disabled -> assertion 15 fails",
               rc == 0 and "UNKNOWN" not in out,
               "the unprovable chord is reported free again")
+
+    with Box() as b:
+        # Collapse the refusal states back into one message, as they were when a
+        # keypress on SUPER + G reported an unimplemented action as unavailable.
+        cap = b.repo / "bin" / "cap"
+        cap.write_text(cap.read_text().replace(
+            '    title, template = REFUSAL[state]',
+            '    title, template = REFUSAL["unavailable"]'))
+        rc, out = b.cap("act", "desktop.workspace.arrange")
+        check("20n one shared wording -> assertion 20 fails",
+              rc != 0 and "is unavailable" in out and "not implemented" not in out,
+              "an unimplemented action reported as unavailable again")
 
     with Box() as b:
         # Disable render's UNKNOWN gate, leaving check's report intact. This is

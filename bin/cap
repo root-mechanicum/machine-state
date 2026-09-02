@@ -594,7 +594,28 @@ UNATTENDED_AVAILABLE = False
 
 # ---------------------------------------------------------------- commands
 
-def refuse(name, args, phase, reason, caller="agent"):
+# How a refusal is worded, per state. The catalogue, the preview and the
+# notification must name the SAME state, or the three surfaces disagree about one
+# action — which is the thing this whole slice exists to prevent.
+#
+# This wording was wrong until a keypress exposed it. SUPER + G is bound to a
+# declared-but-unimplemented action; the preview correctly showed `missing`,
+# while the notification said "Action unavailable". The person who pressed it
+# reported back that the action was unavailable, which is not what is true.
+#
+# The difference is not pedantry, it is what to do next. UNAVAILABLE means the
+# provider exists and something it needs is not running — start it, or try
+# again later. NOT IMPLEMENTED means nothing will change until code is written,
+# and no amount of retrying will help. Collapsing them sends the reader after
+# the wrong remedy.
+REFUSAL = {
+    "unimplemented": ("Not implemented", "{name} is declared but not implemented: {reason}"),
+    "unavailable":   ("Unavailable",     "{name} is unavailable: {reason}"),
+    "unknown":       ("No such action",  "{name}: {reason}"),
+}
+
+
+def refuse(name, args, phase, reason, caller="agent", state="unavailable"):
     """A declared action that cannot run says so, rather than doing nothing.
 
     A key bound to an unimplemented action still renders and still fires; pressing
@@ -602,13 +623,16 @@ def refuse(name, args, phase, reason, caller="agent"):
     binding, the preview and the catalogue in agreement while letting a
     declaration precede its implementation without presenting false capability.
     """
-    msg = f"{name} is unavailable: {reason}"
+    title, template = REFUSAL[state]
+    msg = template.format(name=name, reason=reason)
     print(f"  refused: {msg}", file=sys.stderr)
     if caller == "keypress":
         subprocess.run(["notify-send", "--app-name=cap", "--urgency=normal",
-                        "Action unavailable", msg], capture_output=True)
+                        title, msg], capture_output=True)
+    # The state goes in the journal too. A corpus that records only "refused"
+    # cannot later distinguish "we never built this" from "the desktop was down".
     record(action=name, caller=caller, phase=phase, inputs=args,
-           outcome="refused", reason=reason)
+           outcome="refused", state=state, reason=reason)
     return 1
 
 
@@ -650,9 +674,11 @@ def cmd_propose(argv):
     name, args = argv[0], dict(a.split("=", 1) for a in argv[1:] if "=" in a)
     a, prov = provider_for(name)
     if a is None:
-        return refuse(name, args, "propose", f"no such action {name!r}")
-    if prov is None:
-        return refuse(name, args, "propose", action_state(a)[2])
+        return refuse(name, args, "propose", f"no such action {name!r}", "agent", "unknown")
+    implemented, available, reason = action_state(a)
+    if not available:
+        return refuse(name, args, "propose", reason, "agent",
+                      "unavailable" if implemented else "unimplemented")
     plan = prov[0](*( [args["role"]] if "role" in args else [] ))
     print(f"  {name}")
     print(f"  branch : {plan['branch']}")
@@ -669,10 +695,11 @@ def cmd_act(argv):
     a, prov = provider_for(name)
     caller = os.environ.get("CAP_CALLER", "agent")
     if a is None:
-        return refuse(name, args, "act", f"no such action {name!r}", caller)
+        return refuse(name, args, "act", f"no such action {name!r}", caller, "unknown")
     implemented, available, reason = action_state(a)
     if not available:
-        return refuse(name, args, "act", reason, caller)
+        return refuse(name, args, "act", reason, caller,
+                      "unavailable" if implemented else "unimplemented")
     started = now()
     plan, outcome = prov[1](*( [args["role"]] if "role" in args else [] ))
     # A person pressing a key has already expressed intent; an agent proposes
