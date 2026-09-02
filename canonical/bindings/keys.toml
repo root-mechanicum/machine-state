@@ -10,3 +10,11 @@ keys   = ["SUPER", "M"]
 action = "desktop.application.ensure"
 args   = { role = "mail" }
 label  = "Open mail"
+
+# Same action as SUPER+M, different argument. This tests whether the action is
+# genuinely an identity rather than a synonym for one binding.
+[[key_binding]]
+keys   = ["SUPER", "B"]
+action = "desktop.application.ensure"
+args   = { role = "browser" }
+label  = "Open browser"

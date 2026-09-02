@@ -9,3 +9,13 @@ mutating    = true
 consequence = "adjust"
 # ensure, not open and not focus: those disagree exactly when the application is
 # not running. The proposal states which branch it will take.
+
+# Deliberately has NO key binding. The registries are separate objects, so an
+# action must be fully usable by an agent while absent from the key surface. If
+# it cannot exist without a chord, the separation is nominal.
+[action."desktop.window.list"]
+label       = "List open windows"
+category    = "Desktop"
+args        = { role = "optional role name" }
+mutating    = false
+consequence = "observe"

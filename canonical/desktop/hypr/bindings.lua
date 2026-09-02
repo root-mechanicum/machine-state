@@ -2,3 +2,4 @@
 -- Change the declaration and run: cap render && ms project
 
 hl.bind("SUPER + M", hl.dsp.exec_cmd("env CAP_CALLER=keypress /home/klaas/src/machine-state/bin/cap act desktop.application.ensure role=mail"))
+hl.bind("SUPER + B", hl.dsp.exec_cmd("env CAP_CALLER=keypress /home/klaas/src/machine-state/bin/cap act desktop.application.ensure role=browser"))

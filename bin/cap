@@ -204,7 +204,32 @@ def do_ensure(role_name, timeout=20.0):
     return plan, "timeout"
 
 
-IMPL = {"desktop.application.ensure": (plan_ensure, do_ensure)}
+def plan_list(role_name=None):
+    """An observe action changes nothing, so its proposal has nothing to warn about.
+
+    The query/propose/act contract binds MUTATING actions: propose must exist so a
+    change can be reviewed before it happens. For a read there is nothing to
+    review, and demanding a proposal anyway would be ceremony rather than safety.
+    """
+    wins = resolve_role(role_name)[0] if role_name else clients()
+    return {"branch": "read", "count": len(wins),
+            "detail": f"read {len(wins)} window(s); changes nothing"}
+
+
+def do_list(role_name=None):
+    wins = resolve_role(role_name)[0] if role_name else clients()
+    for w in wins:
+        print(f"  {w['address']}  {w.get('class',''):<16} ws={w['workspace']['name']:<4} "
+              f"{w.get('title','')[:44]}")
+    return plan_list(role_name), "ok"
+
+
+# Declarations are DATA; implementations are CODE. Adding a role or a key binding
+# is purely declarative and needed no change here. Adding an ACTION requires an
+# entry in this table, so the registry is not yet fully declarative and the
+# catalogue says so by reporting an action with no implementation as unavailable.
+IMPL = {"desktop.application.ensure": (plan_ensure, do_ensure),
+        "desktop.window.list": (plan_list, do_list)}
 
 # Enforcement is a property of the SYSTEM, never of a declaration. An action
 # declares its consequence class; it cannot declare that anything checks it.
@@ -251,7 +276,7 @@ def cmd_propose(argv):
     name, args = argv[0], dict(a.split("=", 1) for a in argv[1:] if "=" in a)
     if name not in IMPL:
         die(f"no implementation for {name}")
-    plan = IMPL[name][0](args.get("role", "mail"))
+    plan = IMPL[name][0](*( [args["role"]] if "role" in args else [] ))
     print(f"  {name}")
     print(f"  branch : {plan['branch']}")
     print(f"  would  : {plan['detail']}")
@@ -268,7 +293,7 @@ def cmd_act(argv):
         die(f"no implementation for {name}")
     caller = os.environ.get("CAP_CALLER", "agent")
     started = now()
-    plan, outcome = IMPL[name][1](args.get("role", "mail"))
+    plan, outcome = IMPL[name][1](*( [args["role"]] if "role" in args else [] ))
     # A person pressing a key has already expressed intent; an agent proposes
     # first. Same action identity, different authorization context.
     record(action=name, caller=caller, phase="act", inputs=args,
@@ -293,7 +318,14 @@ def cmd_preview(_argv):
         free, holder = check_chord(chord)
         status = "ok" if free else f"CONFLICT ({holder})"
         avail = "" if b["action"] in IMPL else "  [action unavailable]"
-        rows.append((chord, a.get("label", b.get("label", "")), b["action"], "owned", status + avail))
+        # The BINDING's label wins over the action's. The action label is the
+        # generic name of the operation; the binding label says what THIS chord
+        # does. At n=1 the difference was invisible. At n=2, two chords invoking
+        # one action with different arguments were rendered identically — the
+        # preview said "Open or focus an application" twice and a reader could
+        # not tell SUPER+M from SUPER+B. Multiple bindings to one action must
+        # stay unambiguous.
+        rows.append((chord, b.get("label") or a.get("label", ""), b["action"], "owned", status + avail))
     for chord, body in sorted(v.items()):
         rows.append((chord, body, "-", "observed", "vendor"))
     for r in sorted(rows, key=lambda r: (r[3] != "owned", r[0])):
