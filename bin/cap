@@ -71,8 +71,50 @@ def _load(d, key):
     return out
 
 
+# Declarations are validated on load, in one place, because a malformed one that
+# survives loading fails later somewhere unrelated: `cap act ... mail` used to
+# discard the bare token, call the provider with no arguments, and surface a raw
+# TypeError. The traceback named do_ensure, which is not where the mistake was.
+#
+# Unknown keys are rejected too, not ignored. A misspelled `windowclass` that is
+# quietly dropped leaves a role that resolves no windows for a reason nothing
+# reports — the declaration looks right and the behaviour is wrong, which is the
+# hardest shape to debug and the easiest to prevent.
+
+def _want(d, where, what, required, optional=()):
+    allowed = set(required) | set(optional)
+    for key in required:
+        if key not in d:
+            die(f"{where}: {what} is missing {key!r}")
+    for key in d:
+        if key not in allowed and not key.startswith("_"):
+            die(f"{where}: {what} has unknown key {key!r}; "
+                f"expected {', '.join(sorted(allowed))}")
+
+
+def _str(v, where, what):
+    if not isinstance(v, str) or not v.strip():
+        die(f"{where}: {what} must be a non-empty string, got {v!r}")
+
+
+def check_role(name, r, where):
+    _want(r, where, f"role {name!r}", ("label", "command", "window_class"))
+    _str(r["label"], where, f"role {name!r} label")
+    _str(r["command"], where, f"role {name!r} command")
+    if not shlex.split(r["command"]):
+        die(f"{where}: role {name!r} command {r['command']!r} contains no executable")
+    wc = r["window_class"]
+    if not isinstance(wc, list) or not wc:
+        die(f"{where}: role {name!r} window_class must be a non-empty list")
+    for w in wc:
+        _str(w, where, f"role {name!r} window_class entry")
+
+
 def roles():
-    return _load(ROLES, "role")
+    out = _load(ROLES, "role")
+    for name, r in out.items():
+        check_role(name, r, r.get("_source", "?"))
+    return out
 
 
 VALID_CONSEQUENCE = {"observe", "report", "adjust", "commit"}
@@ -119,14 +161,34 @@ def check_keys(keys, where):
             f"{', '.join(sorted(MOD_ORDER))} before the key")
 
 
+def check_binding(b, where):
+    _want(b, where, "key binding", ("keys", "action"), ("args", "label"))
+    if not isinstance(b["keys"], list):
+        die(f"{where}: key binding keys must be a list, got {b['keys']!r}")
+    for k in b["keys"]:
+        _str(k, where, "key binding key")
+    _str(b["action"], where, "key binding action")
+    if "label" in b:
+        _str(b["label"], where, f"key binding {' + '.join(b['keys'])} label")
+    args = b.get("args", {})
+    if not isinstance(args, dict):
+        die(f"{where}: key binding args must be a table, got {args!r}")
+    for k, v in args.items():
+        _str(v, where, f"key binding argument {k!r}")
+    check_keys(b["keys"], where)
+
+
 def key_bindings():
     """Our declared chords. Vendor chords are observed separately, never declared here."""
     out = []
     for f in sorted(BINDINGS.glob("*.toml")) if BINDINGS.is_dir() else []:
-        doc = tomllib.loads(f.read_text())
+        try:
+            doc = tomllib.loads(f.read_text())
+        except tomllib.TOMLDecodeError as exc:
+            die(f"{f.name}: {exc}")
         for b in doc.get("key_binding", []):
             b["_source"] = str(f.relative_to(REPO))
-            check_keys(b.get("keys", []), b["_source"])
+            check_binding(b, b["_source"])
             out.append(b)
     return out
 
@@ -573,6 +635,24 @@ def dangling_bindings():
     return [(chord_of(b), b["action"]) for b in key_bindings() if b["action"] not in acts]
 
 
+def dangling_roles():
+    """Bindings naming a role that no longer exists — the other rename case.
+
+    An action reference is checked already; a role reference was not, and it
+    fails differently and worse. resolve_role dies at invocation, so a keypress
+    on such a binding produces no notification and no journal entry: the key
+    appears to do nothing at all. Catching it where dangling actions are caught
+    makes both reference kinds fail the same way, before projection.
+    """
+    known = set(roles())
+    out = []
+    for b in key_bindings():
+        r = (b.get("args") or {}).get("role")
+        if r is not None and r not in known:
+            out.append((chord_of(b), r))
+    return out
+
+
 def provider_for(name, acts=None):
     a = (acts or actions()).get(name)
     if a is None:
@@ -613,6 +693,47 @@ REFUSAL = {
     "unavailable":   ("Unavailable",     "{name} is unavailable: {reason}"),
     "unknown":       ("No such action",  "{name}: {reason}"),
 }
+
+
+def parse_invocation(name, tokens):
+    """`name=value` pairs, and nothing else.
+
+    A bare word used to be DISCARDED. `cap act desktop.application.ensure mail`
+    therefore asked for no role at all, and the provider was called with no
+    arguments — which surfaced as a TypeError naming do_ensure, a function the
+    caller never mentioned and did not get wrong.
+
+    This is a usage error, not a refusal: no action was attempted, so nothing is
+    journalled. A refusal means the system declined something it understood.
+    """
+    args = {}
+    for tok in tokens:
+        if "=" not in tok:
+            die(f"{name}: argument {tok!r} is not name=value. Did you mean "
+                f"'role={tok}'? A bare word is rejected rather than dropped, "
+                f"because dropping it silently asks for something else entirely.")
+        k, v = tok.split("=", 1)
+        if not k:
+            die(f"{name}: argument {tok!r} has an empty name")
+        if k in args:
+            die(f"{name}: argument {k!r} given more than once")
+        args[k] = v
+    return args
+
+
+def check_args(name, args, a):
+    """Argument NAMES against the declaration.
+
+    Only names. The declaration records each argument's description, not whether
+    it is required or what type it takes, so requiredness cannot be checked here
+    without inventing a schema the registry does not have. Saying so is better
+    than implying a completeness this does not deliver.
+    """
+    declared = set((a.get("args") or {}).keys())
+    unknown = sorted(k for k in args if k not in declared)
+    if unknown:
+        die(f"{name}: unknown argument(s) {', '.join(unknown)}; {name} declares "
+            f"{', '.join(sorted(declared)) if declared else 'no arguments'}")
 
 
 def refuse(name, args, phase, reason, caller="agent", state="unavailable"):
@@ -671,10 +792,12 @@ def cmd_list(argv):
 def cmd_propose(argv):
     if not argv:
         die("usage: cap propose <action> [role=<name>]")
-    name, args = argv[0], dict(a.split("=", 1) for a in argv[1:] if "=" in a)
+    name = argv[0]
+    args = parse_invocation(name, argv[1:])
     a, prov = provider_for(name)
     if a is None:
         return refuse(name, args, "propose", f"no such action {name!r}", "agent", "unknown")
+    check_args(name, args, a)
     implemented, available, reason = action_state(a)
     if not available:
         return refuse(name, args, "propose", reason, "agent",
@@ -691,11 +814,13 @@ def cmd_propose(argv):
 def cmd_act(argv):
     if not argv:
         die("usage: cap act <action> [role=<name>]")
-    name, args = argv[0], dict(a.split("=", 1) for a in argv[1:] if "=" in a)
+    name = argv[0]
+    args = parse_invocation(name, argv[1:])
     a, prov = provider_for(name)
     caller = os.environ.get("CAP_CALLER", "agent")
     if a is None:
         return refuse(name, args, "act", f"no such action {name!r}", caller, "unknown")
+    check_args(name, args, a)
     implemented, available, reason = action_state(a)
     if not available:
         return refuse(name, args, "act", reason, caller,
@@ -811,6 +936,10 @@ def cmd_check(_argv):
         print(f"  DANGLING {chord:<18} {name}  <- no such action")
         problems.append(f"{chord} references missing action {name!r}")
 
+    for chord, role in dangling_roles():
+        print(f"  DANGLING {chord:<18} role={role}  <- no such role")
+        problems.append(f"{chord} references missing role {role!r}")
+
     if RENDERED.exists():
         on_disk, expected = RENDERED.read_text(), render_text()
         if on_disk != expected:
@@ -871,13 +1000,16 @@ def cmd_render(_argv):
                if check_chord(chord_of(b), mine)[0]
                and (r := unreadable_risk(norm_of(b), unreadable))]
     dang = dangling_bindings()
-    if conflicts or unknown or dang:
+    dangr = dangling_roles()
+    if conflicts or unknown or dang or dangr:
         for c in conflicts:
             print(f"cap: chord {c} conflicts", file=sys.stderr)
         for c, why in unknown:
             print(f"cap: chord {c} cannot be shown free — {why}", file=sys.stderr)
         for chord, name in dang:
             print(f"cap: {chord} references missing action {name!r}", file=sys.stderr)
+        for chord, role in dangr:
+            print(f"cap: {chord} references missing role {role!r}", file=sys.stderr)
         die("refusing to render; the previous artifact is left untouched", 1)
     data = render_text().encode()
     RENDERED.parent.mkdir(parents=True, exist_ok=True)

@@ -337,6 +337,91 @@ label  = "In the computed family"
               "missing" in prev and unimpl,
               "preview says missing, the refusal says not implemented — one fact")
 
+    # --- declarations and invocations validated alike (8cy.6) ---------------
+
+    with Box() as b:
+        rolep = b.repo / "canonical/roles/roles.toml"
+        good = rolep.read_text()
+        cases = [
+            ("a role missing a required key",
+             good.replace('command      = "proton-mail"\n', ""), "missing 'command'"),
+            ("an extra key silently dropped",
+             good.replace('label        = "Mail"',
+                          'label        = "Mail"\nicon         = "mail"'), "unknown key"),
+            ("a role whose command has no executable",
+             good.replace('command      = "proton-mail"', 'command      = "   "'),
+             "non-empty string"),
+            ("window_class of the wrong type",
+             good.replace('window_class = ["Proton Mail", "proton-mail"]',
+                          'window_class = "Proton Mail"'), "non-empty list"),
+        ]
+        ok = True
+        for what, text, expect in cases:
+            rolep.write_text(text)
+            rc, out = b.cap("check")
+            if not (rc != 0 and expect in out and "roles.toml" in out):
+                ok = False
+                print(f"      {what}: expected {expect!r}, got rc={rc} {out.strip()[:90]}")
+        rolep.write_text(good)
+        check("23 a malformed role is diagnosed, naming the file and the problem", ok,
+              f"{len(cases)} shapes, each rejected on load")
+
+    with Box() as b:
+        bindp = b.repo / "canonical/bindings/keys.toml"
+        good = bindp.read_text()
+        cases = [
+            ("binding with no action", good.replace(
+                'action = "desktop.workspace.arrange"\n', ""), "missing 'action'"),
+            ("binding with an unknown key", good.replace(
+                'label  = "Open mail"', 'lable  = "Open mail"'), "unknown key"),
+            ("keys of the wrong type", good.replace(
+                'keys   = ["SUPER", "M"]', 'keys   = "SUPER + M"'), "must be a list"),
+            ("args of the wrong type", good.replace(
+                'args   = { role = "mail" }', 'args   = "mail"'), "must be a table"),
+        ]
+        ok = True
+        for what, text, expect in cases:
+            bindp.write_text(text)
+            rc, out = b.cap("check")
+            if not (rc != 0 and expect in out and "keys.toml" in out):
+                ok = False
+                print(f"      {what}: expected {expect!r}, got rc={rc} {out.strip()[:90]}")
+        bindp.write_text(good)
+        check("24 a malformed key binding is diagnosed the same way", ok,
+              f"{len(cases)} shapes, each rejected on load")
+
+    with Box() as b:
+        bare = b.cap("act", "desktop.application.ensure", "mail")
+        mis  = b.cap("act", "desktop.application.ensure", "rle=mail")
+        dup  = b.cap("act", "desktop.application.ensure", "role=mail", "role=browser")
+        none = b.cap("act", "desktop.workspace.arrange", "role=mail")
+        check("25 a bare token is an error, not a discarded word",
+              bare[0] != 0 and "not name=value" in bare[1] and "Traceback" not in bare[1],
+              "it used to be dropped, then crash the provider with a TypeError")
+        check("26 argument names are checked against the declaration",
+              mis[0] != 0 and "unknown argument(s) rle" in mis[1]
+              and dup[0] != 0 and "more than once" in dup[1]
+              and none[0] != 0 and "declares no arguments" in none[1],
+              "misspelled, repeated, and undeclared are each named")
+
+        j = b.repo / "state" / "actions.jsonl"
+        before = j.read_text() if j.exists() else ""
+        b.cap("act", "desktop.application.ensure", "mail")
+        check("27 a usage error is not journalled as a refusal",
+              (j.read_text() if j.exists() else "") == before,
+              "nothing was attempted, so the corpus records nothing")
+
+    with Box() as b:
+        # a binding referencing a role that no longer exists
+        rolep = b.repo / "canonical/roles/roles.toml"
+        rolep.write_text(rolep.read_text().replace("[role.mail]", "[role.post]"))
+        rc, out = b.cap("check")
+        rc2, out2 = b.cap("render")
+        check("28 a dangling role reference fails where a dangling action does",
+              rc != 0 and "no such role" in out and rc2 != 0
+              and "missing role" in out2,
+              "check reports it and render refuses, rather than the key dying on press")
+
     # --- negative controls -------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
 
@@ -445,7 +530,8 @@ label  = "In the computed family"
         # the state the reviewer found: render writes, check objects afterwards.
         cap = b.repo / "bin" / "cap"
         cap.write_text(cap.read_text().replace(
-            "    if conflicts or unknown or dang:", "    if conflicts or dang:"))
+            "    if conflicts or unknown or dang or dangr:",
+            "    if conflicts or dang or dangr:"))
         with_vendor(b)
         p_ = b.repo / "canonical/bindings/keys.toml"
         p_.write_text(p_.read_text() + ALT_BINDING)
@@ -468,6 +554,18 @@ label  = "In the computed family"
         check("18n the alias accepted again -> assertion 18 fails",
               rc == 0 and "CTRL + G" in b.artifact(),
               "a spelling this compositor's table does not contain reaches the artifact")
+
+    with Box() as b:
+        # Drop the bare-token rejection, restoring the silent discard.
+        cap = b.repo / "bin" / "cap"
+        cap.write_text(cap.read_text().replace(
+            '        if "=" not in tok:', '        if False:').replace(
+            '        k, v = tok.split("=", 1)',
+            '        if "=" not in tok: continue\n        k, v = tok.split("=", 1)'))
+        rc, out = b.cap("act", "desktop.application.ensure", "mail")
+        check("25n bare-token rejection removed -> assertion 25 fails",
+              "not name=value" not in out,
+              "the word is dropped again and the failure moves elsewhere")
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
