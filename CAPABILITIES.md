@@ -153,6 +153,42 @@ dcg-wired. Any conclusion drawn from that corpus about "what agents do here" wou
 Selection bias in a record is invisible from inside it. Every capability invocation emits, or the
 corpus is not worth analysing.
 
+### 5.1 Observed bindings — evidence, not description
+
+Of the 75 key bindings this machine has, **72 are read out of a file we do not author** and 3 cannot
+be read at all. The preview must account for all 75, and the way it accounts for them is the
+difference between a shared model and a plausible one.
+
+The tempting move is to derive a label: `hl.dsp.exec_cmd(launchPrefix .. FILE_MANAGER)` obviously
+means "Open file manager". It does not obviously mean that. `FILE_MANAGER` is a variable whose value
+this parser does not resolve, `launchPrefix` may be empty, and the next package update may change
+either. A row reading **Open file manager** would be a claim about behaviour supported by nothing
+the reader can check, sitting in the same table as rows that ARE supported. So:
+
+- an **owned** row states what the machine will do, derived from a declaration;
+- an **observed** row states what was read, at a path and line the reader can go and look at,
+  showing the expression as written with only the closing paren of `hl.bind` trimmed;
+- the two are printed as **separate tables**, because they are different kinds of statement and a
+  shared table invites the eye to read them as the same kind.
+
+Ownership is attributed the same way. `~/.config/hypr/config/binds.lua` is byte-identical to
+`/etc/skel/.config/hypr/config/binds.lua`, which pacman says belongs to `cachyos-hypr-noctalia`.
+That is evidence, so the row names the package. The moment those bytes diverge the attribution stops
+being true, and the owner degrades to `local` rather than continuing to credit a package for a file
+someone has since edited. A derived label must fail with its derivation.
+
+**Unreadable is a third answer, and it is a real one.** Three bindings assemble their chord at load
+time (`mainMod .. " + ALT + " .. key`). Their keys cannot be read from the text, but their
+*modifiers* can, and that is enough to separate "certainly free" from "cannot be determined here".
+So `cap check` has three states, not two: `ok`, `CONFLICT`, and `UNKNOWN` — the last for a chord
+whose modifier set matches a binding whose key is computed. Calling it free would be a claim the
+evidence does not support; calling it conflicted would refuse work on a guess.
+
+This is not a presentational preference. The parser that produced the pretty version read 30 of the
+75 bindings and silently discarded the other 45 — which meant `cap check` reported 45 vendor-held
+chords as **free**. The safeguard and the display are the same parse, and a parser that drops what
+it cannot read makes the surface *more* confident and *less* correct at the same time.
+
 ## 6. Boundaries
 
 **Information may flow up from `canonical/`. Authority may never.**

@@ -176,16 +176,91 @@ label  = "The other order"
         # conflict, but nothing stops the vendor changing afterwards.
         vend = b.dir / ".config/hypr/config"
         vend.mkdir(parents=True, exist_ok=True)
-        (vend / "binds.lua").write_text('-- fake\n')
+        (vend / "binds.lua").write_text('local mainMod = "SUPER"\n')
         b.cap("render")
         rc_before, _ = b.cap("check")
         (vend / "binds.lua").write_text(
-            '-- fake\nhl.bind(mainMod .. " + M", hl.dsp.exec_cmd("something-else"))\n')
+            'local mainMod = "SUPER"\n'
+            'hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("something-else"))\n')
         rc_after, out = b.cap("check")
         check("11 a vendor claim after render is detected, not prevented",
               rc_before == 0 and rc_after != 0 and "CONFLICT" in out
               and "ok       artifact" in out,
               "artifact is not stale — the world changed, not the file")
+
+    # --- observed bindings: evidence, not description (bru.7.4) -------------
+
+    VENDOR = '''local mainMod = "SUPER"
+local noctCall = "noctalia msg "
+hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(launchPrefix .. FILE_MANAGER))
+hl.bind("ALT + Tab", hl.dsp.window.cycle_next())
+hl.bind(mainMod .. " + CONTROL + SHIFT + Right", hl.dsp.window.move({ workspace = "m+1" }))
+hl.bind(mainMod .. " + Z", hl.dsp.exec_cmd(noctCall .. "settings-toggle"))
+for i, key in ipairs(keys) do
+  hl.bind(mainMod .. " + ALT + " .. key, hl.dsp.focus({ workspace = i }))
+end
+'''
+
+    def with_vendor(b, text=VENDOR):
+        v = b.dir / ".config/hypr/config"
+        v.mkdir(parents=True, exist_ok=True)
+        (v / "binds.lua").write_text(text)
+        return v / "binds.lua"
+
+    with Box() as b:
+        with_vendor(b)
+        rc, out = b.cap("preview")
+        # 5 hl.bind lines: 4 readable, 1 computed. None may go missing silently.
+        listed = sum(1 for l in out.splitlines() if l.strip().startswith(":"))
+        check("12 every vendor binding is accounted for, readable or not",
+              rc == 0 and out.count(":") >= 5 and "UNREADABLE — 1 binding" in out
+              and all(c in out for c in ("SUPER + E", "ALT + Tab",
+                                         "SUPER + CONTROL + SHIFT + Right", "SUPER + Z")),
+              "4 read + 1 declared unreadable = 5 hl.bind lines")
+
+        check("13 an observed row carries source, line and the expression as written",
+              "~/.config/hypr/config/binds.lua" in out and ":3" in out
+              and "hl.dsp.exec_cmd(launchPrefix .. FILE_MANAGER)" in out
+              and "OBSERVED" in out and "OWNED" in out,
+              "no invented label; owned and observed are separate tables")
+
+        check("14 no observed row claims a semantic it cannot support",
+              "Semantics are not declared anywhere" in out
+              and not any(w in out for w in ("Open file manager", "File manager", "Open terminal")),
+              "the expression stands in for a label that does not exist")
+
+    with Box() as b:
+        with_vendor(b)
+        # a chord whose modifiers match a binding whose KEY is computed
+        p_ = b.repo / "canonical/bindings/keys.toml"
+        p_.write_text(p_.read_text() + '''
+[[key_binding]]
+keys   = ["SUPER", "ALT", "Q"]
+action = "desktop.window.list"
+label  = "In the computed family"
+''')
+        b.cap("render")
+        rc, out = b.cap("check")
+        check("15 a chord in a computed-key family is UNKNOWN, not free",
+              rc != 0 and "UNKNOWN" in out and "cannot be shown free" in out
+              and "SUPER + M" in out and out.count("UNKNOWN") == 1,
+              "unprovable is reported as unprovable, not as conflict or as ok")
+
+    with Box() as b:
+        # attribution follows the evidence and degrades when the bytes diverge
+        v = with_vendor(b)
+        rc, out = b.cap("preview")
+        divergent = "owner local" in out
+        real = pathlib.Path.home() / ".config/hypr/config/binds.lua"
+        skel = pathlib.Path("/etc/skel/.config/hypr/config/binds.lua")
+        attributed = True
+        if real.is_file() and skel.is_file() and real.read_bytes() == skel.read_bytes():
+            r = subprocess.run([str(REPO / "bin" / "cap"), "preview"],
+                               capture_output=True, text=True, cwd=REPO)
+            attributed = "owner cachyos" in r.stdout
+        check("16 ownership is attributed from evidence and degrades with it",
+              divergent and attributed,
+              "packaged bytes name their package; edited bytes claim no owner")
 
     # --- negative controls -------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
@@ -208,8 +283,8 @@ label  = "The other order"
         # the failure that made a broken surface look like an empty one
         cap = b.repo / "bin" / "cap"
         cap.write_text(cap.read_text().replace(
-            "            free, holder = check_chord(chord)",
-            "            free, holder = check_chord(chord); STALE_REFERENCE_LIKE_THE_OLD_BUG"))
+            "            free, holder = check_chord(chord, mine)",
+            "            free, holder = check_chord(chord, mine); STALE_REFERENCE_LIKE_THE_OLD_BUG"))
         rc, out = b.cap("preview")
         stdout_only = subprocess.run([str(cap), "preview"], capture_output=True, text=True,
                                      cwd=b.repo, env={"HOME": str(b.dir), "PATH": "/usr/bin:/bin"})
@@ -241,6 +316,42 @@ label  = "The other order"
         check("7n normalisation disabled -> assertion 7 fails",
               rc == 0 and "CONFLICT" not in out,
               "equivalent orders no longer collide, as expected")
+
+    with Box() as b:
+        # Restore the OLD narrow parser: only mainMod-prefixed single-modifier
+        # chords. It read 30 of the real file's 75 bindings and reported the
+        # other 45 as free. Nothing failed; the safeguard was just wrong.
+        cap = b.repo / "bin" / "cap"
+        cap.write_text(cap.read_text().replace(
+            '        chord = _resolve(first, consts)',
+            '        chord = _resolve(first, consts)\n'
+            '        if chord and chord.count("+") > 1: chord = None\n'
+            '        if chord is None: continue'))
+        with_vendor(b)
+        rc, out = b.cap("preview")
+        check("12n narrow parsing -> assertion 12 fails",
+              rc == 0 and "SUPER + CONTROL + SHIFT + Right" not in out
+              and "UNREADABLE" not in out,
+              "multi-modifier and computed bindings vanish without a trace")
+
+    with Box() as b:
+        # Disable the family match, so a computed key is treated as no evidence.
+        cap = b.repo / "bin" / "cap"
+        cap.write_text(cap.read_text().replace(
+            "        if pm == mods:", "        if False:"))
+        with_vendor(b)
+        p_ = b.repo / "canonical/bindings/keys.toml"
+        p_.write_text(p_.read_text() + '''
+[[key_binding]]
+keys   = ["SUPER", "ALT", "Q"]
+action = "desktop.window.list"
+label  = "In the computed family"
+''')
+        b.cap("render")
+        rc, out = b.cap("check")
+        check("15n family matching disabled -> assertion 15 fails",
+              rc == 0 and "UNKNOWN" not in out,
+              "the unprovable chord is reported free again")
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

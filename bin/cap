@@ -142,24 +142,165 @@ def norm_of(b):
 
 # ---------------------------------------------------------------- vendor chords
 
-def vendor_chords():
-    """Chords bound by the compositor's own configuration.
+def _split_top(s):
+    """The first argument of hl.bind(...), up to the top-level comma."""
+    depth, q, out = 0, None, []
+    for ch in s:
+        if q:
+            out.append(ch)
+            if ch == q:
+                q = None
+            continue
+        if ch in "\"'":
+            q = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            if depth == 0:
+                break
+            depth -= 1
+        elif ch == "," and depth == 0:
+            break
+        out.append(ch)
+    return "".join(out).strip(), s[len(out) + 1:].strip()
+
+
+def _resolve(expr, consts):
+    """A Lua string concatenation, resolved only when every part is knowable.
+
+    Returns None when it is not. A chord assembled at load time — `mainMod ..
+    " + SHIFT + CONTROL + " .. key` inside a loop — cannot be read from the text,
+    and guessing at it would put a chord in the table that may not exist.
+    Unreadable is a fact worth reporting; a plausible invention is not.
+    """
+    parts, out = [p.strip() for p in expr.split("..")], []
+    for part in parts:
+        m = re.fullmatch(r'"([^"]*)"', part)
+        if m:
+            out.append(m.group(1))
+        elif part in consts:
+            out.append(consts[part])
+        else:
+            return None
+    return "".join(out)
+
+
+def vendor_bindings():
+    """Every hl.bind in the compositor's configuration, with its provenance.
 
     Read live rather than cached. A chord observed free on one day is not free
     for ever: a CachyOS update can claim it, and a preview that trusted a stale
     observation would document a binding that no longer behaves as described.
+
+    Returns (resolved, unresolved). The second list is not a parser failure to be
+    swallowed — it is the honest count of bindings this file holds that cannot be
+    read statically, and both the preview and check must say so. Silently
+    dropping them is what made 45 vendor-held chords read as free.
     """
     if not VENDOR_BINDS.exists():
-        return {}
+        return {}, []
     text = VENDOR_BINDS.read_text()
-    found = {}
-    for mod, key, body in re.findall(
-            r'hl\.bind\(\s*(mainMod|mainMod \.\. " \+ SHIFT")\s*\.\.\s*"\s*\+\s*([A-Za-z0-9]+)"\s*,\s*([^\n]*)',
-            text):
-        prefix = "SUPER" if mod == "mainMod" else "SUPER + SHIFT"
-        chord = f"{prefix} + {key.upper()}"
-        found.setdefault(chord, body.strip().rstrip("),")[:56])
-    return found
+    src = str(VENDOR_BINDS).replace(str(pathlib.Path.home()), "~")
+    consts = dict(re.findall(r'^local\s+(\w+)\s*=\s*"([^"]*)"', text, re.M))
+    resolved, unresolved = {}, []
+    for n, line in enumerate(text.splitlines(), 1):
+        i = line.find("hl.bind(")
+        if i < 0:
+            continue
+        first, rest = _split_top(line[i + len("hl.bind("):])
+        # MINIMAL normalisation only: trim whitespace, then the single trailing
+        # paren that closes hl.bind itself, so the expression stays balanced.
+        # Nothing here tries to infer that a command means "open the file
+        # manager". If the expression cannot be read reliably, show the
+        # expression. Observed truth with limited meaning beats polished fiction.
+        raw, _ = _split_top(rest)
+        raw = raw.strip().rstrip(",").strip()
+        chord = _resolve(first, consts)
+        rec = {"raw": raw or rest.rstrip(")").strip(), "source": src, "line": n}
+        if chord is None:
+            unresolved.append({**rec, "expr": first})
+            continue
+        declared = " + ".join(k.strip() for k in chord.split("+") if k.strip())
+        resolved.setdefault(normalize_chord([k.strip() for k in chord.split("+")]),
+                            {**rec, "declared": declared})
+    return resolved, unresolved
+
+
+def vendor_chords():
+    return vendor_bindings()[0]
+
+
+def unreadable_risk(norm, unreadable=None):
+    """Which unreadable vendor bindings COULD hold this chord.
+
+    A binding whose key is computed still holds real chords; the file simply does
+    not say which. But it does say the modifiers — `mainMod .. " + ALT + " .. key`
+    is some SUPER + ALT chord whatever key turns out to be — and that is enough
+    to tell "certainly free" apart from "cannot be determined from this file".
+
+    Reporting neither is acceptable. Calling it free would be a claim the evidence
+    does not support; calling it conflicted would refuse work on a guess.
+    """
+    if unreadable is None:
+        unreadable = vendor_bindings()[1]
+    mods = {k for k in norm.split(" + ") if k in MOD_ORDER}
+    out = []
+    for e in unreadable:
+        parts = [x.strip() for x in e["expr"].split("..")]
+        lit = []
+        for part in parts:
+            r = _resolve(part, _vendor_consts())
+            if r is None:
+                break
+            lit.append(r)
+        prefix = "".join(lit)
+        # only when the computed piece is the KEY, not a modifier
+        if not prefix.rstrip().endswith("+"):
+            continue
+        pm = {k.strip().upper() for k in prefix.split("+") if k.strip()}
+        if pm == mods:
+            out.append(f"{e['source']}:{e['line']} binds {prefix.strip()}<computed key>")
+    return out
+
+
+def _vendor_consts():
+    if not VENDOR_BINDS.exists():
+        return {}
+    return dict(re.findall(r'^local\s+(\w+)\s*=\s*"([^"]*)"',
+                           VENDOR_BINDS.read_text(), re.M))
+
+
+_OWNER_CACHE = {}
+
+
+def vendor_owner(path):
+    """Who owns an observed binding file — attributed from EVIDENCE, not assumed.
+
+    New user accounts on this system are seeded from /etc/skel, and /etc/skel is
+    packaged. So if the live file is byte-identical to its skel counterpart, the
+    package that owns the counterpart owns the content, and pacman will name it.
+
+    The moment those bytes diverge the attribution stops being true, and the row
+    must say so rather than keep crediting a package for a file someone has since
+    edited. That is the whole point of deriving this instead of writing
+    "cachyos" into a constant: the label degrades when the evidence does.
+    """
+    if path in _OWNER_CACHE:
+        return _OWNER_CACHE[path]
+    owner = "local"
+    try:
+        skel = pathlib.Path("/etc/skel") / path.relative_to(pathlib.Path.home())
+        if skel.is_file() and skel.read_bytes() == path.read_bytes():
+            r = subprocess.run(["pacman", "-Qo", str(skel)], capture_output=True, text=True)
+            if r.returncode == 0:
+                # "<path> is owned by <name> <version>"
+                parts = r.stdout.split(" is owned by ")
+                if len(parts) == 2:
+                    owner = parts[1].split()[0]
+    except (ValueError, OSError, FileNotFoundError):
+        pass
+    _OWNER_CACHE[path] = owner
+    return owner
 
 
 def check_chord(chord, ours=None):
@@ -173,9 +314,10 @@ def check_chord(chord, ours=None):
     declarations disagree with each other.
     """
     norm = normalize_chord(chord.split(" + ")) if isinstance(chord, str) else chord
-    v = {normalize_chord(k.split(" + ")): body for k, body in vendor_chords().items()}
+    v = vendor_chords()
     if norm in v:
-        return False, f"vendor: {v[norm]}"
+        e = v[norm]
+        return False, f"vendor {e['source']}:{e['line']}: {e['raw'][:52]}"
     # Both claimants are named with their provenance, because "conflict" without
     # saying which two declarations conflict leaves the reader to grep for it.
     mine = [b for b in (ours if ours is not None else key_bindings()) if norm_of(b) == norm]
@@ -449,26 +591,35 @@ def cmd_preview(_argv):
     Binding validity and action executability are SEPARATE FACTS and get separate
     columns. A single "ok" spanning both can be read as availability when only
     the chord is sound.
+
+    Owned and observed rows are separated rather than interleaved, because they
+    are different KINDS of statement. An owned row says what the machine will do,
+    from a declaration. An observed row says what was read out of a file we do
+    not author, at a line the reader can go and look at. The second is evidence,
+    not description, and the layout should not let one be mistaken for the other.
     """
-    rows = []
     try:
-        acts, v = actions(), vendor_chords()
-        for b in key_bindings():
-            chord = chord_of(b)
-            a = acts.get(b["action"])
-            free, holder = check_chord(chord)
-            binding = "ok" if free else "CONFLICT"
+        acts = actions()
+        vend, unreadable = vendor_bindings()
+        owned, mine = [], key_bindings()
+        for b in mine:
+            chord, a = chord_of(b), acts.get(b["action"])
+            free, holder = check_chord(chord, mine)
             if a is None:
                 impl, why = "missing", f"no such action {b['action']!r}"
             else:
                 implemented, available, reason = action_state(a)
                 impl = "ok" if available else ("missing" if not implemented else "unavailable")
                 why = reason or ""
-            note = why if why else ("" if free else holder)
-            rows.append((chord, b.get("label") or (a or {}).get("label", ""),
-                         b["action"], "owned", binding, impl, note))
-        for chord, body in sorted(v.items()):
-            rows.append((chord, body, "-", "observed", "-", "-", ""))
+            note = why or ("" if free else holder)
+            owned.append({"chord": chord, "norm": norm_of(b),
+                          "binding": "ok" if free else "CONFLICT", "impl": impl,
+                          "what": b["action"] + (f"  — {b['label']}" if b.get("label") else ""),
+                          "note": note})
+        claimed = {r["norm"] for r in owned}
+        groups = {}
+        for norm, e in vend.items():
+            groups.setdefault((vendor_owner(VENDOR_BINDS), e["source"]), []).append((norm, e))
     except SystemExit:
         raise
     except Exception as exc:
@@ -476,10 +627,27 @@ def cmd_preview(_argv):
         print("Nothing is shown rather than showing part of it.", file=sys.stderr)
         return 1
 
-    print(f"  {'CHORD':<18} {'LABEL':<24} {'ACTION':<28} {'OWNER':<9} {'BINDING':<9} IMPLEMENTATION")
-    for r in sorted(rows, key=lambda r: (r[3] != "owned", r[0])):
-        tail = f"{r[5]:<14}" + (f" [{r[6]}]" if r[6] else "")
-        print(f"  {r[0]:<18} {r[1][:24]:<24} {r[2]:<28} {r[3]:<9} {r[4]:<9} {tail}")
+    w = max([len(r["chord"]) for r in owned] + [18])
+    print(f"  OWNED — declared here; these produce the live keys and this table from one source")
+    print(f"  {'CHORD':<{w}}  {'BINDING':<9} {'IMPL':<12} ACTION")
+    for r in sorted(owned, key=lambda r: r["chord"]):
+        print(f"  {r['chord']:<{w}}  {r['binding']:<9} {r['impl']:<12} {r['what']}"
+              + (f"   [{r['note']}]" if r["note"] else ""))
+
+    for (owner, src), rows in sorted(groups.items()):
+        print(f"\n  OBSERVED — read from {src}, owner {owner}")
+        print("  Semantics are not declared anywhere; the expression is shown as written.")
+        w2 = max([len(e["declared"]) for _, e in rows] + [18])
+        print(f"  {'CHORD':<{w2}}  {'LINE':<6} {'BINDING':<9} EXPRESSION AS WRITTEN")
+        for norm, e in sorted(rows, key=lambda p: p[1]["line"]):
+            conflict = "CONFLICT" if norm in claimed else "-"
+            print(f"  {e['declared']:<{w2}}  {':' + str(e['line']):<6} {conflict:<9} {e['raw']}")
+
+    if unreadable:
+        print(f"\n  UNREADABLE — {len(unreadable)} binding(s) whose chord is assembled at load time")
+        print("  These hold chords that cannot be listed above, so this table is not the whole keymap.")
+        for e in unreadable:
+            print(f"  {':' + str(e['line']):<6} {e['expr']}")
     return 0
 
 
@@ -493,13 +661,19 @@ def cmd_check(_argv):
     """
     problems = []
 
+    unreadable = vendor_bindings()[1]
     for b in key_bindings():
         chord = chord_of(b)
         free, holder = check_chord(chord)
-        print(f"  {'ok      ' if free else 'CONFLICT'} {chord:<18} {b['action']}"
-              + ("" if free else f"  <- {holder}"))
+        risk = unreadable_risk(norm_of(b), unreadable) if free else []
+        state = "ok      " if free and not risk else ("UNKNOWN " if free else "CONFLICT")
+        print(f"  {state} {chord:<18} {b['action']}"
+              + ("" if free else f"  <- {holder}")
+              + (f"  <- may be claimed by {risk[0]}" if risk else ""))
         if not free:
             problems.append(f"chord {chord} conflicts ({holder})")
+        elif risk:
+            problems.append(f"chord {chord} cannot be shown free: {risk[0]}")
 
     for chord, name in dangling_bindings():
         print(f"  DANGLING {chord:<18} {name}  <- no such action")
