@@ -195,6 +195,31 @@ unattended. That is not a degraded condition to be fixed; it is where the machin
 non-zero if the file or its directory has become writable by this user. A boundary that cannot
 report its own compromise is not one.
 
+### Grants will need to get stricter, and dcg shows the shapes
+
+The first version is one root-owned file, all or nothing. That is the right starting point and the
+wrong ending one. Three properties are worth borrowing from dcg when the broker exists, and the
+schema above forecloses none of them — each is additive.
+
+**Enforcement-only layering is the sharpest.** dcg's project layer can tighten but never loosen,
+which is the one shape provably safe to hand an agent. Applied to grants: a lower root-owned layer
+sets the baseline, and a higher agent-writable layer may only *reduce* what is granted. That gives
+something genuinely useful — **an agent can voluntarily drop its own authority for a risky task and
+cannot raise it** — without any new boundary. Self-restriction is safe to delegate; self-permission
+is not.
+
+**Modes, for staged introduction.** A grant could begin as `warn`: the capability records what it
+would have done without doing it, and is promoted only once the log justifies it. Exactly how the
+four dcg packs were introduced here, and for the same reason — a new permission is a hypothesis
+until observed.
+
+**Expiry.** A permission granted once should not be permanent by default. `expires` turns a grant
+into something that must be renewed deliberately, which is the difference between a decision and a
+sediment.
+
+What is deliberately *not* borrowed yet: dcg's graduated response, pattern packs, and allowlist
+machinery. Those earned their complexity from a large rule surface. Grants currently number zero.
+
 Also inherited, unchanged:
 
 - **`dcg` remains beneath everything.** The broker invokes capabilities; the guard still sees the
