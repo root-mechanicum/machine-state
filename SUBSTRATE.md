@@ -68,6 +68,7 @@ canonical/policy/agents/   agent-specific rules — still canonical, selected by
 canonical/skills/      agent-neutral skill trees
 canonical/tooling/     one record per substrate tool
 canonical/desktop/     managed desktop config (Hyprland; Noctalia pending)
+derived/               produced here by a tool from canonical declarations — see §2
 ```
 
 Policy is **ordered fragments rather than one file** because two harnesses must share most rules
@@ -81,8 +82,30 @@ Every path falls in exactly one class.
 | Class | Meaning | Written by |
 | --- | --- | --- |
 | **CANONICAL** | authored here | a human |
+| **DERIVED** | produced here from canonical, inside the repository | a tool in `bin/` |
 | **VENDOR** | owned by another tool's installer | that tool |
-| **PROJECTED** | derived from canonical | `bin/ms` |
+| **PROJECTED** | derived from canonical, outside the repository | `bin/ms` |
+
+**DERIVED exists because leaving it out was already causing damage.** `cap render` writes a
+Hyprland fragment from the key binding declarations, and that file sat in `canonical/` and was read
+by an adapter as a canonical source. So a generated intermediate held the ownership class of
+authored truth, and the sentence "canonical content is what a human authored here" was false about
+one of its own files. Three classes could not describe the thing, so it was filed under the nearest
+one — which is how classifications quietly stop being true.
+
+Derived is not projected. Both are generated, and they differ in the way that matters here: a
+projected path is **outside** the repository, so `ms` writes it, records a hash, and can detect that
+someone changed it. A derived path is **inside** the repository, so git records it, and `ms` may
+read it but must never write it. Ownership of the file stays with the tool that produces it.
+
+**Only CANONICAL and DERIVED may be adapter sources**, and `bin/ms` now enforces that rather than
+merely asserting it. A vendor path as a source would project another tool's output as though it
+were our decision; a path outside the repository would break §1. This rule spent months as prose
+that nothing checked, and it was already broken.
+
+A derived file is **committed**, not regenerated on demand. Otherwise `ms diff` could not answer
+"does the machine match the repository" without first running every producer, and the chain from
+declaration to live file would stop being auditable from a single commit.
 
 Current assignment:
 
@@ -91,6 +114,7 @@ Current assignment:
 | `README.md`, `BASELINE.md` | CANONICAL | the only human-authored files as of v0.01 |
 | `SUBSTRATE.md` | CANONICAL | this file |
 | `canonical/**` | CANONICAL | |
+| `derived/**` | DERIVED | `cap render` writes `derived/hypr/bindings.lua`; `ms` reads it, never writes it |
 | `CLAUDE.md` | VENDOR | `bd setup claude`; we co-own one marker region |
 | `AGENTS.md` | VENDOR | `bd setup codex`; carries two bd blocks |
 | `.claude/settings.json` | VENDOR | `bd setup claude`, whole-file JSON |

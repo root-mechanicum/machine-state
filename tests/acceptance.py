@@ -24,7 +24,7 @@ import tempfile
 import tomllib
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-NEEDED = ["bin", "canonical", "adapters", "state", "CLAUDE.md", "AGENTS.md"]
+NEEDED = ["bin", "canonical", "derived", "adapters", "state", "CLAUDE.md", "AGENTS.md"]
 
 results = []
 
@@ -175,6 +175,31 @@ def main():
               and not skill.exists() and not skill.is_symlink()
               and not (box.repo / "POLICY.md").exists())
 
+    # --- only canonical and derived may be a source (8cy.4) ----------------
+
+    with Sandbox() as b:
+        man = b.repo / "adapters" / "src.toml"
+        base = ('[[target]]\nkind    = "render"\npath    = "~/.probe"\n'
+                'sources = ["%s"]\n')
+
+        # Assert on the REFUSAL, not on the exit code: a freshly declared target
+        # is unprojected, so diff exits non-zero for a reason that has nothing to
+        # do with the source rule. Conflating the two has misled this suite before.
+        man.write_text(base % "derived/hypr/bindings.lua")
+        _, out_ok = b.ms("diff")
+
+        man.write_text(base % "CLAUDE.md")            # vendor-owned
+        rc_vendor, out_vendor = b.ms("diff")
+
+        man.write_text(base % "../../../etc/passwd")  # outside the repository
+        rc_out, out_out = b.ms("diff")
+
+        man.unlink()
+        check("12 only canonical and derived may be an adapter source",
+              "outside" not in out_ok and rc_vendor != 0 and rc_out != 0
+              and "outside" in out_vendor and "outside" in out_out,
+              "a vendor path and an escaping path are both refused")
+
     # negative controls ------------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
     with Sandbox() as box:
@@ -202,6 +227,21 @@ def main():
         check("5n assertion 5 fails when the refusal is disabled",
               foreign.read_bytes() != b"a human wrote this and it was never projected\n",
               "the file was clobbered, as expected of a broken guard")
+
+    with Sandbox() as b:
+        # Remove the enforcement, leaving the rule as prose again — which is the
+        # state that let a generated file become a canonical source unnoticed.
+        ms = b.repo / "bin" / "ms"
+        ms.write_text(ms.read_text().replace(
+            "            for rel in t[\"sources\"]:\n                check_source(t, rel)\n", ""))
+        man = b.repo / "adapters" / "src.toml"
+        man.write_text('[[target]]\nkind    = "render"\npath    = "~/.probe"\n'
+                       'sources = ["CLAUDE.md"]\n')
+        _, out = b.ms("diff")
+        man.unlink()
+        check("12n source enforcement removed -> assertion 12 fails",
+              "outside" not in out,
+              "a vendor path is accepted as a source again, silently")
 
     failed = [n for n, ok, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

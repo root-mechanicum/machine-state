@@ -36,7 +36,7 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 ROLES = REPO / "canonical" / "roles"
 ACTIONS = REPO / "canonical" / "actions"
 BINDINGS = REPO / "canonical" / "bindings"
-RENDERED = REPO / "canonical" / "desktop" / "hypr" / "bindings.lua"
+RENDERED = REPO / "derived" / "hypr" / "bindings.lua"
 JOURNAL = REPO / "state" / "actions.jsonl"
 
 # The compositor's own binding file, read to answer "is this chord already taken".

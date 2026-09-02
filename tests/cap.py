@@ -28,8 +28,8 @@ import tempfile
 import tomllib
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-NEEDED = ["bin", "canonical", "adapters", "state"]
-ART = "canonical/desktop/hypr/bindings.lua"
+NEEDED = ["bin", "canonical", "derived", "adapters", "state"]
+ART = "derived/hypr/bindings.lua"
 
 results = []
 

@@ -20,7 +20,7 @@
       "sha": "9269a5fd193671dd65774a7746f1d1ee06dab56f7867385cdbd5b89801942ced",
       "sources": [
         "canonical/desktop/hypr/machine-state.lua",
-        "canonical/desktop/hypr/bindings.lua"
+        "derived/hypr/bindings.lua"
       ]
     },
     "/home/klaas/.config/hypr/hyprland.lua": {
