@@ -392,35 +392,46 @@ def cmd_act(argv):
 def cmd_preview(_argv):
     """Generated from the same declarations that produce the live bindings.
 
-    A preview maintained separately from the bindings will eventually disagree
-    with the keys, and a preview that can disagree with reality is worse than no
-    preview at all.
+    BUILT COMPLETELY BEFORE ANYTHING IS PRINTED. A surface that fails partway
+    through printing looks like a valid empty surface, which is worse than an
+    error: the reader concludes there is nothing rather than that something
+    broke. This already happened once — a stale reference crashed after the
+    header had been written, and the view read as empty.
+
+    Binding validity and action executability are SEPARATE FACTS and get separate
+    columns. A single "ok" spanning both can be read as availability when only
+    the chord is sound.
     """
-    acts, v = actions(), vendor_chords()
-    print(f"  {'CHORD':<18} {'LABEL':<24} {'ACTION':<34} {'OWNER':<9} STATUS")
     rows = []
-    for b in key_bindings():
-        chord = chord_of(b)
-        a = acts.get(b["action"], {})
-        free, holder = check_chord(chord)
-        status = "ok" if free else f"CONFLICT ({holder})"
-        # A binding to an unavailable action still appears, and says why. The key
-        # is still rendered and still fires; pressing it explains rather than
-        # doing nothing, so binding, preview and catalogue keep agreeing.
-        _, av, why = action_state(a) if a else (False, False, "no such action")
-        avail = "" if av else f"  [{why}]"
-        # The BINDING's label wins over the action's. The action label is the
-        # generic name of the operation; the binding label says what THIS chord
-        # does. At n=1 the difference was invisible. At n=2, two chords invoking
-        # one action with different arguments were rendered identically — the
-        # preview said "Open or focus an application" twice and a reader could
-        # not tell SUPER+M from SUPER+B. Multiple bindings to one action must
-        # stay unambiguous.
-        rows.append((chord, b.get("label") or a.get("label", ""), b["action"], "owned", status + avail))
-    for chord, body in sorted(v.items()):
-        rows.append((chord, body, "-", "observed", "vendor"))
+    try:
+        acts, v = actions(), vendor_chords()
+        for b in key_bindings():
+            chord = chord_of(b)
+            a = acts.get(b["action"])
+            free, holder = check_chord(chord)
+            binding = "ok" if free else "CONFLICT"
+            if a is None:
+                impl, why = "missing", f"no such action {b['action']!r}"
+            else:
+                implemented, available, reason = action_state(a)
+                impl = "ok" if available else ("missing" if not implemented else "unavailable")
+                why = reason or ""
+            note = why if why else ("" if free else holder)
+            rows.append((chord, b.get("label") or (a or {}).get("label", ""),
+                         b["action"], "owned", binding, impl, note))
+        for chord, body in sorted(v.items()):
+            rows.append((chord, body, "-", "observed", "-", "-", ""))
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"cap: preview could not be built: {exc!r}", file=sys.stderr)
+        print("Nothing is shown rather than showing part of it.", file=sys.stderr)
+        return 1
+
+    print(f"  {'CHORD':<18} {'LABEL':<24} {'ACTION':<28} {'OWNER':<9} {'BINDING':<9} IMPLEMENTATION")
     for r in sorted(rows, key=lambda r: (r[3] != "owned", r[0])):
-        print(f"  {r[0]:<18} {r[1][:24]:<24} {r[2]:<34} {r[3]:<9} {r[4]}")
+        tail = f"{r[5]:<14}" + (f" [{r[6]}]" if r[6] else "")
+        print(f"  {r[0]:<18} {r[1][:24]:<24} {r[2]:<28} {r[3]:<9} {r[4]:<9} {tail}")
     return 0
 
 
