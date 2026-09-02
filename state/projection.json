@@ -16,8 +16,8 @@
     "/home/klaas/.config/hypr/config/machine-state.lua": {
       "adapter": "hypr",
       "kind": "render",
-      "projected_at": "2026-09-02T15:07:08.017Z",
-      "sha": "64d773ad0db2302b1f1c69a9138418922f285744b13a3737bd72eb7fb66202ea",
+      "projected_at": "2026-09-02T15:15:03.258Z",
+      "sha": "9269a5fd193671dd65774a7746f1d1ee06dab56f7867385cdbd5b89801942ced",
       "sources": [
         "canonical/desktop/hypr/machine-state.lua",
         "canonical/desktop/hypr/bindings.lua"
@@ -39,8 +39,8 @@
       "comment": "hash",
       "kind": "splice",
       "marker": "MACHINE-STATE",
-      "projected_at": "2026-09-01T14:39:27.364Z",
-      "region_sha": "c22bf26d6803828d2b20a74063b3edcc3500ae5bdd207018409aaa013de1220a",
+      "projected_at": "2026-09-02T15:16:29.161Z",
+      "region_sha": "337a36db26e6e4864d3152ba4b92c089fcc6920b383d5aa148c70a9d0ff4d7fb",
       "sources": [
         "canonical/hooks/pre-push.sh"
       ]

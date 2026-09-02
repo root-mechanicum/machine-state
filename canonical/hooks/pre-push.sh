@@ -5,9 +5,14 @@
 # wrong when the world moved. It runs in ~300ms. Do not push past it.
 _ms_root=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -n "$_ms_root" ] && [ -x "$_ms_root/tests/acceptance.py" ]; then
-  if ! "$_ms_root/tests/acceptance.py" >/dev/null 2>&1; then
-    echo >&2 "machine-state: acceptance test FAILED — push aborted."
-    echo >&2 "  run tests/acceptance.py to see which assertion failed,"
+  _ms_fail=""
+  "$_ms_root/tests/acceptance.py" >/dev/null 2>&1 || _ms_fail="acceptance"
+  if [ -x "$_ms_root/tests/cap.py" ]; then
+    "$_ms_root/tests/cap.py" >/dev/null 2>&1 || _ms_fail="${_ms_fail:+$_ms_fail, }cap lifecycle"
+  fi
+  if [ -n "$_ms_fail" ]; then
+    echo >&2 "machine-state: FAILED — push aborted ($_ms_fail)."
+    echo >&2 "  run the failing test to see which assertion,"
     echo >&2 "  or 'git push --no-verify' if you genuinely mean to push anyway."
     exit 1
   fi

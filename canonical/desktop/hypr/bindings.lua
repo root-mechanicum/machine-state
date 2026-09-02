@@ -3,4 +3,4 @@
 
 hl.bind("SUPER + M", hl.dsp.exec_cmd("env CAP_CALLER=keypress /home/klaas/src/machine-state/bin/cap act desktop.application.ensure role=mail"))
 hl.bind("SUPER + B", hl.dsp.exec_cmd("env CAP_CALLER=keypress /home/klaas/src/machine-state/bin/cap act desktop.application.ensure role=browser"))
-hl.bind("SUPER + G", hl.dsp.exec_cmd("env CAP_CALLER=keypress /home/klaas/src/machine-state/bin/cap act desktop.workspace.arrange role=mail"))
+hl.bind("SUPER + G", hl.dsp.exec_cmd("env CAP_CALLER=keypress /home/klaas/src/machine-state/bin/cap act desktop.workspace.arrange"))
