@@ -46,17 +46,31 @@ grows when the software arrives.
   first probe failed for exactly this reason and looked like a protocol failure;
   `--dangerously-bypass-hook-trust` is what distinguished the two.
 
-  Two obstacles remain, both narrow:
+  **Re-checked 2026-09-03: one of the two obstacles is gone, and the other is smaller than it
+  looked.** What was recorded on 09-01 as two blockers now reads:
 
-  1. `bd setup codex` owns both hooks files, so an entry we add may be dropped by its next run,
-     and `ms diff` would not notice — the file is not a managed target.
-  2. The trust hash is content-keyed, so editing the entry requires re-approval. That is a
-     feature, but it means the wiring cannot be silently reprojected.
+  1. ~~`bd setup codex` owns both hooks files~~ — **false as of bd 1.2.2.** Its Codex recipe merges
+     by event key rather than rewriting the file. Proven with a negative control: a foreign
+     `PreToolUse` entry was added *and* bd's own `SessionStart` entry was corrupted, so bd had to
+     rewrite. It repaired its own entry and left the foreign one byte-identical. Without breaking
+     bd's entry first the test would have proved nothing, since bd might simply not have written.
+  2. The trust hash is content-keyed, so editing the entry requires re-approval. Still true, and
+     still a feature — it just means the wiring cannot be silently reprojected.
 
-  Ways out: dcg gains a `--codex` installer that merges rather than replaces; bd's recipe leaves
-  room for a foreign `PreToolUse`; or the intent in `canonical/tooling/dcg.md` is amended to
-  accept `codex sandbox` as Codex's boundary. The last is an honest fallback rather than a
-  workaround — Codex is not unguarded, only unguarded by *ours*.
+  **Codex's side is ready.** `[features] hooks = true` is set, `pre_tool_use` is a real event in
+  0.151.0 (`hooks/src/events/pre_tool_use.rs`), the shell tool is named `bash`, and bd occupies only
+  `PostCompact`, `PreCompact`, `SessionStart` and `UserPromptSubmit` — the `PreToolUse` slot is
+  free.
+
+  **dcg's side is not.** `dcg install` wires Claude by default and has `--grok`, `--agy`,
+  `--opencode` and `--omp`. There is still **no `--codex`**, so the entry has to be written by hand
+  even though dcg speaks the protocol. dcg 0.13.9's own help lists Codex CLI among supported
+  harnesses and says compatible agents "including Codex" receive protocol-specific stdout JSON;
+  that describes the runtime, not an installer.
+
+  So the remaining work is a hand-written `PreToolUse` entry plus one interactive trust approval,
+  rather than an upstream change. The honest fallback — amending `canonical/tooling/dcg.md` to
+  accept `codex sandbox` as Codex's boundary — is no longer the only way out.
 - Until then this record exists to make its absence explicit rather than an oversight.
 
 ## Verification
