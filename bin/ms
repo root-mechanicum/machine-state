@@ -643,9 +643,29 @@ def read_tool_checks():
     return tools
 
 
+# Shell operators that a record can write and this runner will NOT honour.
+# Checks run through shlex.split with no shell, deliberately — running arbitrary
+# shell out of canonical/ would widen what a tooling record can do. But a record
+# containing `a && b` then reads as a conjunction and executes as `a` with `&&`
+# and `b` handed to it as extra ARGUMENTS, which for grep means extra files to
+# search. That is how the Codex wiring check came to report a guarded harness
+# whose hook was not trusted: the first file matched and grep exited 0.
+#
+# A record that silently means something other than it says is the exact failure
+# these records exist to prevent, so it is refused. Write `sh -c "a && b"` when a
+# shell is genuinely wanted; the operators are then inside one token and the
+# intent is visible in the record.
+SHELL_OPS = {"&&", "||", "|", ";", ">", ">>", "<", "&"}
+
+
 def run(cmd, cwd=None):
+    argv = shlex.split(cmd)
+    bad = [tok for tok in argv if tok in SHELL_OPS]
+    if bad:
+        die(f"check command uses {' '.join(bad)} but checks do not run in a shell; "
+            f"wrap it as: sh -c {cmd!r}")
     try:
-        r = subprocess.run(shlex.split(cmd), cwd=cwd or REPO, capture_output=True,
+        r = subprocess.run(argv, cwd=cwd or REPO, capture_output=True,
                            text=True, timeout=30)
         return r.returncode, (r.stdout or r.stderr).strip()
     except (OSError, subprocess.SubprocessError):

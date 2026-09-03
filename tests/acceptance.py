@@ -237,6 +237,28 @@ def main():
               decoy.exists() and "ignoring" in out,
               "its records name paths outside this tree, so they are left alone")
 
+    # --- a check must not read as one thing and run as another (codex wiring) --
+
+    with Sandbox() as box:
+        rec = box.repo / "canonical" / "tooling" / "probe.md"
+        rec.write_text("# Probe\n\n## Verification\n\n```toml\n"
+                       'group   = "Probe"\n'
+                       'version = "true"\n'
+                       'check   = "grep -q needle /etc/hostname && grep -q needle /etc/os-release"\n'
+                       'ok      = "ok"\nfail = "no"\nmissing = "gone"\n```\n')
+        rc, out = box.ms("status")
+        refused = rc != 0 and "do not run in a shell" in out and "sh -c" in out
+
+        # the same intent, written so it actually runs that way, is accepted
+        rec.write_text(rec.read_text().replace(
+            'check   = "grep -q needle /etc/hostname && grep -q needle /etc/os-release"',
+            'check   = "sh -c \'grep -q needle /etc/hostname && grep -q needle /etc/os-release\'"'))
+        rc2, out2 = box.ms("status")
+        rec.unlink()
+        check("14 a check using shell operators is refused, not silently mis-run",
+              refused and "do not run in a shell" not in out2,
+              "checks run without a shell, so `a && b` would pass b to a as arguments")
+
     # negative controls ------------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
     with Sandbox() as box:
@@ -298,6 +320,24 @@ def main():
         check("13n identity check removed -> assertion 13 fails",
               not decoy.exists(),
               "a file in another checkout is deleted by this one")
+
+    with Sandbox() as box:
+        # Remove the guard: the record then reads as a conjunction and runs as
+        # grep searching extra files, which is how a wiring check reported a
+        # guarded harness whose hook was never trusted.
+        ms = box.repo / "bin" / "ms"
+        patch(ms, "    bad = [tok for tok in argv if tok in SHELL_OPS]", "    bad = []")
+        rec = box.repo / "canonical" / "tooling" / "probe.md"
+        rec.write_text("# Probe\n\n## Verification\n\n```toml\n"
+                       'group   = "Probe"\n'
+                       'version = "true"\n'
+                       'check   = "grep -q root /etc/passwd && grep -q nomatchxyz /etc/hostname"\n'
+                       'ok      = "ok"\nfail = "no"\nmissing = "gone"\n```\n')
+        rc, out = box.ms("status")
+        rec.unlink()
+        check("14n operator guard removed -> assertion 14 fails",
+              "do not run in a shell" not in out and "ok" in out,
+              "the false half never runs; the check passes on the first file alone")
 
     failed = [n for n, ok, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
