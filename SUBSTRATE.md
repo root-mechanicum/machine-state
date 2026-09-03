@@ -333,6 +333,17 @@ Versions do not belong here. `state/tooling.json` is derived by `ms status`. `BA
 frozen point-in-time capture and is **not** maintained as an inventory — it already omits `bd`,
 having been written twelve minutes before `bd init` ran.
 
+**So adding software to this machine means adding a record under `canonical/tooling/`, never editing
+`BASELINE.md`.** The record carries what the tool is for and a runnable check; `ms status` runs that
+check and derives the current inventory into `state/tooling.json`. That is the whole mechanism, and
+it is derived rather than hand-maintained precisely so it cannot drift from the machine.
+
+This needs saying positively rather than only as a prohibition, because the prohibition alone did
+not hold: `machine-state-t0u` was written on 2026-09-03 with an acceptance criterion to update
+`BASELINE.md` after each installation. Nothing was wrong with the reasoning — a frozen file that
+looks like an inventory invites being kept current. The answer is to say where the inventory
+actually lives.
+
 ### 7.1 Our own tools, and why there are three
 
 `bin/ms` projects canonical content onto the machine and reports drift from it. `bin/cap` derives

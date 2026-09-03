@@ -11,7 +11,7 @@
       "version": "2.1.252"
     },
     "codex": {
-      "guarded": false,
+      "guarded": true,
       "status": "installed",
       "version": "0.151.0"
     },
