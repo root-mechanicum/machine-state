@@ -312,6 +312,19 @@ def main():
               rc == 1 and "ghost" in out and "recorded here but not installed" in out,
               "a record is the declaration that the machine should have it")
 
+    # --- a check must resolve the same under a narrow PATH (machine-state-ayn) --
+
+    with Sandbox() as box:
+        # The sandbox PATH is /usr/bin:/bin — no ~/.local/bin — which is exactly
+        # the cron/hook/timer case. Before the fix this reported beads, claude and
+        # dcg as "recorded here but not installed" and failed the run.
+        rc, out = box.ms("status")
+        wrong = [n for n in ("beads", "claude", "dcg")
+                 if f"{n}" in out and "recorded here but not installed" in out]
+        check("18 tools outside PATH are found where they were last seen",
+              "recorded here but not installed" not in out,
+              "an inventory that changes with the environment is not an inventory")
+
     # negative controls ------------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
     with Sandbox() as box:
@@ -418,6 +431,16 @@ def main():
         check("17n absence no longer counted -> assertion 17 fails",
               "recorded here but not installed" not in out and "not installed" in out,
               "the tool is still shown missing and the run passes anyway")
+
+    with Sandbox() as box:
+        # Remove the remembered-path fallback. PATH alone decides again, and the
+        # three tools in ~/.local/bin vanish from a machine they are installed on.
+        ms = box.repo / "bin" / "ms"
+        patch(ms, "    seen = (remembered or {}).get(argv[0])", "    seen = None")
+        rc, out = box.ms("status")
+        check("18n remembered-path fallback removed -> assertion 18 fails",
+              rc == 1 and "recorded here but not installed" in out,
+              "present tools reported absent because PATH could not see them")
 
     failed = [n for n, ok, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

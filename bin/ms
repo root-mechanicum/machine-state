@@ -835,6 +835,35 @@ def cmd_changes(argv):
     return 1
 
 
+def resolve_tool_cmd(cmd, remembered):
+    """Resolve a record's command against PATH, falling back to where it was last seen.
+
+    Checks run whatever command the record names, and subprocess resolves that
+    through PATH. Under a narrower PATH than an interactive shell — a cron, a
+    systemd timer, a hook — the tools in ~/.local/bin resolve to nothing, and a
+    record that now DECLARES the machine should have the tool would report three
+    present tools as absent and fail the run.
+
+    So the path where a tool was last found is remembered in state/tooling.json
+    and used when PATH cannot find it. That is the same technique `ms changes`
+    uses for unpackaged binaries, and for the same reason: an inventory that
+    changes with the environment it is read from is not an inventory.
+
+    A genuinely absent tool is still absent — the remembered path is checked for
+    existence, not assumed.
+    """
+    argv = shlex.split(cmd)
+    if not argv:
+        return cmd, None
+    found = shutil.which(argv[0])
+    if found:
+        return cmd, found
+    seen = (remembered or {}).get(argv[0])
+    if seen and pathlib.Path(seen).is_file() and os.access(seen, os.X_OK):
+        return shlex.join([seen, *argv[1:]]), seen
+    return cmd, None
+
+
 def cmd_status(_argv):
     state = load_state()
     targets = load_targets()
@@ -854,6 +883,14 @@ def cmd_status(_argv):
     print(f"\nBoundary\n  grants   {'':<12} {label}")
 
     tools = read_tool_checks()
+    remembered = {}
+    if TOOLSTATE.exists():
+        try:
+            prev = json.loads(TOOLSTATE.read_text()).get("tooling", {})
+            remembered = {v["binary"]: v["path"] for v in prev.values()
+                          if v.get("binary") and v.get("path")}
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            remembered = {}
     observed = {}
     unguarded, absent = [], []
     if tools:
@@ -864,8 +901,11 @@ def cmd_status(_argv):
             print(f"\n{group}")
             for tool in groups[group]:
                 version = "-"
+                binary = (shlex.split(tool.get("version") or tool.get("check") or "") or [None])[0]
+                where = None
                 if tool.get("version"):
-                    rc, out = run(tool["version"])
+                    cmd, where = resolve_tool_cmd(tool["version"], remembered)
+                    rc, out = run(cmd)
                     if rc == 0 and out:
                         version = out.splitlines()[0].strip()
                         # Optional: pull the version out of a chattier line.
@@ -875,7 +915,9 @@ def cmd_status(_argv):
                             version = m.group(1) if m and m.groups() else version
                 verdict, rc = "unknown", None
                 if tool.get("check"):
-                    rc, _ = run(tool["check"])
+                    cmd, w2 = resolve_tool_cmd(tool["check"], remembered)
+                    where = where or w2
+                    rc, _ = run(cmd)
                     if rc == 0:
                         verdict = tool.get("ok", "ok")
                     elif rc is None:
@@ -899,13 +941,19 @@ def cmd_status(_argv):
                 # Absent tools are skipped: what is not installed cannot be unguarded.
                 guarded = None
                 if tool.get("wiring") and rc is not None:
-                    guarded = run(tool["wiring"])[0] == 0
+                    guarded = run(resolve_tool_cmd(tool["wiring"], remembered)[0])[0] == 0
                     if not guarded:
                         unguarded.append(tool["name"])
 
                 suffix = "" if guarded is not False else "   ** UNGUARDED **"
                 print(f"  {tool['name']:<8} {version:<12} {verdict}{suffix}")
                 observed[tool["name"]] = {"version": version, "status": verdict}
+                # Remember where this tool was found, so a later run under a
+                # narrower PATH can still reach it. Only recorded when actually
+                # resolved: a guess would defeat the point.
+                if binary and where:
+                    observed[tool["name"]]["binary"] = binary
+                    observed[tool["name"]]["path"] = where
                 if guarded is not None:
                     observed[tool["name"]]["guarded"] = guarded
     else:

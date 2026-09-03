@@ -43,18 +43,22 @@ rather than merely stated: a harness record may declare a `wiring` command, and 
 installed but unwired makes `ms status` exit non-zero. Absent harnesses are skipped — what is not
 installed cannot be unguarded.
 
-**This intent is currently unmet, but reachable.** Claude is wired. Codex, installed 2026-09-01,
-is not: `ms status` reports it `** UNGUARDED **` and exits non-zero.
+**This intent is met as of 2026-09-03.** Both harnesses are wired: Claude by `dcg install`, Codex by
+a hand-written `PreToolUse` entry in `~/.codex/hooks.json` with matcher `Bash|PowerShell`. `ms
+status` exits 0 for the first time since Codex was installed.
 
-Capability is not the problem — dcg is *proven* to work with Codex, firing as a `PreToolUse` hook
-with the command reaching the journal tagged `codex-cli`. Two narrower things stand in the way:
-Codex will not run a hook whose SHA-256 it has not recorded as trusted, and `bd setup codex` owns
-both files a hook could go in. Neither is a dead end; both are recorded in
-`canonical/tooling/codex.md`.
+Getting there corrected two recorded beliefs. `dcg install` still has no `--codex` flag, so dcg
+cannot wire Codex itself — but it speaks the protocol, and Codex 0.151.0 has a real `pre_tool_use`
+event with the `PreToolUse` slot free, because bd occupies only the four compaction and session
+events. The other recorded blocker, that `bd setup codex` owns both hooks files, was simply false:
+its recipe merges by event key. Proven by deleting bd's own entry so it had to write, then
+confirming a foreign entry survived alongside the one bd added.
 
-Note the narrower true claim while it stands. Codex is not unguarded in the absolute — it ships
-its own `codex sandbox`. It is not guarded by *this* boundary, which is a lesser thing than the
-Role section above otherwise implies.
+**Trust is the part that matters, and the check now tests it.** Codex records a per-hook SHA-256 in
+`~/.codex/config.toml`, and an untrusted hook is skipped **in silence**. The wiring check originally
+looked only for `dcg` in `hooks.json`, so it went green the moment the entry existed and would have
+stayed green had the trust prompt been declined. It now requires the `pre_tool_use` trust entry too.
+See `canonical/tooling/codex.md`.
 
 **Never disabled to get a command through.** A refusal is answered by narrowing the command, or by
 an explicit allowlist entry with a recorded reason. Not by turning a pack off.
@@ -142,8 +146,13 @@ Three things about custom packs that cost time to learn and are documented nowhe
 - **The `enabled` list does not gate a custom pack.** Removing `machinestate.secrets` from it changes
   nothing; the pack is active because `custom_paths` loads it. The load path is the only control,
   which is why the negative control above targets that.
-- **`dcg packs --enabled` and `dcg pack info` disagree** about a custom pack: the first lists it, the
-  second reports it not found. Trust `dcg test`.
+- **Three dcg surfaces disagree about a custom pack, and it works anyway.** `dcg packs --enabled`
+  lists `machinestate.secrets`; `dcg pack info` reports it not found; and `dcg doctor` emits
+  `Checking configuration... WARNING — Unknown effective pack IDs: ["machinestate.secrets"]`.
+  Meanwhile the pack demonstrably blocks — that is what the 26-probe suite and its negative control
+  established. The warning does not fail `--strict`, so the record's check still passes, but a
+  future reader will see it and reasonably wonder whether the pack is loaded. It is. Trust
+  `dcg test`, which is the only surface that answers by evaluating a command.
 
 **Layer.** The posture lives in `~/.config/dcg/config.toml`, the only layer that applies to every
 directory rather than one repository. It is authored by hand and **deliberately not projected**:

@@ -2,36 +2,52 @@
   "schema": 1,
   "tooling": {
     "beads": {
+      "binary": "bd",
+      "path": "/home/klaas/.local/bin/bd",
       "status": "operational",
       "version": "1.2.2"
     },
     "claude": {
+      "binary": "claude",
       "guarded": true,
+      "path": "/home/klaas/.local/bin/claude",
       "status": "integrated",
       "version": "2.1.259"
     },
     "codex": {
+      "binary": "codex",
       "guarded": true,
+      "path": "/usr/bin/codex",
       "status": "installed",
       "version": "0.151.0"
     },
     "dcg": {
+      "binary": "dcg",
+      "path": "/home/klaas/.local/bin/dcg",
       "status": "active",
       "version": "0.13.9"
     },
     "hypr": {
+      "binary": "hyprctl",
+      "path": "/usr/bin/hyprctl",
       "status": "template pristine",
       "version": "0.56.2"
     },
     "noctalia": {
+      "binary": "noctalia",
+      "path": "/usr/bin/noctalia",
       "status": "config valid",
       "version": "5.0.0"
     },
     "proton-mail": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
       "status": "files intact",
       "version": "1.13.4"
     },
     "proton-pass": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
       "status": "files intact",
       "version": "1.39.1"
     }

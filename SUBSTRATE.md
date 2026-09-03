@@ -394,10 +394,19 @@ nor touches systemd, and installation needs root — the one real boundary here.
 between declared and installed keeps the declare/derive/report shape every other registry has.
 Crossing into apply is a separate decision, deliberately not reached by increment.
 
-**Known limit.** These checks run whatever command the record names, resolved through `PATH`. Under
-a narrower `PATH` than an interactive shell — a cron, a hook — the three tools in `~/.local/bin`
-resolve to nothing and are reported absent when they are present. `ms changes` handles this by
-re-checking a known tool at its recorded path; `ms status` does not yet.
+**Where a tool was last found is remembered**, in `state/tooling.json` alongside its version, and
+used when `PATH` cannot resolve it. Without that, a record which now *declares* the machine should
+have a tool would report the three tools in `~/.local/bin` as absent under any narrower `PATH` than
+an interactive shell — a cron, a timer, a hook — and fail the run on a machine where nothing is
+wrong. The remembered path is checked for existence rather than assumed, so a genuinely absent tool
+is still absent.
+
+**Two verdicts do still vary with the environment, and both are correct rather than broken.**
+`hyprctl version` needs `HYPRLAND_INSTANCE_SIGNATURE`, so a check that asks a running compositor
+must run inside that session. And `dcg doctor` itself verifies that `dcg` is on `PATH` — under a
+narrow one it reports `binary in PATH... NOT FOUND`, which is a true statement about that
+environment. Neither is a case of a present tool being called absent; they are checks whose subject
+genuinely is the environment.
 
 ### 7.1 Our own tools, and why there are three
 
