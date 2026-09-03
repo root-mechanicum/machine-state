@@ -70,15 +70,51 @@ is worthless until logging has run.
 | --- | --- | --- |
 | `fail_closed` | `true` | a fail-open bypass is silent; a fail-closed error is loud and recoverable |
 | `log_file`, `history.enabled` | on | every other decision here is empirical |
-| added packs | `package_managers`, `system.services`, `system.permissions`, `secret_disclosure` | pacman, systemd `--user` units, `$HOME`, and private keys are all real here |
+| added packs | `system.permissions`, `system.services` | proven by probe: recursive permission changes against `$HOME`, and service disabling |
+| added, narrower than its name | `package_managers` | covers a `pip` install from an untrusted index. **It does not cover pacman**; see below |
+| added, unproven | `secret_disclosure` | matched nothing in 18 probes; kept at `warn` rather than presented as coverage |
 | not enabled | cloud, kubernetes, containers, database, infrastructure, windows, cicd | none of that software is installed; rules for absent software protect nothing and only misfire |
-| new packs' mode | `warn` | staged: proven packs keep denying while the log shows what the new ones actually match |
+| new packs' mode | three now deny, one still `warn` | the staged rollout was reviewed 2026-09-03; see below |
 
 `core` (filesystem + git) is always on and cannot be disabled; `system.disk` is on by default.
 Both keep denying.
 
-The four new packs are set to `warn` in `[policy.packs]` deliberately. Removing those four lines,
-once the log justifies it, is the last step of this decision — not a separate one.
+**The staged rollout was reviewed on 2026-09-03, and did not end the way it was planned to.**
+
+After 452 commands the log showed 7 denies and **zero warns** — the four staged packs had never
+fired. Zero warns is ambiguous evidence (quiet coverage, or no coverage?), so the decision was made
+on 30 `dcg test` probes rather than on elapsed time. Three packs were promoted by removing their
+lines; one was not.
+
+| pack | probe | promoted |
+| --- | --- | --- |
+| `system.permissions` | blocks recursive world-writable and root-ownership changes against `$HOME`; passes `chmod +x` and `chmod 644` | yes |
+| `system.services` | blocks `systemctl disable --now sshd`; passes `systemctl --user status` and `journalctl` | yes |
+| `package_managers` | blocks `pip install --index-url http://…`; **allows** every `pacman` and `paru` form probed, including unattended removal and full upgrade | yes, for what it does cover |
+| `secret_disclosure` | 18 probes, all ALLOWED | **no** |
+
+**Two of these packs were enabled for reasons that turned out to be false**, and the config said so
+in its own comments until this review. `package_managers` was enabled because "pacman is the real
+package manager here" — it does not match pacman at all. `secret_disclosure` was enabled because
+"reading private keys and tokens is unguarded today" — and it still is: reading an SSH private key,
+printing an API-key environment variable, reading `~/.aws/credentials`, `gh auth token`, reading a
+`.env`, and literal `sk-ant-…`, `ghp_…` and `AKIA…` strings are all allowed.
+
+Promoting `secret_disclosure` would have changed nothing observable while making an inert pack read
+as enforcement. The two gaps are recorded as their own work rather than closed by the appearance of
+coverage.
+
+**Testing a guard from inside a guarded shell needs care.** `dcg test "<dangerous literal>"` is
+itself blocked, because the hook scans the whole shell block — which is how `system.disk` was
+confirmed to deny, and how `system.permissions` was confirmed after promotion when a *documentation
+edit quoting the rule* was refused. Probe strings are assembled from fragments and fed through
+`dcg test --stdin`.
+
+**`dcg history analyze` remains unreliable in both directions.** On 2026-09-03 it recommended
+disabling `system.services`, `system.disk` and `package_managers` for inactivity — including
+`system.disk`, which had blocked a command minutes earlier — and reported `python3` heredocs as
+"SQL DROP statement" coverage gaps. Logging being on is necessary for its advice to be worth
+anything; it is not sufficient.
 
 **Layer.** The posture lives in `~/.config/dcg/config.toml`, the only layer that applies to every
 directory rather than one repository. It is authored by hand and **deliberately not projected**:
