@@ -333,6 +333,19 @@ Versions do not belong here. `state/tooling.json` is derived by `ms status`. `BA
 frozen point-in-time capture and is **not** maintained as an inventory — it already omits `bd`,
 having been written twelve minutes before `bd init` ran.
 
+**`ms changes` reports what moved on the machine since a recorded mark** — packages installed,
+upgraded or removed, and content changes to the tools no package owns. It is a **query, not a
+watcher**, and that is the design rather than an implementation detail. A watcher — a path unit on
+`pacman.log`, an inotify on the database — only sees events while it is running; a reboot, a crash
+or a quiet week and the event is gone unrecoverably. The local package database already records an
+install date per package, so it can be asked what changed since any moment, including moments when
+nothing was watching. No daemon, no unit, no root.
+
+Provenance is resolved by asking the filesystem, never by matching names: `pacman -Qo $(command -v
+X)`. That is not pedantry. `codex` was classified here as an unpackaged binary needing root to
+update, when the file is owned by `openai-codex` and updates like any other package — the command
+name and the package name are different strings, and only the filesystem knows the mapping.
+
 **So adding software to this machine means adding a record under `canonical/tooling/`, never editing
 `BASELINE.md`.** The record carries what the tool is for and a runnable check; `ms status` runs that
 check and derives the current inventory into `state/tooling.json`. That is the whole mechanism, and

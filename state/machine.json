@@ -1,0 +1,4404 @@
+{
+  "loose": {
+    "bd": {
+      "path": "/home/klaas/.local/bin/bd",
+      "sha": "54fc0e0581ce4c5487a5b242f0a4f34af1ef09cf056e164a1af63a6ec7aa1e0e"
+    },
+    "claude": {
+      "path": "/home/klaas/.local/bin/claude",
+      "sha": "a715a45105e593fc9808d035d77781f88480b9897975a9df41837f0c591bd4b3"
+    },
+    "dcg": {
+      "path": "/home/klaas/.local/bin/dcg",
+      "sha": "4bfb819433755b35c6c65d3b11bf07417565c5332a0368ada91edf3ff3446300"
+    }
+  },
+  "packages": {
+    "a52dec": {
+      "at": 1788098338,
+      "version": "0.8.0-3.1"
+    },
+    "aalib": {
+      "at": 1788098338,
+      "version": "1.4rc5-19.1"
+    },
+    "abseil-cpp": {
+      "at": 1788098337,
+      "version": "20260817.0-1.1"
+    },
+    "accountsservice": {
+      "at": 1788098338,
+      "version": "26.27.3-1.1"
+    },
+    "acl": {
+      "at": 1788097674,
+      "version": "2.4.0-1.1"
+    },
+    "adw-gtk-theme": {
+      "at": 1788098341,
+      "version": "6.5-1"
+    },
+    "adwaita-cursors": {
+      "at": 1788097944,
+      "version": "50.0-1"
+    },
+    "adwaita-fonts": {
+      "at": 1788097678,
+      "version": "50.0-1"
+    },
+    "adwaita-icon-theme": {
+      "at": 1788097944,
+      "version": "50.0-1"
+    },
+    "adwaita-icon-theme-legacy": {
+      "at": 1788097944,
+      "version": "46.2-3"
+    },
+    "alacritty": {
+      "at": 1788098339,
+      "version": "0.17.0-1.2"
+    },
+    "alsa-card-profiles": {
+      "at": 1788098338,
+      "version": "1:1.6.8-1"
+    },
+    "alsa-firmware": {
+      "at": 1788098339,
+      "version": "1.2.4-4"
+    },
+    "alsa-lib": {
+      "at": 1788098337,
+      "version": "1.2.16.1-1.1"
+    },
+    "alsa-plugins": {
+      "at": 1788098339,
+      "version": "1:1.2.12-6.1"
+    },
+    "alsa-topology-conf": {
+      "at": 1788098337,
+      "version": "1.2.5.1-4"
+    },
+    "alsa-ucm-conf": {
+      "at": 1788098337,
+      "version": "1.2.16.1-1"
+    },
+    "alsa-utils": {
+      "at": 1788098339,
+      "version": "1.2.16-1.1"
+    },
+    "ananicy-cpp": {
+      "at": 1788097677,
+      "version": "1.2.0-1.1"
+    },
+    "aom": {
+      "at": 1788098338,
+      "version": "3.15.0-1.1"
+    },
+    "appstream": {
+      "at": 1788098341,
+      "version": "1.2.0-1.1"
+    },
+    "aquamarine": {
+      "at": 1788098339,
+      "version": "0.14.0-2.1"
+    },
+    "archlinux-keyring": {
+      "at": 1788097675,
+      "version": "1:20260727-1"
+    },
+    "aribb24": {
+      "at": 1788098338,
+      "version": "1.0.3-4.1"
+    },
+    "aribb25": {
+      "at": 1788098338,
+      "version": "0.2.7-3.1"
+    },
+    "at-spi2-core": {
+      "at": 1788097944,
+      "version": "2.60.6-1.1"
+    },
+    "attica": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "attr": {
+      "at": 1788097674,
+      "version": "2.6.0-1.1"
+    },
+    "audit": {
+      "at": 1788097674,
+      "version": "4.2.1-1.1"
+    },
+    "autoconf": {
+      "at": 1788097676,
+      "version": "2.73-1"
+    },
+    "automake": {
+      "at": 1788097676,
+      "version": "1.18.1-1"
+    },
+    "avahi": {
+      "at": 1788097682,
+      "version": "1:0.9rc5-1.1"
+    },
+    "awesome-terminal-fonts": {
+      "at": 1788098338,
+      "version": "1.1.0-5"
+    },
+    "baloo": {
+      "at": 1788098341,
+      "version": "6.29.0-2.1"
+    },
+    "baloo-widgets": {
+      "at": 1788098341,
+      "version": "26.08.0-1.1"
+    },
+    "base": {
+      "at": 1788097676,
+      "version": "3-3"
+    },
+    "base-devel": {
+      "at": 1788097677,
+      "version": "1-2"
+    },
+    "bash": {
+      "at": 1788097674,
+      "version": "5.3.15-2"
+    },
+    "bash-completion": {
+      "at": 1788098338,
+      "version": "2.18.0-1"
+    },
+    "bat": {
+      "at": 1788098352,
+      "version": "0.26.1-2.1"
+    },
+    "bind": {
+      "at": 1788098337,
+      "version": "9.20.27-1.1"
+    },
+    "binutils": {
+      "at": 1788097675,
+      "version": "2.47-2"
+    },
+    "bison": {
+      "at": 1788097676,
+      "version": "3.8.2-8.1"
+    },
+    "bluez": {
+      "at": 1788098337,
+      "version": "5.87-2.1"
+    },
+    "bluez-hid2hci": {
+      "at": 1788098337,
+      "version": "5.87-2.1"
+    },
+    "bluez-libs": {
+      "at": 1788098337,
+      "version": "5.87-2.1"
+    },
+    "bluez-obex": {
+      "at": 1788098337,
+      "version": "5.87-2.1"
+    },
+    "bluez-utils": {
+      "at": 1788098337,
+      "version": "5.87-2.1"
+    },
+    "boost-libs": {
+      "at": 1788097676,
+      "version": "1.92.0-1.1"
+    },
+    "bpf": {
+      "at": 1788098337,
+      "version": "7.2.2-1"
+    },
+    "breeze-icons": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "brightnessctl": {
+      "at": 1788098341,
+      "version": "0.5.1-3"
+    },
+    "brotli": {
+      "at": 1788097674,
+      "version": "1.2.0-1.1"
+    },
+    "btop": {
+      "at": 1788098339,
+      "version": "1.4.7-1.1"
+    },
+    "btrfs-assistant": {
+      "at": 1788097682,
+      "version": "2.3.1-1.1"
+    },
+    "btrfs-progs": {
+      "at": 1788097677,
+      "version": "7.1-1"
+    },
+    "bubblewrap": {
+      "at": 1788097682,
+      "version": "0.12.0-1.1"
+    },
+    "bzip2": {
+      "at": 1788097674,
+      "version": "1.0.8-6.1"
+    },
+    "c-ares": {
+      "at": 1788271269,
+      "version": "1.34.8-1.1"
+    },
+    "ca-certificates": {
+      "at": 1788097675,
+      "version": "20240618-1"
+    },
+    "ca-certificates-mozilla": {
+      "at": 1788097675,
+      "version": "3.128-1.1"
+    },
+    "ca-certificates-utils": {
+      "at": 1788097675,
+      "version": "20240618-1"
+    },
+    "cachyos-alacritty-config": {
+      "at": 1788098341,
+      "version": "1.1-1"
+    },
+    "cachyos-ananicy-rules": {
+      "at": 1788097677,
+      "version": "1:1.1.48-1"
+    },
+    "cachyos-fish-config": {
+      "at": 1788098352,
+      "version": "16-1"
+    },
+    "cachyos-hello": {
+      "at": 1788098337,
+      "version": "0.28.1-1"
+    },
+    "cachyos-hooks": {
+      "at": 1788097677,
+      "version": "2026.02.05-1"
+    },
+    "cachyos-hypr-noctalia": {
+      "at": 1788098341,
+      "version": "1.2.5-1"
+    },
+    "cachyos-kernel-manager": {
+      "at": 1788098337,
+      "version": "1.19.0-1"
+    },
+    "cachyos-keyring": {
+      "at": 1788097677,
+      "version": "20240331-1"
+    },
+    "cachyos-micro-settings": {
+      "at": 1788098337,
+      "version": "1.0.0-1"
+    },
+    "cachyos-mirrorlist": {
+      "at": 1788097677,
+      "version": "27-1"
+    },
+    "cachyos-packageinstaller": {
+      "at": 1788098337,
+      "version": "1.6.2-1"
+    },
+    "cachyos-plymouth-bootanimation": {
+      "at": 1788097680,
+      "version": "2-3"
+    },
+    "cachyos-plymouth-theme": {
+      "at": 1788097680,
+      "version": "1-1"
+    },
+    "cachyos-rate-mirrors": {
+      "at": 1788097677,
+      "version": "24-1"
+    },
+    "cachyos-settings": {
+      "at": 1788097677,
+      "version": "1:1.4.0-1"
+    },
+    "cachyos-snapper-support": {
+      "at": 1788098405,
+      "version": "1.0.2-1"
+    },
+    "cachyos-v3-mirrorlist": {
+      "at": 1788097677,
+      "version": "27-1"
+    },
+    "cachyos-v4-mirrorlist": {
+      "at": 1788097677,
+      "version": "27-1"
+    },
+    "cachyos-wallpapers": {
+      "at": 1788098337,
+      "version": "r23.964263e-1"
+    },
+    "cachyos-zsh-config": {
+      "at": 1788098356,
+      "version": "1.0.3-1"
+    },
+    "cairo": {
+      "at": 1788097680,
+      "version": "1.18.4-1.1"
+    },
+    "cairomm-1.16": {
+      "at": 1788098339,
+      "version": "1.18.1-1.1"
+    },
+    "cantarell-fonts": {
+      "at": 1788098338,
+      "version": "1:0.311-1"
+    },
+    "cfitsio": {
+      "at": 1788098341,
+      "version": "1:4.7.0-1.1"
+    },
+    "chromaprint": {
+      "at": 1788098338,
+      "version": "1.6.1-2.1"
+    },
+    "chwd": {
+      "at": 1788097678,
+      "version": "1.24.1-1"
+    },
+    "cifs-utils": {
+      "at": 1788098338,
+      "version": "7.5-1.1"
+    },
+    "clang": {
+      "at": 1788097680,
+      "version": "22.1.8-2"
+    },
+    "compiler-rt": {
+      "at": 1788097680,
+      "version": "22.1.8-1.1"
+    },
+    "confuse": {
+      "at": 1788098338,
+      "version": "3.4-1.1"
+    },
+    "convertlit": {
+      "at": 1788098340,
+      "version": "1.8-13.1"
+    },
+    "coreutils": {
+      "at": 1788097674,
+      "version": "9.11-2.1"
+    },
+    "cpio": {
+      "at": 1788097676,
+      "version": "2.15-3.1"
+    },
+    "cpupower": {
+      "at": 1788098339,
+      "version": "7.2.2-1"
+    },
+    "cryptsetup": {
+      "at": 1788097675,
+      "version": "2.8.7-1.1"
+    },
+    "curl": {
+      "at": 1788097675,
+      "version": "8.21.0-1.1"
+    },
+    "dav1d": {
+      "at": 1788097682,
+      "version": "1.5.4-1.1"
+    },
+    "db5.3": {
+      "at": 1788097676,
+      "version": "5.3.28-7.1"
+    },
+    "dbus": {
+      "at": 1788097675,
+      "version": "1.16.2-1.1"
+    },
+    "dbus-broker": {
+      "at": 1788097675,
+      "version": "37-3.1"
+    },
+    "dbus-broker-units": {
+      "at": 1788097675,
+      "version": "37-3.1"
+    },
+    "dbus-units": {
+      "at": 1788097675,
+      "version": "37-3.1"
+    },
+    "dconf": {
+      "at": 1788097944,
+      "version": "0.49.0-1.1"
+    },
+    "debugedit": {
+      "at": 1788097676,
+      "version": "5.3-2"
+    },
+    "default-cursors": {
+      "at": 1788097682,
+      "version": "3-1"
+    },
+    "desktop-file-utils": {
+      "at": 1788097944,
+      "version": "0.28-1.1"
+    },
+    "device-mapper": {
+      "at": 1788097675,
+      "version": "2.03.42-1.1"
+    },
+    "diffutils": {
+      "at": 1788097676,
+      "version": "3.12-2.1"
+    },
+    "ding-libs": {
+      "at": 1788098338,
+      "version": "0.7.0-1.1"
+    },
+    "dmidecode": {
+      "at": 1788098339,
+      "version": "3.7-1"
+    },
+    "dmraid": {
+      "at": 1788098339,
+      "version": "1.0.0.rc16.3-15.1"
+    },
+    "dnsmasq": {
+      "at": 1788098337,
+      "version": "2.93-1.1"
+    },
+    "dnssec-anchors": {
+      "at": 1788098337,
+      "version": "20250524-1"
+    },
+    "dolphin": {
+      "at": 1788098341,
+      "version": "26.08.0-4.1"
+    },
+    "dosfstools": {
+      "at": 1788097677,
+      "version": "4.2-5.1"
+    },
+    "double-conversion": {
+      "at": 1788097682,
+      "version": "3.4.0-1.1"
+    },
+    "duf": {
+      "at": 1788098339,
+      "version": "0.9.1-1.1"
+    },
+    "duktape": {
+      "at": 1788097682,
+      "version": "2.7.0-7.1"
+    },
+    "e2fsprogs": {
+      "at": 1788097674,
+      "version": "1.47.4-1.1"
+    },
+    "ebook-tools": {
+      "at": 1788098340,
+      "version": "0.2.2-9.1"
+    },
+    "editorconfig-core-c": {
+      "at": 1788098341,
+      "version": "0.12.11-1.1"
+    },
+    "efibootmgr": {
+      "at": 1788097677,
+      "version": "18-4.1"
+    },
+    "efitools": {
+      "at": 1788098338,
+      "version": "1.9.2-7.1"
+    },
+    "efivar": {
+      "at": 1788097677,
+      "version": "39-2.1"
+    },
+    "egl-gbm": {
+      "at": 1788097943,
+      "version": "1.1.3-1.1"
+    },
+    "egl-wayland": {
+      "at": 1788097943,
+      "version": "4:1.1.21-1.1"
+    },
+    "egl-wayland2": {
+      "at": 1788097943,
+      "version": "1.0.1-1.1"
+    },
+    "egl-x11": {
+      "at": 1788097943,
+      "version": "1.0.5-1.1"
+    },
+    "eglexternalplatform": {
+      "at": 1788097943,
+      "version": "1.2.1-1"
+    },
+    "electron40": {
+      "at": 1788271269,
+      "version": "40.10.6-1"
+    },
+    "elfutils": {
+      "at": 1788097676,
+      "version": "0.196-1"
+    },
+    "ell": {
+      "at": 1788098337,
+      "version": "0.83-1.1"
+    },
+    "enchant": {
+      "at": 1788098341,
+      "version": "2.8.16-1.1"
+    },
+    "ethtool": {
+      "at": 1788098337,
+      "version": "1:7.1-1.1"
+    },
+    "exfatprogs": {
+      "at": 1788097677,
+      "version": "1.4.3-1.1"
+    },
+    "exiv2": {
+      "at": 1788098340,
+      "version": "0.28.8-2.1"
+    },
+    "expac": {
+      "at": 1788098352,
+      "version": "10-13.1"
+    },
+    "expat": {
+      "at": 1788097675,
+      "version": "2.8.3-1.1"
+    },
+    "eza": {
+      "at": 1788098352,
+      "version": "0.23.5-2.1"
+    },
+    "f2fs-tools": {
+      "at": 1788097677,
+      "version": "1.16.0-3.1"
+    },
+    "faac": {
+      "at": 1788098338,
+      "version": "2.1-1.1"
+    },
+    "faad2": {
+      "at": 1788098338,
+      "version": "2.11.3-1.1"
+    },
+    "fakeroot": {
+      "at": 1788097676,
+      "version": "1:1.37.2-3.1"
+    },
+    "fastfetch": {
+      "at": 1788098339,
+      "version": "2.67.1-1.1"
+    },
+    "fd": {
+      "at": 1788100056,
+      "version": "10.5.0-1.1"
+    },
+    "ffmpeg": {
+      "at": 1788098338,
+      "version": "2:9.0.1-4.1"
+    },
+    "ffmpegthumbnailer": {
+      "at": 1788098338,
+      "version": "2.3.1-1.1"
+    },
+    "fftw": {
+      "at": 1788098338,
+      "version": "3.3.11-1.1"
+    },
+    "file": {
+      "at": 1788097674,
+      "version": "5.48-1.1"
+    },
+    "filesystem": {
+      "at": 1788097674,
+      "version": "2025.10.12-1"
+    },
+    "findutils": {
+      "at": 1788097674,
+      "version": "4.11.0-1.1"
+    },
+    "firefox": {
+      "at": 1788098395,
+      "version": "154.0.1-1.1"
+    },
+    "fish": {
+      "at": 1788098352,
+      "version": "4.8.1-1"
+    },
+    "fish-autopair": {
+      "at": 1788098352,
+      "version": "1.0.4-2"
+    },
+    "fish-pure-prompt": {
+      "at": 1788098352,
+      "version": "4.18.0-1"
+    },
+    "fisher": {
+      "at": 1788098352,
+      "version": "4.4.8-1"
+    },
+    "flac": {
+      "at": 1788098338,
+      "version": "1.5.0-1.2"
+    },
+    "flex": {
+      "at": 1788097676,
+      "version": "2.6.4-6.1"
+    },
+    "fluidsynth": {
+      "at": 1788098338,
+      "version": "2.6.0-1.1"
+    },
+    "fmt": {
+      "at": 1788097677,
+      "version": "12.2.0-1.1"
+    },
+    "fontconfig": {
+      "at": 1788097678,
+      "version": "2:2.18.3-2.1"
+    },
+    "freeglut": {
+      "at": 1788098338,
+      "version": "3.8.0-1.1"
+    },
+    "freetype2": {
+      "at": 1788097678,
+      "version": "2.14.3-1.2"
+    },
+    "fribidi": {
+      "at": 1788097680,
+      "version": "1.0.16-2.1"
+    },
+    "fsarchiver": {
+      "at": 1788098339,
+      "version": "0.8.9-1.1"
+    },
+    "ftgl": {
+      "at": 1788098338,
+      "version": "2.4.0-4.1"
+    },
+    "fuse-common": {
+      "at": 1788098337,
+      "version": "3.18.2-1.1"
+    },
+    "fuse3": {
+      "at": 1788098337,
+      "version": "3.18.2-1.1"
+    },
+    "fzf": {
+      "at": 1788098352,
+      "version": "0.74.3-1.1"
+    },
+    "gawk": {
+      "at": 1788097674,
+      "version": "5.4.1-1.1"
+    },
+    "gc": {
+      "at": 1788097676,
+      "version": "8.2.12-1.1"
+    },
+    "gcc": {
+      "at": 1788097677,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "gcc-libs": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "gcr-4": {
+      "at": 1788098337,
+      "version": "4.4.0.1-1.1"
+    },
+    "gdb": {
+      "at": 1788097676,
+      "version": "17.2-1.1"
+    },
+    "gdb-common": {
+      "at": 1788097676,
+      "version": "17.2-1.1"
+    },
+    "gdbm": {
+      "at": 1788097674,
+      "version": "1.26-2.1"
+    },
+    "gdk-pixbuf2": {
+      "at": 1788097682,
+      "version": "2.44.7-1.1"
+    },
+    "gettext": {
+      "at": 1788097675,
+      "version": "1.0-2.1"
+    },
+    "giflib": {
+      "at": 1788097682,
+      "version": "6.1.3-2.1"
+    },
+    "git": {
+      "at": 1788102853,
+      "version": "2.55.0-1.1"
+    },
+    "github-cli": {
+      "at": 1788102926,
+      "version": "2.98.0-1.1"
+    },
+    "glances": {
+      "at": 1788098339,
+      "version": "4.5.6-1"
+    },
+    "glew": {
+      "at": 1788098338,
+      "version": "2.3.1-1.1"
+    },
+    "glib-networking": {
+      "at": 1788097944,
+      "version": "1:2.80.1-1.1"
+    },
+    "glib2": {
+      "at": 1788097675,
+      "version": "2.88.3-1.1"
+    },
+    "glibc": {
+      "at": 1788097674,
+      "version": "2.44+r24+g16be1518495f-1"
+    },
+    "glibmm-2.68": {
+      "at": 1788098339,
+      "version": "2.88.1-1.1"
+    },
+    "glm": {
+      "at": 1788098338,
+      "version": "1.0.3-1.1"
+    },
+    "glslang": {
+      "at": 1788098338,
+      "version": "1:1.4.357.0-1.1"
+    },
+    "glu": {
+      "at": 1788098338,
+      "version": "9.0.3-3.1"
+    },
+    "glycin": {
+      "at": 1788097682,
+      "version": "2.1.5-2.1"
+    },
+    "gmp": {
+      "at": 1788097674,
+      "version": "6.3.0-3.1"
+    },
+    "gnome-calculator": {
+      "at": 1788098341,
+      "version": "50.0-1"
+    },
+    "gnome-text-editor": {
+      "at": 1788098341,
+      "version": "50.1-1.1"
+    },
+    "gnulib-l10n": {
+      "at": 1788097675,
+      "version": "20241231-1"
+    },
+    "gnupg": {
+      "at": 1788097675,
+      "version": "2.4.9-3.1"
+    },
+    "gnutls": {
+      "at": 1788097675,
+      "version": "3.8.13-2.1"
+    },
+    "gobject-introspection-runtime": {
+      "at": 1788097946,
+      "version": "1.86.0-2.1"
+    },
+    "gperftools": {
+      "at": 1788097682,
+      "version": "2.18.1-1.1"
+    },
+    "gpgme": {
+      "at": 1788097675,
+      "version": "2.1.2-1.1"
+    },
+    "gpgmepp": {
+      "at": 1788098338,
+      "version": "2.1.0-1.1"
+    },
+    "gpm": {
+      "at": 1788098337,
+      "version": "1.20.7.r38.ge82d1a6-6.1"
+    },
+    "graphene": {
+      "at": 1788097945,
+      "version": "1.10.8-2.1"
+    },
+    "graphite": {
+      "at": 1788097680,
+      "version": "1:1.3.15-1"
+    },
+    "greetd": {
+      "at": 1788098341,
+      "version": "0.10.3-2.1"
+    },
+    "greetd-agreety": {
+      "at": 1788098341,
+      "version": "0.10.3-2.1"
+    },
+    "grep": {
+      "at": 1788097674,
+      "version": "3.12-2.1"
+    },
+    "grim": {
+      "at": 1788098341,
+      "version": "1.5.0-2.1"
+    },
+    "groff": {
+      "at": 1788097677,
+      "version": "1.24.1-1.1"
+    },
+    "gsettings-desktop-schemas": {
+      "at": 1788097944,
+      "version": "50.1-1"
+    },
+    "gsettings-system-schemas": {
+      "at": 1788097944,
+      "version": "50.1-1"
+    },
+    "gsm": {
+      "at": 1788098338,
+      "version": "1.0.24-1.1"
+    },
+    "gssdp": {
+      "at": 1788097945,
+      "version": "1.6.6-1.1"
+    },
+    "gssproxy": {
+      "at": 1788098338,
+      "version": "0.9.2-3.1"
+    },
+    "gst-libav": {
+      "at": 1788098338,
+      "version": "1.28.6-3"
+    },
+    "gst-plugin-pipewire": {
+      "at": 1788098338,
+      "version": "1:1.6.8-1"
+    },
+    "gst-plugin-va": {
+      "at": 1788097966,
+      "version": "1.28.6-3"
+    },
+    "gst-plugins-bad": {
+      "at": 1788098338,
+      "version": "1.28.6-3"
+    },
+    "gst-plugins-bad-libs": {
+      "at": 1788097946,
+      "version": "1.28.6-3"
+    },
+    "gst-plugins-base-libs": {
+      "at": 1788097945,
+      "version": "1.28.6-3"
+    },
+    "gst-plugins-ugly": {
+      "at": 1788098338,
+      "version": "1.28.6-3"
+    },
+    "gstreamer": {
+      "at": 1788097945,
+      "version": "1.28.6-3"
+    },
+    "gtest": {
+      "at": 1788097682,
+      "version": "1.17.0-2.1"
+    },
+    "gtk-update-icon-cache": {
+      "at": 1788097944,
+      "version": "1:4.22.4-1.1"
+    },
+    "gtk3": {
+      "at": 1788097944,
+      "version": "1:3.24.52-1.1"
+    },
+    "gtk4": {
+      "at": 1788098337,
+      "version": "1:4.22.4-1.1"
+    },
+    "gtkmm-4.0": {
+      "at": 1788098339,
+      "version": "4.22.0-2.1"
+    },
+    "gtksourceview4": {
+      "at": 1788098339,
+      "version": "4.8.4-2.1"
+    },
+    "gtksourceview5": {
+      "at": 1788098341,
+      "version": "5.20.0-1.1"
+    },
+    "guile": {
+      "at": 1788097676,
+      "version": "3.0.11-1.1"
+    },
+    "gupnp": {
+      "at": 1788097945,
+      "version": "1:1.6.10-1.1"
+    },
+    "gupnp-igd": {
+      "at": 1788097945,
+      "version": "1.6.0-2.1"
+    },
+    "gzip": {
+      "at": 1788097675,
+      "version": "1.14-2"
+    },
+    "harfbuzz": {
+      "at": 1788097680,
+      "version": "14.4.0-1.1"
+    },
+    "hdparm": {
+      "at": 1788098339,
+      "version": "9.65-3.1"
+    },
+    "hicolor-icon-theme": {
+      "at": 1788097682,
+      "version": "0.18-1"
+    },
+    "hidapi": {
+      "at": 1788098338,
+      "version": "0.15.0-1.1"
+    },
+    "highway": {
+      "at": 1788097682,
+      "version": "1.4.0-1.1"
+    },
+    "hwdata": {
+      "at": 1788097675,
+      "version": "0.410-1"
+    },
+    "hwdetect": {
+      "at": 1788098339,
+      "version": "2025.08.16.1333-1"
+    },
+    "hwinfo": {
+      "at": 1788098339,
+      "version": "25.5-1.1"
+    },
+    "hwloc": {
+      "at": 1788098341,
+      "version": "2.14.0-1.1"
+    },
+    "hyprcursor": {
+      "at": 1788098339,
+      "version": "0.1.13-7.1"
+    },
+    "hyprgraphics": {
+      "at": 1788098339,
+      "version": "0.5.1-4.1"
+    },
+    "hyprland": {
+      "at": 1788098340,
+      "version": "0.56.2-1"
+    },
+    "hyprland-guiutils": {
+      "at": 1788098339,
+      "version": "0.2.2-2.1"
+    },
+    "hyprlang": {
+      "at": 1788098339,
+      "version": "0.6.8-5.1"
+    },
+    "hyprpicker": {
+      "at": 1788098341,
+      "version": "0.4.7-3.1"
+    },
+    "hyprtoolkit": {
+      "at": 1788098339,
+      "version": "0.5.4-4.1"
+    },
+    "hyprutils": {
+      "at": 1788098339,
+      "version": "0.14.1-1.1"
+    },
+    "hyprwayland-scanner": {
+      "at": 1788098339,
+      "version": "0.4.6-1.1"
+    },
+    "hyprwire": {
+      "at": 1788098339,
+      "version": "0.3.1-3.1"
+    },
+    "iana-etc": {
+      "at": 1788097674,
+      "version": "20260617-1"
+    },
+    "icu": {
+      "at": 1788097675,
+      "version": "78.3-1.1"
+    },
+    "imagemagick": {
+      "at": 1788098338,
+      "version": "7.1.2.30-1.1"
+    },
+    "imath": {
+      "at": 1788098338,
+      "version": "3.2.3-1.1"
+    },
+    "imlib2": {
+      "at": 1788098338,
+      "version": "1.12.6-2.1"
+    },
+    "inetutils": {
+      "at": 1788097677,
+      "version": "2.8-1.1"
+    },
+    "iniparser": {
+      "at": 1788098339,
+      "version": "4.2.6-2.1"
+    },
+    "intel-gmmlib": {
+      "at": 1788097966,
+      "version": "22.10.0-1.1"
+    },
+    "intel-media-driver": {
+      "at": 1788097966,
+      "version": "26.2.4-1.1"
+    },
+    "intel-ucode": {
+      "at": 1788097682,
+      "version": "20260812-1"
+    },
+    "inxi": {
+      "at": 1788097677,
+      "version": "3.3.41.1-1"
+    },
+    "iproute2": {
+      "at": 1788097676,
+      "version": "7.2.0-1.1"
+    },
+    "iptables": {
+      "at": 1788097676,
+      "version": "1:1.8.13-1.1"
+    },
+    "iputils": {
+      "at": 1788097676,
+      "version": "20250605-1.1"
+    },
+    "iso-codes": {
+      "at": 1788097944,
+      "version": "4.20.1-1"
+    },
+    "iw": {
+      "at": 1788097677,
+      "version": "6.17-1.1"
+    },
+    "iwd": {
+      "at": 1788098337,
+      "version": "3.12-1.1"
+    },
+    "jack2": {
+      "at": 1788098338,
+      "version": "1.9.22-2.1"
+    },
+    "jansson": {
+      "at": 1788097675,
+      "version": "2.15.1-1.1"
+    },
+    "jbigkit": {
+      "at": 1788097682,
+      "version": "2.1-8.1"
+    },
+    "jemalloc": {
+      "at": 1788098337,
+      "version": "1:5.3.1-3.1"
+    },
+    "jfsutils": {
+      "at": 1788097677,
+      "version": "1.1.15-9.1"
+    },
+    "jq": {
+      "at": 1788098337,
+      "version": "1.8.2-1.1"
+    },
+    "json-c": {
+      "at": 1788097675,
+      "version": "0.19-1.1"
+    },
+    "json-glib": {
+      "at": 1788097944,
+      "version": "1.10.8-1.1"
+    },
+    "karchive": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kbd": {
+      "at": 1788097675,
+      "version": "2.10.0-1.1"
+    },
+    "kbookmarks": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kcmutils": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kcodecs": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kcolorscheme": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kcompletion": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kconfig": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kconfigwidgets": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kcoreaddons": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kcrash": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kdbusaddons": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kde-cli-tools": {
+      "at": 1788098341,
+      "version": "6.7.4-1.1"
+    },
+    "kdesu": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kdnssd": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kdsoap": {
+      "at": 1788098341,
+      "version": "2.3.0-1"
+    },
+    "kdsoap-ws-discovery-client": {
+      "at": 1788098341,
+      "version": "0.4.0-3.1"
+    },
+    "keyutils": {
+      "at": 1788097674,
+      "version": "1.6.3-4.1"
+    },
+    "kfilemetadata": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kglobalaccel": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kguiaddons": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "ki18n": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kiconthemes": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kidletime": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kio": {
+      "at": 1788098340,
+      "version": "6.29.0-2.1"
+    },
+    "kio-extras": {
+      "at": 1788098341,
+      "version": "26.08.0-1.1"
+    },
+    "kirigami": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kitemviews": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kitty": {
+      "at": 1788098341,
+      "version": "0.48.2-1.1"
+    },
+    "kitty-shell-integration": {
+      "at": 1788098341,
+      "version": "0.48.2-1.1"
+    },
+    "kitty-terminfo": {
+      "at": 1788098341,
+      "version": "0.48.2-1.1"
+    },
+    "kjobwidgets": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kmod": {
+      "at": 1788097675,
+      "version": "34.2-1"
+    },
+    "knewstuff": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "knotifications": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kpackage": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kparts": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kpty": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "krb5": {
+      "at": 1788097674,
+      "version": "1.22.2-1.1"
+    },
+    "kservice": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "ktextwidgets": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kuserfeedback": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "kwallet": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kwidgetsaddons": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kwindowsystem": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "kxmlgui": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "l-smash": {
+      "at": 1788098338,
+      "version": "2.14.5-4.1"
+    },
+    "lame": {
+      "at": 1788098338,
+      "version": "4.0-1.1"
+    },
+    "lcms2": {
+      "at": 1788097682,
+      "version": "2.19.1-1.1"
+    },
+    "ldb": {
+      "at": 1788098338,
+      "version": "2:4.24.6-1.1"
+    },
+    "leancrypto": {
+      "at": 1788097675,
+      "version": "1.8.0-1.1"
+    },
+    "less": {
+      "at": 1788097677,
+      "version": "1:704-1.1"
+    },
+    "lib32-brotli": {
+      "at": 1788097945,
+      "version": "1.2.0-2"
+    },
+    "lib32-bzip2": {
+      "at": 1788097945,
+      "version": "1.0.8-4"
+    },
+    "lib32-curl": {
+      "at": 1788097945,
+      "version": "8.21.0-1"
+    },
+    "lib32-e2fsprogs": {
+      "at": 1788097945,
+      "version": "1.47.4-1"
+    },
+    "lib32-expat": {
+      "at": 1788097945,
+      "version": "2.8.3-1"
+    },
+    "lib32-gcc-libs": {
+      "at": 1788097945,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "lib32-glibc": {
+      "at": 1788097944,
+      "version": "2.44+r24+g16be1518495f-1"
+    },
+    "lib32-gmp": {
+      "at": 1788097945,
+      "version": "6.3.0-2"
+    },
+    "lib32-gnutls": {
+      "at": 1788097945,
+      "version": "3.8.13-3"
+    },
+    "lib32-icu": {
+      "at": 1788097945,
+      "version": "78.3-1"
+    },
+    "lib32-json-c": {
+      "at": 1788097945,
+      "version": "0.19-1"
+    },
+    "lib32-keyutils": {
+      "at": 1788097945,
+      "version": "1.6.3-4"
+    },
+    "lib32-krb5": {
+      "at": 1788097945,
+      "version": "1.22.2-1"
+    },
+    "lib32-libdisplay-info": {
+      "at": 1788097966,
+      "version": "0.3.0-1"
+    },
+    "lib32-libdrm": {
+      "at": 1788097945,
+      "version": "2.4.134-1"
+    },
+    "lib32-libelf": {
+      "at": 1788097945,
+      "version": "0.196-2"
+    },
+    "lib32-libffi": {
+      "at": 1788097945,
+      "version": "3.8.0-1"
+    },
+    "lib32-libgcrypt": {
+      "at": 1788097966,
+      "version": "1.12.3-1"
+    },
+    "lib32-libglvnd": {
+      "at": 1788097945,
+      "version": "1.7.0-1"
+    },
+    "lib32-libgpg-error": {
+      "at": 1788097966,
+      "version": "1.61-1"
+    },
+    "lib32-libidn2": {
+      "at": 1788097945,
+      "version": "2.3.8-1"
+    },
+    "lib32-libldap": {
+      "at": 1788097945,
+      "version": "2.6.13-1"
+    },
+    "lib32-libnghttp2": {
+      "at": 1788097945,
+      "version": "1.70.0-1"
+    },
+    "lib32-libnghttp3": {
+      "at": 1788097945,
+      "version": "1.18.0-1"
+    },
+    "lib32-libngtcp2": {
+      "at": 1788097945,
+      "version": "1.25.0-1"
+    },
+    "lib32-libpciaccess": {
+      "at": 1788097945,
+      "version": "0.19-1"
+    },
+    "lib32-libpsl": {
+      "at": 1788097945,
+      "version": "0.21.5-1"
+    },
+    "lib32-libssh2": {
+      "at": 1788097945,
+      "version": "1.11.1-5"
+    },
+    "lib32-libtasn1": {
+      "at": 1788097945,
+      "version": "4.21.0-1"
+    },
+    "lib32-libunistring": {
+      "at": 1788097945,
+      "version": "1.4.2-1"
+    },
+    "lib32-libx11": {
+      "at": 1788097945,
+      "version": "1.8.13-1"
+    },
+    "lib32-libxau": {
+      "at": 1788097945,
+      "version": "1.0.12-1"
+    },
+    "lib32-libxcb": {
+      "at": 1788097945,
+      "version": "1.17.0-1"
+    },
+    "lib32-libxcrypt": {
+      "at": 1788097945,
+      "version": "4.5.2-1"
+    },
+    "lib32-libxdmcp": {
+      "at": 1788097945,
+      "version": "1.1.5-1"
+    },
+    "lib32-libxext": {
+      "at": 1788097945,
+      "version": "1.3.7-1"
+    },
+    "lib32-libxml2": {
+      "at": 1788097945,
+      "version": "2.15.3-1"
+    },
+    "lib32-libxshmfence": {
+      "at": 1788097945,
+      "version": "1.3.3-1"
+    },
+    "lib32-libxxf86vm": {
+      "at": 1788097945,
+      "version": "1.1.7-1"
+    },
+    "lib32-llvm-libs": {
+      "at": 1788097945,
+      "version": "1:22.1.8-1"
+    },
+    "lib32-lm_sensors": {
+      "at": 1788097945,
+      "version": "1:3.6.2-2"
+    },
+    "lib32-mesa": {
+      "at": 1788097945,
+      "version": "3:26.2.1-1"
+    },
+    "lib32-ncurses": {
+      "at": 1788097945,
+      "version": "6.6-2"
+    },
+    "lib32-nettle": {
+      "at": 1788097945,
+      "version": "4.0-2"
+    },
+    "lib32-nvidia-utils": {
+      "at": 1788097945,
+      "version": "610.57.04-1"
+    },
+    "lib32-opencl-nvidia": {
+      "at": 1788097945,
+      "version": "610.57.04-1"
+    },
+    "lib32-openssl": {
+      "at": 1788097945,
+      "version": "1:3.6.4-1"
+    },
+    "lib32-p11-kit": {
+      "at": 1788097945,
+      "version": "0.26.5-1"
+    },
+    "lib32-spirv-tools": {
+      "at": 1788097945,
+      "version": "1:1.4.357.0-1"
+    },
+    "lib32-systemd": {
+      "at": 1788097966,
+      "version": "261.2-1"
+    },
+    "lib32-vulkan-icd-loader": {
+      "at": 1788097946,
+      "version": "1.4.357.0-1"
+    },
+    "lib32-vulkan-intel": {
+      "at": 1788097966,
+      "version": "3:26.2.1-1"
+    },
+    "lib32-vulkan-mesa-implicit-layers": {
+      "at": 1788097966,
+      "version": "3:26.2.1-1"
+    },
+    "lib32-wayland": {
+      "at": 1788097945,
+      "version": "1.26.0-1"
+    },
+    "lib32-xcb-util-keysyms": {
+      "at": 1788097966,
+      "version": "0.4.1-2"
+    },
+    "lib32-xz": {
+      "at": 1788097945,
+      "version": "5.8.3-1"
+    },
+    "lib32-zlib-ng": {
+      "at": 1788097968,
+      "version": "2.3.3-2"
+    },
+    "lib32-zlib-ng-compat": {
+      "at": 1788097968,
+      "version": "2.3.3-2"
+    },
+    "lib32-zstd": {
+      "at": 1788097945,
+      "version": "1.5.7-2"
+    },
+    "libadwaita": {
+      "at": 1788098341,
+      "version": "1:1.9.3-1.1"
+    },
+    "libaio": {
+      "at": 1788097677,
+      "version": "0.3.113-5.1"
+    },
+    "libarchive": {
+      "at": 1788097675,
+      "version": "3.8.9-1.1"
+    },
+    "libasan": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libass": {
+      "at": 1788098338,
+      "version": "0.17.5-1.1"
+    },
+    "libassuan": {
+      "at": 1788097675,
+      "version": "3.0.0-1.1"
+    },
+    "libasyncns": {
+      "at": 1788098338,
+      "version": "1:0.8+r3+g68cd5af-3.2"
+    },
+    "libatasmart": {
+      "at": 1788098340,
+      "version": "0.19-8.1"
+    },
+    "libatomic": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libavc1394": {
+      "at": 1788098338,
+      "version": "0.5.4-7.1"
+    },
+    "libavtp": {
+      "at": 1788098338,
+      "version": "0.2.0-3.1"
+    },
+    "libb2": {
+      "at": 1788097682,
+      "version": "0.98.1-3.1"
+    },
+    "libblake3": {
+      "at": 1788098341,
+      "version": "1.8.7-1.1"
+    },
+    "libblockdev": {
+      "at": 1788098340,
+      "version": "3.5.0-2.1"
+    },
+    "libblockdev-crypto": {
+      "at": 1788098340,
+      "version": "3.5.0-2.1"
+    },
+    "libblockdev-fs": {
+      "at": 1788098340,
+      "version": "3.5.0-2.1"
+    },
+    "libblockdev-loop": {
+      "at": 1788098340,
+      "version": "3.5.0-2.1"
+    },
+    "libblockdev-mdraid": {
+      "at": 1788098340,
+      "version": "3.5.0-2.1"
+    },
+    "libblockdev-nvme": {
+      "at": 1788098340,
+      "version": "3.5.0-2.1"
+    },
+    "libblockdev-part": {
+      "at": 1788098340,
+      "version": "3.5.0-2.1"
+    },
+    "libblockdev-smart": {
+      "at": 1788098340,
+      "version": "3.5.0-2.1"
+    },
+    "libblockdev-swap": {
+      "at": 1788098340,
+      "version": "3.5.0-2.1"
+    },
+    "libbluray": {
+      "at": 1788098338,
+      "version": "1.5.0-1.1"
+    },
+    "libbpf": {
+      "at": 1788097676,
+      "version": "1.7.0-1.1"
+    },
+    "libbs2b": {
+      "at": 1788098338,
+      "version": "3.1.0-10.1"
+    },
+    "libbsd": {
+      "at": 1788098338,
+      "version": "0.12.2-2.1"
+    },
+    "libbytesize": {
+      "at": 1788098340,
+      "version": "2.12-3.1"
+    },
+    "libcaca": {
+      "at": 1788098338,
+      "version": "0.99.beta20-7.1"
+    },
+    "libcanberra": {
+      "at": 1788098339,
+      "version": "1:0.30+r2+gc0620e4-6.1"
+    },
+    "libcap": {
+      "at": 1788097674,
+      "version": "2.78-1.1"
+    },
+    "libcap-ng": {
+      "at": 1788097674,
+      "version": "0.9.5-1.1"
+    },
+    "libcddb": {
+      "at": 1788098338,
+      "version": "1.3.2-9.1"
+    },
+    "libcdio": {
+      "at": 1788098338,
+      "version": "2.4.0-1.1"
+    },
+    "libcgif": {
+      "at": 1788098341,
+      "version": "0.5.3-1.1"
+    },
+    "libcloudproviders": {
+      "at": 1788097944,
+      "version": "0.4.1-1.1"
+    },
+    "libcolord": {
+      "at": 1788097944,
+      "version": "1.4.8-1"
+    },
+    "libcups": {
+      "at": 1788097682,
+      "version": "2:2.4.19-1"
+    },
+    "libdaemon": {
+      "at": 1788097682,
+      "version": "0.14-6.3"
+    },
+    "libdatrie": {
+      "at": 1788097680,
+      "version": "0.2.14-1.1"
+    },
+    "libdc1394": {
+      "at": 1788098338,
+      "version": "2.2.7-2.1"
+    },
+    "libdca": {
+      "at": 1788098338,
+      "version": "0.0.7-3.1"
+    },
+    "libde265": {
+      "at": 1788098338,
+      "version": "1.1.1-1.1"
+    },
+    "libdecor": {
+      "at": 1788098339,
+      "version": "0.2.5-1.1"
+    },
+    "libdeflate": {
+      "at": 1788097682,
+      "version": "1.26-1.1"
+    },
+    "libdisplay-info": {
+      "at": 1788097966,
+      "version": "0.3.0-1.1"
+    },
+    "libdovi": {
+      "at": 1788098338,
+      "version": "3.4.0-1.1"
+    },
+    "libdrm": {
+      "at": 1788097680,
+      "version": "2.4.134-1.1"
+    },
+    "libdv": {
+      "at": 1788098338,
+      "version": "1.0.0-12.1"
+    },
+    "libdvbpsi": {
+      "at": 1788098338,
+      "version": "1:1.3.3-4"
+    },
+    "libdvdcss": {
+      "at": 1788098338,
+      "version": "1.6.0-1.1"
+    },
+    "libdvdnav": {
+      "at": 1788098338,
+      "version": "7.0.0-1.1"
+    },
+    "libdvdread": {
+      "at": 1788098338,
+      "version": "7.1.1-1.1"
+    },
+    "libebml": {
+      "at": 1788098338,
+      "version": "1.4.5-3.1"
+    },
+    "libebur128": {
+      "at": 1788098338,
+      "version": "1.2.6-2.1"
+    },
+    "libedit": {
+      "at": 1788097678,
+      "version": "20260512_3.1-1.1"
+    },
+    "libei": {
+      "at": 1788098339,
+      "version": "1.6.0-1"
+    },
+    "libelf": {
+      "at": 1788097675,
+      "version": "0.196-1"
+    },
+    "libepoxy": {
+      "at": 1788097944,
+      "version": "1.5.10-3.1"
+    },
+    "libevdev": {
+      "at": 1788097680,
+      "version": "1.13.7-1.1"
+    },
+    "libevent": {
+      "at": 1788097674,
+      "version": "2.1.13-2.1"
+    },
+    "libexif": {
+      "at": 1788098341,
+      "version": "0.6.26-1.1"
+    },
+    "libfdk-aac": {
+      "at": 1788098338,
+      "version": "2.0.3-2.1"
+    },
+    "libffi": {
+      "at": 1788097674,
+      "version": "3.8.0-1.1"
+    },
+    "libfontenc": {
+      "at": 1788098339,
+      "version": "1.1.9-1.1"
+    },
+    "libfreeaptx": {
+      "at": 1788098338,
+      "version": "0.2.2-1.1"
+    },
+    "libftdi": {
+      "at": 1788098338,
+      "version": "1.5-10.1"
+    },
+    "libfyaml": {
+      "at": 1788098341,
+      "version": "0.9.6-3.1"
+    },
+    "libgcc": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libgcrypt": {
+      "at": 1788097674,
+      "version": "1.12.3-1.1"
+    },
+    "libgee": {
+      "at": 1788098341,
+      "version": "0.20.8-1.1"
+    },
+    "libgfortran": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libgirepository": {
+      "at": 1788097946,
+      "version": "1.86.0-2.1"
+    },
+    "libgit2": {
+      "at": 1788098352,
+      "version": "1:1.9.7-1.1"
+    },
+    "libglvnd": {
+      "at": 1788097682,
+      "version": "1.7.0-3.1"
+    },
+    "libgme": {
+      "at": 1788098338,
+      "version": "0.6.5-1.1"
+    },
+    "libgomp": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libgoom2": {
+      "at": 1788098338,
+      "version": "2k4-5"
+    },
+    "libgpg-error": {
+      "at": 1788097674,
+      "version": "1.61-1.1"
+    },
+    "libgsf": {
+      "at": 1788098338,
+      "version": "1.14.58-1.1"
+    },
+    "libgudev": {
+      "at": 1788097682,
+      "version": "238-3.1"
+    },
+    "libhwasan": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libical": {
+      "at": 1788098337,
+      "version": "4.0.5-1.1"
+    },
+    "libice": {
+      "at": 1788097682,
+      "version": "1.1.2-1.1"
+    },
+    "libidn2": {
+      "at": 1788097675,
+      "version": "2.3.8-1.1"
+    },
+    "libiec61883": {
+      "at": 1788098338,
+      "version": "1.2.0-9.1"
+    },
+    "libimagequant": {
+      "at": 1788098341,
+      "version": "4.4.1-2"
+    },
+    "libimobiledevice": {
+      "at": 1788098339,
+      "version": "1.4.0-2.1"
+    },
+    "libimobiledevice-glue": {
+      "at": 1788098339,
+      "version": "1.3.2-1.1"
+    },
+    "libinih": {
+      "at": 1788097678,
+      "version": "62-2.1"
+    },
+    "libinput": {
+      "at": 1788097682,
+      "version": "1.31.3-1.1"
+    },
+    "libisl": {
+      "at": 1788097676,
+      "version": "0.28-1.1"
+    },
+    "libjpeg-turbo": {
+      "at": 1788097682,
+      "version": "3.2.0-2"
+    },
+    "libjxl": {
+      "at": 1788097682,
+      "version": "0.12.0-1.1"
+    },
+    "libkate": {
+      "at": 1788098338,
+      "version": "0.4.3-4.1"
+    },
+    "libkexiv2": {
+      "at": 1788098341,
+      "version": "26.08.0-1.1"
+    },
+    "libksba": {
+      "at": 1788097675,
+      "version": "1.8.1-1.1"
+    },
+    "liblc3": {
+      "at": 1788098338,
+      "version": "1.1.3-2.1"
+    },
+    "libldac": {
+      "at": 1788098338,
+      "version": "2.0.2.6-1.1"
+    },
+    "libldap": {
+      "at": 1788097674,
+      "version": "2.6.13-1"
+    },
+    "libliftoff": {
+      "at": 1788098341,
+      "version": "0.5.0-1.1"
+    },
+    "liblqr": {
+      "at": 1788098338,
+      "version": "0.4.3-1.1"
+    },
+    "liblrdf": {
+      "at": 1788098338,
+      "version": "0.6.1-5.1"
+    },
+    "liblsan": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libltc": {
+      "at": 1788098338,
+      "version": "1.3.2-2.1"
+    },
+    "libmad": {
+      "at": 1788098338,
+      "version": "0.15.1b-10.1"
+    },
+    "libmakepkg-dropins": {
+      "at": 1788097675,
+      "version": "20-2"
+    },
+    "libmatroska": {
+      "at": 1788098338,
+      "version": "1.7.2-2.1"
+    },
+    "libmaxminddb": {
+      "at": 1788098337,
+      "version": "1.13.3-1.1"
+    },
+    "libmbim": {
+      "at": 1788098337,
+      "version": "1.34.0-1.1"
+    },
+    "libmd": {
+      "at": 1788098338,
+      "version": "1.2.0-1.1"
+    },
+    "libmicrodns": {
+      "at": 1788098338,
+      "version": "0.2.0-2.1"
+    },
+    "libmm-glib": {
+      "at": 1788098337,
+      "version": "1.24.2-1.1"
+    },
+    "libmnl": {
+      "at": 1788097676,
+      "version": "1.0.5-2.1"
+    },
+    "libmodplug": {
+      "at": 1788098338,
+      "version": "0.8.9.0-7.1"
+    },
+    "libmpc": {
+      "at": 1788097676,
+      "version": "1.4.1-1.1"
+    },
+    "libmpcdec": {
+      "at": 1788098338,
+      "version": "1:0.1+r475-6"
+    },
+    "libmpeg2": {
+      "at": 1788098338,
+      "version": "0.5.1-11.1"
+    },
+    "libmtp": {
+      "at": 1788098338,
+      "version": "1.1.23-1.1"
+    },
+    "libmysofa": {
+      "at": 1788098338,
+      "version": "1.3.5-1.1"
+    },
+    "libndp": {
+      "at": 1788098337,
+      "version": "1.9-1.2"
+    },
+    "libnetfilter_conntrack": {
+      "at": 1788097676,
+      "version": "1.1.1-1.1"
+    },
+    "libnewt": {
+      "at": 1788098337,
+      "version": "0.52.25-2.1"
+    },
+    "libnfnetlink": {
+      "at": 1788097676,
+      "version": "1.0.2-2.1"
+    },
+    "libnfs": {
+      "at": 1788098338,
+      "version": "6.0.2-5.2"
+    },
+    "libnftnl": {
+      "at": 1788097676,
+      "version": "1.3.1-1.1"
+    },
+    "libnghttp2": {
+      "at": 1788097675,
+      "version": "1.70.0-1.1"
+    },
+    "libnghttp3": {
+      "at": 1788097675,
+      "version": "1.18.0-1.1"
+    },
+    "libngtcp2": {
+      "at": 1788097675,
+      "version": "1.25.0-1.1"
+    },
+    "libnice": {
+      "at": 1788097945,
+      "version": "0.1.23-1.1"
+    },
+    "libnl": {
+      "at": 1788097676,
+      "version": "3.12.0-1.1"
+    },
+    "libnm": {
+      "at": 1788098337,
+      "version": "1.58.1-1"
+    },
+    "libnma-common": {
+      "at": 1788098337,
+      "version": "1.10.6-3.1"
+    },
+    "libnma-gtk4": {
+      "at": 1788098337,
+      "version": "1.10.6-3.1"
+    },
+    "libnotify": {
+      "at": 1788097682,
+      "version": "0.8.8-1.1"
+    },
+    "libnsl": {
+      "at": 1788097674,
+      "version": "2.0.1-2.1"
+    },
+    "libnvme": {
+      "at": 1788098340,
+      "version": "1.16.2-2.1"
+    },
+    "libobjc": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libogg": {
+      "at": 1788098338,
+      "version": "1.3.6-1.1"
+    },
+    "libopenmpt": {
+      "at": 1788098338,
+      "version": "0.8.9-1.1"
+    },
+    "libopenraw": {
+      "at": 1788098338,
+      "version": "0.3.7-2.1"
+    },
+    "libp11-kit": {
+      "at": 1788097675,
+      "version": "0.26.5-1.1"
+    },
+    "libpcap": {
+      "at": 1788097676,
+      "version": "1.10.6-1.1"
+    },
+    "libpciaccess": {
+      "at": 1788097680,
+      "version": "0.19-1.1"
+    },
+    "libpgm": {
+      "at": 1788098337,
+      "version": "5.3.128-4.1"
+    },
+    "libpipeline": {
+      "at": 1788097677,
+      "version": "1.5.8-1.1"
+    },
+    "libpipewire": {
+      "at": 1788098337,
+      "version": "1:1.6.8-1"
+    },
+    "libplacebo": {
+      "at": 1788098338,
+      "version": "7.360.1-6.1"
+    },
+    "libplist": {
+      "at": 1788098339,
+      "version": "2.7.0-3.1"
+    },
+    "libpng": {
+      "at": 1788097678,
+      "version": "1.6.58-2.1"
+    },
+    "libproxy": {
+      "at": 1788097682,
+      "version": "0.5.12-1.1"
+    },
+    "libpsl": {
+      "at": 1788097675,
+      "version": "0.21.5-2.1"
+    },
+    "libpulse": {
+      "at": 1788098338,
+      "version": "17.0+r98+gb096704c0-1.1"
+    },
+    "libqalculate": {
+      "at": 1788098341,
+      "version": "5.12.0-1.1"
+    },
+    "libqmi": {
+      "at": 1788098337,
+      "version": "1.38.0-1.1"
+    },
+    "libqrtr-glib": {
+      "at": 1788098337,
+      "version": "1.4.0-1.1"
+    },
+    "libquadmath": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libraqm": {
+      "at": 1788098338,
+      "version": "0.11.0-1.1"
+    },
+    "libraw1394": {
+      "at": 1788098338,
+      "version": "2.1.2-4.1"
+    },
+    "librsvg": {
+      "at": 1788097682,
+      "version": "2:2.62.3-1.1"
+    },
+    "librsync": {
+      "at": 1788098341,
+      "version": "1:2.3.4-2.1"
+    },
+    "librustls": {
+      "at": 1788097677,
+      "version": "0.15.3-1.1"
+    },
+    "libsamplerate": {
+      "at": 1788098338,
+      "version": "0.2.2-3.1"
+    },
+    "libsasl": {
+      "at": 1788097674,
+      "version": "2.1.28-5.1"
+    },
+    "libseccomp": {
+      "at": 1788097674,
+      "version": "2.6.0-1.1"
+    },
+    "libsecret": {
+      "at": 1788097675,
+      "version": "0.21.7-1.1"
+    },
+    "libshout": {
+      "at": 1788098338,
+      "version": "1:2.4.6-5.1"
+    },
+    "libsigc++-3.0": {
+      "at": 1788098339,
+      "version": "3.8.1-1.1"
+    },
+    "libsm": {
+      "at": 1788097682,
+      "version": "1.2.6-1.2"
+    },
+    "libsndfile": {
+      "at": 1788098338,
+      "version": "1.2.2-4.1"
+    },
+    "libsodium": {
+      "at": 1788098337,
+      "version": "1.0.22-1.1"
+    },
+    "libsoup3": {
+      "at": 1788097944,
+      "version": "3.6.6-2"
+    },
+    "libsoxr": {
+      "at": 1788098338,
+      "version": "0.1.3-5.1"
+    },
+    "libspelling": {
+      "at": 1788098341,
+      "version": "0.4.10-1.1"
+    },
+    "libsrtp": {
+      "at": 1788098338,
+      "version": "1:2.8.0-1"
+    },
+    "libssh": {
+      "at": 1788098338,
+      "version": "0.12.2-1.1"
+    },
+    "libssh2": {
+      "at": 1788097675,
+      "version": "1.11.1-7.1"
+    },
+    "libstdc++": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libstemmer": {
+      "at": 1788097944,
+      "version": "3.1.1-1.1"
+    },
+    "libsysprof-capture": {
+      "at": 1788097675,
+      "version": "50.0-6.1"
+    },
+    "libtasn1": {
+      "at": 1788097674,
+      "version": "4.21.0-1.1"
+    },
+    "libtatsu": {
+      "at": 1788098339,
+      "version": "1.0.5-1.1"
+    },
+    "libteam": {
+      "at": 1788098337,
+      "version": "1.32-3.1"
+    },
+    "libthai": {
+      "at": 1788097680,
+      "version": "0.1.30-1.1"
+    },
+    "libtheora": {
+      "at": 1788098338,
+      "version": "1.2.0-1.1"
+    },
+    "libtiff": {
+      "at": 1788097682,
+      "version": "4.7.2-1.1"
+    },
+    "libtiger": {
+      "at": 1788098338,
+      "version": "0.3.4-8.1"
+    },
+    "libtirpc": {
+      "at": 1788097674,
+      "version": "1.3.7-1.1"
+    },
+    "libtommath": {
+      "at": 1788098340,
+      "version": "1.3.0-2.1"
+    },
+    "libtool": {
+      "at": 1788097677,
+      "version": "2.6.2-3"
+    },
+    "libtsan": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libubsan": {
+      "at": 1788097674,
+      "version": "16.2.1+r23+gd564253eb6c8-1"
+    },
+    "libunibreak": {
+      "at": 1788098338,
+      "version": "7.0-1.1"
+    },
+    "libunistring": {
+      "at": 1788097675,
+      "version": "1.4.2-1.1"
+    },
+    "libunwind": {
+      "at": 1788097682,
+      "version": "1.8.2-1.1"
+    },
+    "libupnp": {
+      "at": 1788098338,
+      "version": "1.14.31-1.1"
+    },
+    "liburcu": {
+      "at": 1788097678,
+      "version": "0.15.6-1.1"
+    },
+    "liburing": {
+      "at": 1788097682,
+      "version": "2.15-1.1"
+    },
+    "libusb": {
+      "at": 1788097675,
+      "version": "1.0.30-1.1"
+    },
+    "libusb-compat": {
+      "at": 1788098338,
+      "version": "0.1.9-1.1"
+    },
+    "libusbmuxd": {
+      "at": 1788098339,
+      "version": "2.1.1-2.1"
+    },
+    "libutempter": {
+      "at": 1788098341,
+      "version": "1.2.3-1.1"
+    },
+    "libuv": {
+      "at": 1788098337,
+      "version": "1.52.1-2"
+    },
+    "libva": {
+      "at": 1788097945,
+      "version": "2.24.1-1.1"
+    },
+    "libva-nvidia-driver": {
+      "at": 1788097946,
+      "version": "0.0.17-1.1"
+    },
+    "libvdpau": {
+      "at": 1788097944,
+      "version": "1.5-4.1"
+    },
+    "libverto": {
+      "at": 1788097674,
+      "version": "0.3.2-6.1"
+    },
+    "libvips": {
+      "at": 1788098341,
+      "version": "8.18.5-1"
+    },
+    "libvlc": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "libvorbis": {
+      "at": 1788098338,
+      "version": "1.3.7-4.1"
+    },
+    "libvpl": {
+      "at": 1788098338,
+      "version": "2.17.0-1.1"
+    },
+    "libvpx": {
+      "at": 1788098338,
+      "version": "1.17.0-1.1"
+    },
+    "libwacom": {
+      "at": 1788097682,
+      "version": "2.19.1-1"
+    },
+    "libwbclient": {
+      "at": 1788098338,
+      "version": "2:4.24.6-1.1"
+    },
+    "libwebp": {
+      "at": 1788097682,
+      "version": "1.6.0-2.1"
+    },
+    "libwireplumber": {
+      "at": 1788098338,
+      "version": "0.5.15-1.1"
+    },
+    "libx11": {
+      "at": 1788097680,
+      "version": "1.8.13-1.1"
+    },
+    "libx86emu": {
+      "at": 1788098339,
+      "version": "3.7-2.1"
+    },
+    "libxau": {
+      "at": 1788097680,
+      "version": "1.0.12-1.1"
+    },
+    "libxcb": {
+      "at": 1788097680,
+      "version": "1.17.0-1.2"
+    },
+    "libxcomposite": {
+      "at": 1788097944,
+      "version": "0.4.7-1.1"
+    },
+    "libxcrypt": {
+      "at": 1788097674,
+      "version": "4.5.2-1.1"
+    },
+    "libxcursor": {
+      "at": 1788097944,
+      "version": "1.2.3-1.1"
+    },
+    "libxcvt": {
+      "at": 1788098339,
+      "version": "0.1.3-1.1"
+    },
+    "libxdamage": {
+      "at": 1788097944,
+      "version": "1.1.7-1.1"
+    },
+    "libxdmcp": {
+      "at": 1788097680,
+      "version": "1.1.5-2.1"
+    },
+    "libxext": {
+      "at": 1788097680,
+      "version": "1.3.7-1.1"
+    },
+    "libxfixes": {
+      "at": 1788097944,
+      "version": "6.0.2-1.1"
+    },
+    "libxfont2": {
+      "at": 1788098339,
+      "version": "2.0.9-1.1"
+    },
+    "libxft": {
+      "at": 1788097680,
+      "version": "2.3.9-1.2"
+    },
+    "libxi": {
+      "at": 1788097944,
+      "version": "1.8.3-1.1"
+    },
+    "libxinerama": {
+      "at": 1788097944,
+      "version": "1.1.6-1.1"
+    },
+    "libxkbcommon": {
+      "at": 1788097680,
+      "version": "1.13.2-1.1"
+    },
+    "libxkbcommon-x11": {
+      "at": 1788097682,
+      "version": "1.13.2-1.1"
+    },
+    "libxkbfile": {
+      "at": 1788098339,
+      "version": "1.2.0-1.1"
+    },
+    "libxml2": {
+      "at": 1788097675,
+      "version": "2.15.3-1.1"
+    },
+    "libxmlb": {
+      "at": 1788098341,
+      "version": "0.3.29-1.1"
+    },
+    "libxmu": {
+      "at": 1788098341,
+      "version": "1.3.1-1.1"
+    },
+    "libxnvctrl": {
+      "at": 1788097944,
+      "version": "610.57.04-1"
+    },
+    "libxrandr": {
+      "at": 1788097944,
+      "version": "1.5.5-1.1"
+    },
+    "libxrender": {
+      "at": 1788097680,
+      "version": "0.9.12-1.1"
+    },
+    "libxshmfence": {
+      "at": 1788097682,
+      "version": "1.3.3-1.1"
+    },
+    "libxslt": {
+      "at": 1788098338,
+      "version": "1.1.45-2.1"
+    },
+    "libxss": {
+      "at": 1788098395,
+      "version": "1.2.5-1.1"
+    },
+    "libxt": {
+      "at": 1788098341,
+      "version": "1.3.1-1.1"
+    },
+    "libxtst": {
+      "at": 1788097944,
+      "version": "1.2.5-1.1"
+    },
+    "libxv": {
+      "at": 1788097944,
+      "version": "1.0.13-1.1"
+    },
+    "libxxf86vm": {
+      "at": 1788097682,
+      "version": "1.1.7-1.1"
+    },
+    "libzip": {
+      "at": 1788098339,
+      "version": "1.11.4-1.2"
+    },
+    "licenses": {
+      "at": 1788097675,
+      "version": "20240728-1"
+    },
+    "lilv": {
+      "at": 1788098338,
+      "version": "0.28.0-1"
+    },
+    "limine": {
+      "at": 1788097682,
+      "version": "12.6.1-1"
+    },
+    "limine-mkinitcpio-hook": {
+      "at": 1788098409,
+      "version": "1.37.1-1"
+    },
+    "limine-snapper-sync": {
+      "at": 1788097682,
+      "version": "1.31.0-1"
+    },
+    "linux-api-headers": {
+      "at": 1788097674,
+      "version": "1:7.1-1"
+    },
+    "linux-cachyos": {
+      "at": 1788097680,
+      "version": "7.2.2-1"
+    },
+    "linux-cachyos-headers": {
+      "at": 1788097681,
+      "version": "7.2.2-1"
+    },
+    "linux-cachyos-lts": {
+      "at": 1788097681,
+      "version": "6.18.42-1"
+    },
+    "linux-cachyos-lts-headers": {
+      "at": 1788097682,
+      "version": "6.18.42-1"
+    },
+    "linux-cachyos-lts-nvidia-open": {
+      "at": 1788097946,
+      "version": "6.18.42-1"
+    },
+    "linux-cachyos-nvidia-open": {
+      "at": 1788097946,
+      "version": "7.2.2-1"
+    },
+    "linux-firmware": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-amdgpu": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-atheros": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-broadcom": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-cirrus": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-intel": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-mediatek": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-nvidia": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-other": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-radeon": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-realtek": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "linux-firmware-whence": {
+      "at": 1788097677,
+      "version": "1:20260810-2"
+    },
+    "lirc": {
+      "at": 1788098338,
+      "version": "1:0.10.2-6.1"
+    },
+    "live-media": {
+      "at": 1788098338,
+      "version": "2025.05.24-1.2"
+    },
+    "lld": {
+      "at": 1788097681,
+      "version": "22.1.8-1.1"
+    },
+    "llhttp": {
+      "at": 1788098352,
+      "version": "9.3.1-1.1"
+    },
+    "llvm": {
+      "at": 1788097681,
+      "version": "22.1.8-2"
+    },
+    "llvm-libs": {
+      "at": 1788097680,
+      "version": "22.1.8-2"
+    },
+    "lm_sensors": {
+      "at": 1788097682,
+      "version": "1:3.6.2-1.1"
+    },
+    "lmdb": {
+      "at": 1788097674,
+      "version": "0.9.35-1.1"
+    },
+    "logrotate": {
+      "at": 1788097677,
+      "version": "3.22.0-1.1"
+    },
+    "lsb-release": {
+      "at": 1788097677,
+      "version": "2.0.r55.a25a4fc-1"
+    },
+    "lsscsi": {
+      "at": 1788098339,
+      "version": "0.32-2.2"
+    },
+    "lua": {
+      "at": 1788097678,
+      "version": "5.5.1-1.1"
+    },
+    "lua51": {
+      "at": 1788098338,
+      "version": "5.1.5-13.1"
+    },
+    "lua54": {
+      "at": 1788097682,
+      "version": "5.4.9-1.1"
+    },
+    "lv2": {
+      "at": 1788098338,
+      "version": "1.18.10-2.1"
+    },
+    "lvm2": {
+      "at": 1788097677,
+      "version": "2.03.42-1.1"
+    },
+    "lz4": {
+      "at": 1788097674,
+      "version": "1:1.10.0-3"
+    },
+    "lzo": {
+      "at": 1788097677,
+      "version": "2.10-5.1"
+    },
+    "m4": {
+      "at": 1788097676,
+      "version": "1.4.21-2.1"
+    },
+    "mailcap": {
+      "at": 1788098395,
+      "version": "2.1.54-3"
+    },
+    "make": {
+      "at": 1788097677,
+      "version": "4.4.1-3.1"
+    },
+    "man-db": {
+      "at": 1788097677,
+      "version": "2.13.1-2.1"
+    },
+    "man-pages": {
+      "at": 1788097678,
+      "version": "6.19-1"
+    },
+    "md4c": {
+      "at": 1788097682,
+      "version": "0.5.3-1.1"
+    },
+    "mdadm": {
+      "at": 1788097678,
+      "version": "4.6-2"
+    },
+    "media-player-info": {
+      "at": 1788098340,
+      "version": "26-1"
+    },
+    "meld": {
+      "at": 1788098339,
+      "version": "3.24.0-2"
+    },
+    "mesa": {
+      "at": 1788097682,
+      "version": "3:26.2.1-1"
+    },
+    "mesa-utils": {
+      "at": 1788098339,
+      "version": "9.0.0-7.1"
+    },
+    "micro": {
+      "at": 1788098337,
+      "version": "2.0.15-3.1"
+    },
+    "minizip": {
+      "at": 1788271269,
+      "version": "1:1.3.2-3.1"
+    },
+    "mjpegtools": {
+      "at": 1788098338,
+      "version": "2.2.1-4.1"
+    },
+    "mkinitcpio": {
+      "at": 1788097678,
+      "version": "41.1-2"
+    },
+    "mkinitcpio-busybox": {
+      "at": 1788097678,
+      "version": "1.36.1-1.1"
+    },
+    "mobile-broadband-provider-info": {
+      "at": 1788098337,
+      "version": "20251101-1"
+    },
+    "modemmanager": {
+      "at": 1788098337,
+      "version": "1.24.2-1.1"
+    },
+    "mpdecimal": {
+      "at": 1788097676,
+      "version": "4.0.1-3.1"
+    },
+    "mpfr": {
+      "at": 1788097674,
+      "version": "4.2.2-1.1"
+    },
+    "mpg123": {
+      "at": 1788098338,
+      "version": "1.33.7-1.1"
+    },
+    "mtdev": {
+      "at": 1788097682,
+      "version": "1.1.7-1.1"
+    },
+    "mtools": {
+      "at": 1788098339,
+      "version": "1:4.0.49-1.1"
+    },
+    "muparser": {
+      "at": 1788098339,
+      "version": "2.3.5-2.1"
+    },
+    "nano": {
+      "at": 1788098339,
+      "version": "9.2-1.1"
+    },
+    "nano-syntax-highlighting": {
+      "at": 1788098339,
+      "version": "2025.07.01.r0.g256995b-2"
+    },
+    "ncurses": {
+      "at": 1788097674,
+      "version": "6.6-2.1"
+    },
+    "neon": {
+      "at": 1788098338,
+      "version": "0.37.1-1"
+    },
+    "netctl": {
+      "at": 1788097678,
+      "version": "1.29-2"
+    },
+    "nettle": {
+      "at": 1788097675,
+      "version": "4.0-1.1"
+    },
+    "networkmanager": {
+      "at": 1788098337,
+      "version": "1.58.1-1"
+    },
+    "networkmanager-openvpn": {
+      "at": 1788098337,
+      "version": "1.12.5-1.1"
+    },
+    "networkmanager-vpn-plugin-openvpn": {
+      "at": 1788098337,
+      "version": "1.12.5-1.1"
+    },
+    "nfs-utils": {
+      "at": 1788098338,
+      "version": "2.9.2-1.1"
+    },
+    "nfsidmap": {
+      "at": 1788098338,
+      "version": "2.9.2-1.1"
+    },
+    "nftables": {
+      "at": 1788097676,
+      "version": "1:1.1.6-3"
+    },
+    "nilfs-utils": {
+      "at": 1788098338,
+      "version": "2.3.1-1.1"
+    },
+    "noctalia": {
+      "at": 1788098341,
+      "version": "5.0.0_beta.10-1.1"
+    },
+    "noctalia-greeter": {
+      "at": 1788098341,
+      "version": "1.2.1-1"
+    },
+    "noto-fonts": {
+      "at": 1788098338,
+      "version": "1:2026.08.01-1"
+    },
+    "noto-fonts-cjk": {
+      "at": 1788098339,
+      "version": "20240730-1"
+    },
+    "noto-fonts-emoji": {
+      "at": 1788098338,
+      "version": "1:2.051-1"
+    },
+    "npth": {
+      "at": 1788097675,
+      "version": "1.8-1.1"
+    },
+    "nspr": {
+      "at": 1788098337,
+      "version": "4.40-1.1"
+    },
+    "nss": {
+      "at": 1788098337,
+      "version": "3.128-1.1"
+    },
+    "nss-mdns": {
+      "at": 1788098337,
+      "version": "0.15.1-2.1"
+    },
+    "nvidia-prime": {
+      "at": 1788097946,
+      "version": "1.0-6"
+    },
+    "nvidia-settings": {
+      "at": 1788097944,
+      "version": "610.57.04-1"
+    },
+    "nvidia-utils": {
+      "at": 1788097944,
+      "version": "610.57.04-1"
+    },
+    "nwg-look": {
+      "at": 1788098341,
+      "version": "1.1.1-3.1"
+    },
+    "ocl-icd": {
+      "at": 1788098338,
+      "version": "2.3.5-1.1"
+    },
+    "oh-my-zsh-git": {
+      "at": 1788098356,
+      "version": "r7823.b37dd49ca-1"
+    },
+    "onetbb": {
+      "at": 1788098341,
+      "version": "2023.1.0-1.1"
+    },
+    "oniguruma": {
+      "at": 1788098337,
+      "version": "6.9.10-1.1"
+    },
+    "openai-codex": {
+      "at": 1788275460,
+      "version": "0.151.0-1.1"
+    },
+    "openal": {
+      "at": 1788098338,
+      "version": "1.25.2-2.1"
+    },
+    "opencl-nvidia": {
+      "at": 1788097944,
+      "version": "610.57.04-1"
+    },
+    "opencore-amr": {
+      "at": 1788098338,
+      "version": "0.1.6-2.1"
+    },
+    "openexr": {
+      "at": 1788098338,
+      "version": "3.4.15-1.1"
+    },
+    "openh264": {
+      "at": 1788098338,
+      "version": "2.6.0-2.1"
+    },
+    "openjpeg2": {
+      "at": 1788098338,
+      "version": "2.5.4-1.1"
+    },
+    "openjph": {
+      "at": 1788098338,
+      "version": "0.31.0-1.1"
+    },
+    "openssh": {
+      "at": 1788098337,
+      "version": "10.5p1-1.1"
+    },
+    "openssl": {
+      "at": 1788097674,
+      "version": "3.6.4-1.1"
+    },
+    "openvpn": {
+      "at": 1788098337,
+      "version": "2.7.6-1.1"
+    },
+    "opus": {
+      "at": 1788098338,
+      "version": "1.6.1-1.1"
+    },
+    "orc": {
+      "at": 1788097945,
+      "version": "0.4.43-1.1"
+    },
+    "os-prober": {
+      "at": 1788097678,
+      "version": "1.84-1.1"
+    },
+    "p11-kit": {
+      "at": 1788097675,
+      "version": "0.26.5-1.1"
+    },
+    "pacman": {
+      "at": 1788097675,
+      "version": "7.1.0.r9.g54d9411-4"
+    },
+    "pacman-contrib": {
+      "at": 1788098337,
+      "version": "1.13.1-1.2"
+    },
+    "pacman-mirrorlist": {
+      "at": 1788097675,
+      "version": "20260610-1"
+    },
+    "pacutils": {
+      "at": 1788098337,
+      "version": "0.15.0-3"
+    },
+    "pahole": {
+      "at": 1788097680,
+      "version": "1:1.31-2.1"
+    },
+    "pam": {
+      "at": 1788097674,
+      "version": "1.7.2-2.1"
+    },
+    "pambase": {
+      "at": 1788097674,
+      "version": "20260616-1"
+    },
+    "pango": {
+      "at": 1788097680,
+      "version": "1:1.58.2-1.1"
+    },
+    "pangomm-2.48": {
+      "at": 1788098339,
+      "version": "2.56.2-1.1"
+    },
+    "parallel": {
+      "at": 1788098337,
+      "version": "20260722-1"
+    },
+    "parted": {
+      "at": 1788098340,
+      "version": "3.7-1.1"
+    },
+    "patch": {
+      "at": 1788097677,
+      "version": "2.8-1.1"
+    },
+    "pavucontrol": {
+      "at": 1788098339,
+      "version": "1:6.2-1.1"
+    },
+    "pciutils": {
+      "at": 1788097675,
+      "version": "3.15.0-1.1"
+    },
+    "pcre": {
+      "at": 1788098337,
+      "version": "8.45-5.1"
+    },
+    "pcre2": {
+      "at": 1788097674,
+      "version": "10.47-1.1"
+    },
+    "pcsclite": {
+      "at": 1788098337,
+      "version": "2.5.1-1.1"
+    },
+    "perl": {
+      "at": 1788097676,
+      "version": "5.42.2-2.1"
+    },
+    "perl-class-inspector": {
+      "at": 1788098339,
+      "version": "1.36-10"
+    },
+    "perl-clone": {
+      "at": 1788098339,
+      "version": "0.50-1.1"
+    },
+    "perl-encode-locale": {
+      "at": 1788098339,
+      "version": "1.05-15"
+    },
+    "perl-error": {
+      "at": 1788098337,
+      "version": "0.17030-3"
+    },
+    "perl-file-listing": {
+      "at": 1788098339,
+      "version": "6.16-6"
+    },
+    "perl-file-sharedir": {
+      "at": 1788098339,
+      "version": "1.118-8"
+    },
+    "perl-html-parser": {
+      "at": 1788098339,
+      "version": "3.85-1.1"
+    },
+    "perl-html-tagset": {
+      "at": 1788098339,
+      "version": "3.24-4"
+    },
+    "perl-http-cookiejar": {
+      "at": 1788098339,
+      "version": "0.014-5"
+    },
+    "perl-http-cookies": {
+      "at": 1788098339,
+      "version": "6.12-1"
+    },
+    "perl-http-daemon": {
+      "at": 1788098339,
+      "version": "6.17-1"
+    },
+    "perl-http-date": {
+      "at": 1788098339,
+      "version": "6.08-1"
+    },
+    "perl-http-message": {
+      "at": 1788098339,
+      "version": "7.04-1"
+    },
+    "perl-http-negotiate": {
+      "at": 1788098339,
+      "version": "6.01-16"
+    },
+    "perl-io-html": {
+      "at": 1788098339,
+      "version": "1.004-8"
+    },
+    "perl-libwww": {
+      "at": 1788098339,
+      "version": "6.83-1"
+    },
+    "perl-lwp-mediatypes": {
+      "at": 1788098339,
+      "version": "6.04-8"
+    },
+    "perl-mailtools": {
+      "at": 1788098337,
+      "version": "2.22-3"
+    },
+    "perl-mime-base32": {
+      "at": 1788098339,
+      "version": "1.303-13"
+    },
+    "perl-net-http": {
+      "at": 1788098339,
+      "version": "6.24-2"
+    },
+    "perl-timedate": {
+      "at": 1788098337,
+      "version": "2.35-1"
+    },
+    "perl-try-tiny": {
+      "at": 1788098339,
+      "version": "0.32-4"
+    },
+    "perl-uri": {
+      "at": 1788098339,
+      "version": "5.36-1"
+    },
+    "perl-www-robotrules": {
+      "at": 1788098339,
+      "version": "6.03-1"
+    },
+    "perl-xml-parser": {
+      "at": 1788098339,
+      "version": "2.59-1.1"
+    },
+    "perl-xml-writer": {
+      "at": 1788098339,
+      "version": "0.900-6"
+    },
+    "pinentry": {
+      "at": 1788097675,
+      "version": "1.3.3-1.1"
+    },
+    "pipewire": {
+      "at": 1788098337,
+      "version": "1:1.6.8-1"
+    },
+    "pipewire-alsa": {
+      "at": 1788098339,
+      "version": "1:1.6.8-1"
+    },
+    "pipewire-audio": {
+      "at": 1788098338,
+      "version": "1:1.6.8-1"
+    },
+    "pipewire-pulse": {
+      "at": 1788098339,
+      "version": "1:1.6.8-1"
+    },
+    "pixman": {
+      "at": 1788097680,
+      "version": "0.46.4-1.1"
+    },
+    "pkcs11-helper": {
+      "at": 1788098337,
+      "version": "1.31.0-1.1"
+    },
+    "pkgconf": {
+      "at": 1788097677,
+      "version": "3.0.6-1.1"
+    },
+    "pkgfile": {
+      "at": 1788098337,
+      "version": "26-1.1"
+    },
+    "plasma-activities": {
+      "at": 1788098341,
+      "version": "6.7.4-1.1"
+    },
+    "plocate": {
+      "at": 1788098338,
+      "version": "1.1.24-2.1"
+    },
+    "plymouth": {
+      "at": 1788097680,
+      "version": "26.134.222-2.1"
+    },
+    "polkit": {
+      "at": 1788097682,
+      "version": "127-3.1"
+    },
+    "poppler": {
+      "at": 1788098338,
+      "version": "26.08.0-1.1"
+    },
+    "poppler-glib": {
+      "at": 1788098338,
+      "version": "26.08.0-1.1"
+    },
+    "poppler-qt6": {
+      "at": 1788098340,
+      "version": "26.08.0-1.1"
+    },
+    "popt": {
+      "at": 1788097675,
+      "version": "1.19-2.1"
+    },
+    "portaudio": {
+      "at": 1788098338,
+      "version": "1:19.7.0-4.1"
+    },
+    "power-profiles-daemon": {
+      "at": 1788098339,
+      "version": "0.30-3"
+    },
+    "powerline-fonts": {
+      "at": 1788098356,
+      "version": "2.8.4-4.1"
+    },
+    "ppp": {
+      "at": 1788098337,
+      "version": "2.5.3-1.1"
+    },
+    "procps-ng": {
+      "at": 1788097674,
+      "version": "4.0.7-1.1"
+    },
+    "projectm": {
+      "at": 1788098338,
+      "version": "3.1.12-5.1"
+    },
+    "protobuf": {
+      "at": 1788098337,
+      "version": "36.0-1.1"
+    },
+    "proton-mail-bin": {
+      "at": 1788271269,
+      "version": "1.13.4-1"
+    },
+    "psmisc": {
+      "at": 1788097675,
+      "version": "23.7-2.1"
+    },
+    "pugixml": {
+      "at": 1788098339,
+      "version": "1.16-1.1"
+    },
+    "pv": {
+      "at": 1788098339,
+      "version": "1.11.0-1.1"
+    },
+    "python": {
+      "at": 1788097676,
+      "version": "3.14.7-2"
+    },
+    "python-annotated-types": {
+      "at": 1788098339,
+      "version": "0.8.0-1"
+    },
+    "python-cairo": {
+      "at": 1788098339,
+      "version": "1.29.1-1.1"
+    },
+    "python-dbus": {
+      "at": 1788098341,
+      "version": "1.4.0-2"
+    },
+    "python-defusedxml": {
+      "at": 1788098339,
+      "version": "0.7.1-8"
+    },
+    "python-gobject": {
+      "at": 1788097946,
+      "version": "3.56.3-1"
+    },
+    "python-jinja": {
+      "at": 1788098339,
+      "version": "1:3.1.6-3"
+    },
+    "python-markupsafe": {
+      "at": 1788098339,
+      "version": "3.0.3-1.1"
+    },
+    "python-orjson": {
+      "at": 1788098339,
+      "version": "3.12.0-1.1"
+    },
+    "python-packaging": {
+      "at": 1788098339,
+      "version": "26.3-1"
+    },
+    "python-psutil": {
+      "at": 1788098339,
+      "version": "7.2.2-1.1"
+    },
+    "python-pydantic": {
+      "at": 1788098339,
+      "version": "2.13.4-1"
+    },
+    "python-pydantic-core": {
+      "at": 1788098339,
+      "version": "3:2.46.4-1.1"
+    },
+    "python-pyxdg": {
+      "at": 1788098341,
+      "version": "0.28-7"
+    },
+    "python-shtab": {
+      "at": 1788098339,
+      "version": "1.12.0-1"
+    },
+    "python-typing-inspection": {
+      "at": 1788098339,
+      "version": "0.4.4-1"
+    },
+    "python-typing_extensions": {
+      "at": 1788098339,
+      "version": "4.16.0-1"
+    },
+    "qca-qt6": {
+      "at": 1788098340,
+      "version": "2.3.12-1"
+    },
+    "qrencode": {
+      "at": 1788098338,
+      "version": "4.1.1-4.10"
+    },
+    "qt6-5compat": {
+      "at": 1788098340,
+      "version": "6.11.2-1.1"
+    },
+    "qt6-base": {
+      "at": 1788097682,
+      "version": "6.11.2-3.1"
+    },
+    "qt6-declarative": {
+      "at": 1788098340,
+      "version": "6.11.2-1.1"
+    },
+    "qt6-multimedia": {
+      "at": 1788098341,
+      "version": "6.11.2-1.1"
+    },
+    "qt6-multimedia-ffmpeg": {
+      "at": 1788098341,
+      "version": "6.11.2-1.1"
+    },
+    "qt6-shadertools": {
+      "at": 1788098340,
+      "version": "6.11.2-1.1"
+    },
+    "qt6-speech": {
+      "at": 1788098341,
+      "version": "6.11.2-1.1"
+    },
+    "qt6-svg": {
+      "at": 1788098340,
+      "version": "6.11.2-1.1"
+    },
+    "qt6-translations": {
+      "at": 1788097682,
+      "version": "6.11.2-1"
+    },
+    "qt6ct": {
+      "at": 1788098341,
+      "version": "0.11-8.1"
+    },
+    "raptor": {
+      "at": 1788098338,
+      "version": "2.0.16-9.1"
+    },
+    "rate-mirrors": {
+      "at": 1788097677,
+      "version": "0.31.0-2"
+    },
+    "rav1e": {
+      "at": 1788098338,
+      "version": "0.8.1-3.1"
+    },
+    "re2": {
+      "at": 1788098339,
+      "version": "2:2025.11.05-6.1"
+    },
+    "readline": {
+      "at": 1788097674,
+      "version": "8.3.003-1.1"
+    },
+    "realtime-privileges": {
+      "at": 1788098339,
+      "version": "5-1"
+    },
+    "rebuild-detector": {
+      "at": 1788098337,
+      "version": "4.4.5-1"
+    },
+    "reflector": {
+      "at": 1788098337,
+      "version": "2023-5"
+    },
+    "ripgrep": {
+      "at": 1788098339,
+      "version": "15.2.0-1"
+    },
+    "ripgrep-all": {
+      "at": 1788098341,
+      "version": "0.10.10-2.1"
+    },
+    "rpcbind": {
+      "at": 1788098338,
+      "version": "1.2.9-1.1"
+    },
+    "rsync": {
+      "at": 1788098339,
+      "version": "3.5.0-1"
+    },
+    "rtmpdump": {
+      "at": 1788098338,
+      "version": "1:2.6-2.1"
+    },
+    "rubberband": {
+      "at": 1788098338,
+      "version": "4.0.0-2.1"
+    },
+    "s-nail": {
+      "at": 1788097678,
+      "version": "14.9.25-1.1"
+    },
+    "satty": {
+      "at": 1788098341,
+      "version": "0.22.0-1.1"
+    },
+    "sbc": {
+      "at": 1788098338,
+      "version": "2.2-1.1"
+    },
+    "scx-manager": {
+      "at": 1788098337,
+      "version": "1.15.12-1"
+    },
+    "scx-scheds": {
+      "at": 1788098337,
+      "version": "1.1.2-1"
+    },
+    "scx-tools": {
+      "at": 1788098337,
+      "version": "1.1.2-1.1"
+    },
+    "sd": {
+      "at": 1788098339,
+      "version": "1.1.0-1.1"
+    },
+    "sdbus-cpp": {
+      "at": 1788098341,
+      "version": "2.3.1-1.1"
+    },
+    "sdl12-compat": {
+      "at": 1788098338,
+      "version": "1.2.68-2.1"
+    },
+    "sdl2-compat": {
+      "at": 1788098338,
+      "version": "2.32.70-1.1"
+    },
+    "sdl3": {
+      "at": 1788098338,
+      "version": "3.4.14-1.1"
+    },
+    "sdl_image": {
+      "at": 1788098338,
+      "version": "1.2.12-9.1"
+    },
+    "seatd": {
+      "at": 1788098339,
+      "version": "0.9.3-1.1"
+    },
+    "sed": {
+      "at": 1788097674,
+      "version": "4.10-2.1"
+    },
+    "serd": {
+      "at": 1788098338,
+      "version": "0.32.10-1.1"
+    },
+    "sg3_utils": {
+      "at": 1788098339,
+      "version": "1.49-1.1"
+    },
+    "shaderc": {
+      "at": 1788098338,
+      "version": "2026.3-1.1"
+    },
+    "shadow": {
+      "at": 1788097675,
+      "version": "4.20.0.arch1-1.1"
+    },
+    "shared-mime-info": {
+      "at": 1788097682,
+      "version": "2.5.1-2.1"
+    },
+    "shelly": {
+      "at": 1788098338,
+      "version": "3.1.1-1"
+    },
+    "slang": {
+      "at": 1788098337,
+      "version": "2.3.3-4.1"
+    },
+    "slurp": {
+      "at": 1788098341,
+      "version": "1.5.0-2.1"
+    },
+    "smartmontools": {
+      "at": 1788098338,
+      "version": "7.5-1.1"
+    },
+    "smbclient": {
+      "at": 1788098338,
+      "version": "2:4.24.6-1.1"
+    },
+    "snap-pac": {
+      "at": 1788098405,
+      "version": "3.0.1-3"
+    },
+    "snapper": {
+      "at": 1788097682,
+      "version": "0.13.1-3.1"
+    },
+    "snappy": {
+      "at": 1788098338,
+      "version": "1.2.2-3.1"
+    },
+    "sndio": {
+      "at": 1788098338,
+      "version": "1.10.0-1.4"
+    },
+    "sof-firmware": {
+      "at": 1788098339,
+      "version": "2025.12.2-1"
+    },
+    "solid": {
+      "at": 1788098340,
+      "version": "6.29.0-1.1"
+    },
+    "sonnet": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "sord": {
+      "at": 1788098338,
+      "version": "0.16.22-1.1"
+    },
+    "sound-theme-freedesktop": {
+      "at": 1788098339,
+      "version": "0.8-6"
+    },
+    "soundtouch": {
+      "at": 1788098338,
+      "version": "2.4.1-1.1"
+    },
+    "source-highlight": {
+      "at": 1788097676,
+      "version": "3.1.9-19.1"
+    },
+    "spandsp": {
+      "at": 1788098338,
+      "version": "0.0.6-7"
+    },
+    "spdlog": {
+      "at": 1788097677,
+      "version": "1.17.0-2.1"
+    },
+    "speex": {
+      "at": 1788098338,
+      "version": "1.2.1-2.1"
+    },
+    "speexdsp": {
+      "at": 1788098338,
+      "version": "1.2.1-2.1"
+    },
+    "spirv-tools": {
+      "at": 1788097682,
+      "version": "1:1.4.357.0-1.1"
+    },
+    "sqlite": {
+      "at": 1788097674,
+      "version": "3.53.4-1"
+    },
+    "sratom": {
+      "at": 1788098338,
+      "version": "0.6.22-1.1"
+    },
+    "srt": {
+      "at": 1788098338,
+      "version": "1.5.7-1.1"
+    },
+    "sudo": {
+      "at": 1788097677,
+      "version": "1.9.17.p2-6.1"
+    },
+    "svt-av1": {
+      "at": 1788098338,
+      "version": "4.1.0-2"
+    },
+    "switcheroo-control": {
+      "at": 1788097946,
+      "version": "3.0-1.1"
+    },
+    "syndication": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "syntax-highlighting": {
+      "at": 1788098341,
+      "version": "6.29.0-1.1"
+    },
+    "sysfsutils": {
+      "at": 1788097678,
+      "version": "2.1.1-2.2"
+    },
+    "systemd": {
+      "at": 1788097675,
+      "version": "261.2-1"
+    },
+    "systemd-libs": {
+      "at": 1788097674,
+      "version": "261.2-1"
+    },
+    "systemd-resolvconf": {
+      "at": 1788097678,
+      "version": "261.2-1"
+    },
+    "systemd-sysvcompat": {
+      "at": 1788097676,
+      "version": "261.2-1"
+    },
+    "taglib": {
+      "at": 1788098338,
+      "version": "2.3.1-1.1"
+    },
+    "talloc": {
+      "at": 1788098338,
+      "version": "2.5.0-1.1"
+    },
+    "tar": {
+      "at": 1788097674,
+      "version": "1.35-5"
+    },
+    "tcl": {
+      "at": 1788098337,
+      "version": "8.6.16-1.1"
+    },
+    "tdb": {
+      "at": 1788098338,
+      "version": "1.4.15-1.1"
+    },
+    "tealdeer": {
+      "at": 1788098352,
+      "version": "1.9.0-1.1"
+    },
+    "tevent": {
+      "at": 1788098338,
+      "version": "1:0.17.2-1.1"
+    },
+    "texinfo": {
+      "at": 1788097677,
+      "version": "7.3-1.1"
+    },
+    "thin-provisioning-tools": {
+      "at": 1788097677,
+      "version": "1.3.3-1.1"
+    },
+    "tinysparql": {
+      "at": 1788097944,
+      "version": "3.11.1-1"
+    },
+    "tomlplusplus": {
+      "at": 1788098339,
+      "version": "3.4.0-2.1"
+    },
+    "tpm2-tss": {
+      "at": 1788097675,
+      "version": "4.2.0-2.1"
+    },
+    "tslib": {
+      "at": 1788097682,
+      "version": "1.24-1.1"
+    },
+    "ttf-bitstream-vera": {
+      "at": 1788098338,
+      "version": "1.10-16"
+    },
+    "ttf-dejavu": {
+      "at": 1788098338,
+      "version": "2.37+18+g9b5d1b2f-8"
+    },
+    "ttf-fantasque-nerd": {
+      "at": 1788098352,
+      "version": "3.5.1-2"
+    },
+    "ttf-liberation": {
+      "at": 1788098338,
+      "version": "2.1.5-2"
+    },
+    "ttf-meslo-nerd": {
+      "at": 1788098339,
+      "version": "3.5.1-2"
+    },
+    "ttf-opensans": {
+      "at": 1788098338,
+      "version": "3.003-1"
+    },
+    "twolame": {
+      "at": 1788098338,
+      "version": "0.4.0-4.1"
+    },
+    "tzdata": {
+      "at": 1788097674,
+      "version": "2026c-1.1"
+    },
+    "udisks2": {
+      "at": 1788098340,
+      "version": "2.11.2-1.1"
+    },
+    "ufw": {
+      "at": 1788098337,
+      "version": "0.36.2-7"
+    },
+    "ufw-extras": {
+      "at": 1788098337,
+      "version": "1.3.0-1"
+    },
+    "unrar": {
+      "at": 1788098338,
+      "version": "1:7.2.7-1.1"
+    },
+    "unzip": {
+      "at": 1788098338,
+      "version": "6.0-23.1"
+    },
+    "upower": {
+      "at": 1788098339,
+      "version": "1.91.3-1.1"
+    },
+    "usb_modeswitch": {
+      "at": 1788098337,
+      "version": "2.6.2.20251207-1.1"
+    },
+    "usbutils": {
+      "at": 1788097678,
+      "version": "019-1.1"
+    },
+    "util-linux": {
+      "at": 1788097675,
+      "version": "2.42.2-1.1"
+    },
+    "util-linux-libs": {
+      "at": 1788097674,
+      "version": "2.42.2-1.1"
+    },
+    "uwsm": {
+      "at": 1788098341,
+      "version": "0.26.7-1"
+    },
+    "v4l-utils": {
+      "at": 1788098338,
+      "version": "1.32.0-2.1"
+    },
+    "vapoursynth": {
+      "at": 1788098338,
+      "version": "77-2.1"
+    },
+    "vid.stab": {
+      "at": 1788098338,
+      "version": "1.1.1-3.1"
+    },
+    "vim": {
+      "at": 1788098339,
+      "version": "9.2.1011-1.1"
+    },
+    "vim-runtime": {
+      "at": 1788098339,
+      "version": "9.2.1011-1.1"
+    },
+    "vlc-plugin-a52dec": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-aalib": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-alsa": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-aom": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-archive": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-aribb24": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-aribb25": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-ass": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-avahi": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-bluray": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-caca": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-cddb": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-chromecast": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-dav1d": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-dbus": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-dbus-screensaver": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-dca": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-dvb": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-dvd": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-faad2": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-ffmpeg": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-firewire": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-flac": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-fluidsynth": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-freetype": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-gme": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-gnutls": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-gstreamer": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-inflate": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-jack": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-journal": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-jpeg": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-kate": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-libsecret": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-lirc": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-live555": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-lua": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-mad": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-matroska": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-mdns": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-modplug": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-mpeg2": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-mpg123": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-mtp": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-musepack": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-nfs": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-notify": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-ogg": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-opus": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-png": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-pulse": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-samplerate": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-sdl": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-sftp": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-shout": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-smb": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-soxr": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-speex": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-srt": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-svg": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-tag": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-theora": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-twolame": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-udev": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-upnp": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-vorbis": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-vpx": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-x264": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-x265": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-xml": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugin-zvbi": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugins-all": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugins-base": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugins-extra": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugins-video-output": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vlc-plugins-visualization": {
+      "at": 1788098338,
+      "version": "3.0.23_2-13.1"
+    },
+    "vmaf": {
+      "at": 1788097945,
+      "version": "3.2.0-1.1"
+    },
+    "volume_key": {
+      "at": 1788098340,
+      "version": "0.3.12-12.1"
+    },
+    "vpl-gpu-rt": {
+      "at": 1788097966,
+      "version": "26.2.4-1.1"
+    },
+    "vulkan-icd-loader": {
+      "at": 1788097945,
+      "version": "1.4.357.0-1.1"
+    },
+    "vulkan-intel": {
+      "at": 1788097966,
+      "version": "3:26.2.1-1"
+    },
+    "vulkan-mesa-implicit-layers": {
+      "at": 1788097966,
+      "version": "3:26.2.1-1"
+    },
+    "wayland": {
+      "at": 1788097682,
+      "version": "1.26.0-1.1"
+    },
+    "wayland-protocols": {
+      "at": 1788098339,
+      "version": "1.49-1"
+    },
+    "webrtc-audio-processing-1": {
+      "at": 1788098338,
+      "version": "1.3-5.1"
+    },
+    "wget": {
+      "at": 1788098339,
+      "version": "1.25.0-6.1"
+    },
+    "which": {
+      "at": 1788097677,
+      "version": "2.25-1.1"
+    },
+    "wildmidi": {
+      "at": 1788098338,
+      "version": "0.5.0-1.1"
+    },
+    "wireless-regdb": {
+      "at": 1788097677,
+      "version": "2026.05.30-1"
+    },
+    "wireplumber": {
+      "at": 1788098338,
+      "version": "0.5.15-1.1"
+    },
+    "wl-clipboard": {
+      "at": 1788098341,
+      "version": "1:2.3.0-1.1"
+    },
+    "wlroots0.20": {
+      "at": 1788098341,
+      "version": "0.20.2-1.1"
+    },
+    "wpa_supplicant": {
+      "at": 1788098337,
+      "version": "2:2.12-1.1"
+    },
+    "x264": {
+      "at": 1788098338,
+      "version": "3:0.165.r3222.b35605a-2.1"
+    },
+    "x265": {
+      "at": 1788098338,
+      "version": "4.3-1.1"
+    },
+    "xcb-proto": {
+      "at": 1788097680,
+      "version": "1.17.0-4"
+    },
+    "xcb-util": {
+      "at": 1788097682,
+      "version": "0.4.1-2.2"
+    },
+    "xcb-util-cursor": {
+      "at": 1788097682,
+      "version": "0.1.6-1.1"
+    },
+    "xcb-util-errors": {
+      "at": 1788098339,
+      "version": "1.0.1-2.1"
+    },
+    "xcb-util-image": {
+      "at": 1788097682,
+      "version": "0.4.1-3.1"
+    },
+    "xcb-util-keysyms": {
+      "at": 1788097682,
+      "version": "0.4.1-5.1"
+    },
+    "xcb-util-renderutil": {
+      "at": 1788097682,
+      "version": "0.3.10-2.1"
+    },
+    "xcb-util-wm": {
+      "at": 1788097682,
+      "version": "0.4.2-2.1"
+    },
+    "xcur2png": {
+      "at": 1788098341,
+      "version": "0.7.1-9.1"
+    },
+    "xdg-desktop-portal": {
+      "at": 1788098337,
+      "version": "1.22.1-2.1"
+    },
+    "xdg-desktop-portal-gtk": {
+      "at": 1788098337,
+      "version": "1.15.3-1.1"
+    },
+    "xdg-desktop-portal-hyprland": {
+      "at": 1788098341,
+      "version": "1.4.1-1.1"
+    },
+    "xdg-user-dirs": {
+      "at": 1788098338,
+      "version": "0.20-1.1"
+    },
+    "xdg-utils": {
+      "at": 1788097682,
+      "version": "1.2.1-2"
+    },
+    "xfsprogs": {
+      "at": 1788097678,
+      "version": "7.1.1-1.1"
+    },
+    "xkeyboard-config": {
+      "at": 1788097680,
+      "version": "2.48-1"
+    },
+    "xl2tpd": {
+      "at": 1788098337,
+      "version": "1.3.20-1.1"
+    },
+    "xorg-fonts-encodings": {
+      "at": 1788098339,
+      "version": "1.1.0-2"
+    },
+    "xorg-server-common": {
+      "at": 1788098339,
+      "version": "21.1.24-1.1"
+    },
+    "xorg-setxkbmap": {
+      "at": 1788098339,
+      "version": "1.3.5-1.1"
+    },
+    "xorg-xhost": {
+      "at": 1788098341,
+      "version": "1.0.10-1.2"
+    },
+    "xorg-xkbcomp": {
+      "at": 1788098339,
+      "version": "1.5.0-1.1"
+    },
+    "xorg-xprop": {
+      "at": 1788097944,
+      "version": "1.2.8-1.1"
+    },
+    "xorg-xwayland": {
+      "at": 1788098339,
+      "version": "24.1.13-1.1"
+    },
+    "xorgproto": {
+      "at": 1788097680,
+      "version": "2025.1-1"
+    },
+    "xvidcore": {
+      "at": 1788098338,
+      "version": "1.3.7-4.1"
+    },
+    "xxhash": {
+      "at": 1788097676,
+      "version": "0.8.3-1"
+    },
+    "xz": {
+      "at": 1788097674,
+      "version": "5.8.3-1"
+    },
+    "yyjson": {
+      "at": 1788098339,
+      "version": "0.12.0-1.1"
+    },
+    "zbar": {
+      "at": 1788098338,
+      "version": "0.23.93-7.1"
+    },
+    "zeromq": {
+      "at": 1788098337,
+      "version": "4.3.5-3.1"
+    },
+    "zimg": {
+      "at": 1788098338,
+      "version": "3.0.6-2.1"
+    },
+    "zint": {
+      "at": 1788098338,
+      "version": "2.16.0-2.1"
+    },
+    "zix": {
+      "at": 1788098338,
+      "version": "0.8.2-1.1"
+    },
+    "zlib-ng": {
+      "at": 1788097968,
+      "version": "2.3.3-2"
+    },
+    "zlib-ng-compat": {
+      "at": 1788097968,
+      "version": "2.3.3-2"
+    },
+    "zram-generator": {
+      "at": 1788097677,
+      "version": "1.2.1-1.1"
+    },
+    "zsh": {
+      "at": 1788098355,
+      "version": "5.9.2-1.1"
+    },
+    "zsh-autosuggestions": {
+      "at": 1788098356,
+      "version": "0.7.1-1"
+    },
+    "zsh-completions": {
+      "at": 1788098356,
+      "version": "0.36.0-1"
+    },
+    "zsh-history-substring-search": {
+      "at": 1788098356,
+      "version": "1.1.0-2"
+    },
+    "zsh-syntax-highlighting": {
+      "at": 1788098356,
+      "version": "0.8.0-2"
+    },
+    "zsh-theme-powerlevel10k": {
+      "at": 1788098356,
+      "version": "1:1.20.18-1"
+    },
+    "zstd": {
+      "at": 1788097674,
+      "version": "1.5.7-2"
+    },
+    "zvbi": {
+      "at": 1788098338,
+      "version": "0.2.44-1.1"
+    },
+    "zxing-cpp": {
+      "at": 1788098338,
+      "version": "3.1.1-1.1"
+    }
+  },
+  "recorded": "2026-09-03T13:01:59.657Z",
+  "schema": 1
+}

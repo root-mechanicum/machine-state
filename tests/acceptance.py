@@ -259,6 +259,42 @@ def main():
               refused and "do not run in a shell" not in out2,
               "checks run without a shell, so `a && b` would pass b to a as arguments")
 
+    # --- ms changes: query the package db, do not watch it (machine-state-2zm) --
+
+    def seed(box):
+        """Record the machine, then rewrite the mark to describe an earlier one."""
+        (box.repo / "state" / "machine.json").unlink(missing_ok=True)
+        box.ms("changes")
+        m = box.repo / "state" / "machine.json"
+        d = json.loads(m.read_text())
+        pk = d["packages"]
+        victim = sorted(pk)[0]
+        d["packages"] = {k: v for k, v in pk.items() if k != victim}
+        second = sorted(pk)[1]
+        d["packages"][second] = {**pk[second], "version": "0.0.0-old"}
+        d["packages"]["ghost-pkg"] = {"version": "1.0", "at": 0}
+        # A loose entry the sandbox PATH cannot resolve, pointing at a real file.
+        # Re-checking it at its RECORDED path is the behaviour under test: without
+        # that, a narrower PATH silently drops tools from the inventory.
+        d.setdefault("loose", {})["probe-tool"] = {
+            "path": str(box.repo / "bin" / "ms"), "sha": "0" * 64}
+        m.write_text(json.dumps(d, indent=2, sort_keys=True))
+        return victim, second
+
+    with Sandbox() as box:
+        victim, second = seed(box)
+        rc, out = box.ms("changes")
+        check("15 changes are found by querying recorded state, not by watching",
+              rc == 1 and f"added     {victim}" in out and f"upgraded  {second}" in out
+              and "removed   ghost-pkg" in out and "replaced" in out,
+              "add, upgrade, remove and an unpackaged replacement, all retroactive")
+
+        rc2, out2 = box.ms("changes", "--record")
+        rc3, out3 = box.ms("changes")
+        check("16 --record accepts the machine as seen, and then it is quiet",
+              rc2 == 0 and rc3 == 0 and "nothing changed" in out3,
+              "the mark composes: exit 1 pending, exit 0 clean")
+
     # negative controls ------------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
     with Sandbox() as box:
@@ -338,6 +374,19 @@ def main():
         check("14n operator guard removed -> assertion 14 fails",
               "do not run in a shell" not in out and "ok" in out,
               "the false half never runs; the check passes on the first file alone")
+
+    with Sandbox() as box:
+        # Disable the comparison itself. The command still runs, still reads the
+        # machine, still prints — and reports nothing, which is the shape of a
+        # detector that has quietly stopped detecting.
+        ms = box.repo / "bin" / "ms"
+        patch(ms, "    added   = [n for n in pkgs if n not in old_p]",
+                  "    added   = []")
+        seed(box)
+        rc, out = box.ms("changes")
+        check("15n the added-package comparison disabled -> assertion 15 fails",
+              "added     " not in out,
+              "a package that appeared since the mark goes unreported")
 
     failed = [n for n, ok, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

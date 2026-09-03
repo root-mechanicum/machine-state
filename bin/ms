@@ -15,6 +15,7 @@ import os
 import pathlib
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,6 +26,7 @@ ADAPTERS = REPO / "adapters"
 TOOLING = REPO / "canonical" / "tooling"
 STATE = REPO / "state" / "projection.json"
 TOOLSTATE = REPO / "state" / "tooling.json"
+MACHINE = REPO / "state" / "machine.json"
 
 # Grants say what may run unattended. They cannot live in canonical/: that is
 # agent-writable by design, so an agent could widen its own authority. Root
@@ -672,6 +674,159 @@ def run(cmd, cwd=None):
         return None, ""
 
 
+def installed_packages():
+    """Every package with the date the local database says it was installed.
+
+    QUERIED, NOT WATCHED, and that is the whole design. A watcher — a path unit on
+    pacman.log, an inotify on the db — only sees events while it is running. A
+    reboot, a crash, or a week when nothing ran and the event is gone with no way
+    to recover it. The local database is authoritative and retroactive: it can be
+    asked what changed since any moment, including moments when nothing was
+    watching. No daemon, no unit, no root, no moving parts.
+    """
+    # Called directly rather than through run(): that helper splits on whitespace
+    # for record-supplied commands, and this format string contains tabs.
+    try:
+        r = subprocess.run(["expac", "--timefmt=%s", "%l\t%n\t%v"], capture_output=True,
+                           text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    out = r.stdout
+    pkgs = {}
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3 and parts[0].strip().isdigit():
+            pkgs[parts[1]] = {"version": parts[2], "at": int(parts[0])}
+    # A parse that yields nothing from real output is a silent failure, and this
+    # one already happened: expac's %l is a formatted date unless --timefmt says
+    # otherwise, so every line was discarded and an empty inventory was recorded
+    # as though the machine had no packages. Refuse rather than record a lie.
+    if out.strip() and not pkgs:
+        die("expac returned output that could not be parsed; refusing to record "
+            "an empty package inventory")
+    return pkgs
+
+
+def owning_package(binary):
+    """Which package owns a binary — asked of the FILE, never matched by name.
+
+    `pacman -Qo $(command -v codex)` answers `openai-codex`. Matching the binary
+    name against `pacman -Qq` answers nothing, and did: codex was classified a
+    loose binary needing root to update when it is an ordinary repo package. The
+    package name and the command name are different strings and only the
+    filesystem knows the mapping.
+    """
+    path = shutil.which(binary)
+    if not path:
+        return None, None
+    rc, out = run(f"pacman -Qo {path}")
+    if rc != 0 or " is owned by " not in out:
+        return path, None
+    return path, out.split(" is owned by ")[1].split()[0]
+
+
+def loose_binaries(known=None):
+    """Tools we depend on that no package owns, hashed because nothing else records them.
+
+    dcg, bd and claude live in ~/.local/bin, are writable by this user and carry
+    their own updaters. There is no database to ask when they last changed, so
+    their content is the only evidence available.
+    """
+    out = {}
+    for tool in read_tool_checks():
+        cmd = (tool.get("version") or "").split()
+        if not cmd:
+            continue
+        path, owner = owning_package(cmd[0])
+        if path and owner is None:
+            out[cmd[0]] = {"path": path,
+                           "sha": sha(pathlib.Path(path).read_bytes())}
+    # A tool already known is re-checked AT ITS RECORDED PATH rather than
+    # re-resolved through PATH. Otherwise the inventory depends on the
+    # environment `ms` happens to run in: a cron or hook with a narrower PATH
+    # would find nothing in ~/.local/bin, silently drop three tools, and report
+    # them as newly appeared on the next ordinary run. The machine did not
+    # change; only the lookup did.
+    for name, rec in (known or {}).items():
+        if name in out:
+            continue
+        q = pathlib.Path(rec.get("path", ""))
+        if q.is_file():
+            out[name] = {"path": str(q), "sha": sha(q.read_bytes())}
+        else:
+            out[name] = {"path": rec.get("path", "?"), "sha": None, "gone": True}
+    return out
+
+
+def machine_state(known=None):
+    """(packages, loose) as the machine is right now."""
+    return installed_packages(), loose_binaries(known)
+
+
+def cmd_changes(argv):
+    """What changed since the mark, from state that is already recorded.
+
+    Exit 1 when something changed, so it composes into a session-start check.
+    `--record` accepts the current machine as seen.
+    """
+    mark_early = {}
+    if MACHINE.exists():
+        try:
+            mark_early = json.loads(MACHINE.read_text())
+        except json.JSONDecodeError:
+            mark_early = {}
+    pkgs, loose = machine_state(mark_early.get("loose"))
+    if pkgs is None:
+        print("ms: expac is not available; install pacman-contrib", file=sys.stderr)
+        return 2
+    mark = {}
+    if MACHINE.exists():
+        try:
+            mark = json.loads(MACHINE.read_text())
+        except json.JSONDecodeError as exc:
+            die(f"{MACHINE}: {exc}")
+
+    if "--record" in argv or not mark:
+        MACHINE.parent.mkdir(parents=True, exist_ok=True)
+        write_atomic(MACHINE, (json.dumps(
+            {"schema": 1, "recorded": now_iso(), "packages": pkgs, "loose": loose},
+            indent=2, sort_keys=True) + "\n").encode())
+        what = "recorded" if mark else "first run; recorded"
+        print(f"  {what} {len(pkgs)} package(s) and {len(loose)} unpackaged tool(s)")
+        return 0
+
+    old_p, old_l = mark.get("packages", {}), mark.get("loose", {})
+    added   = [n for n in pkgs if n not in old_p]
+    removed = [n for n in old_p if n not in pkgs]
+    changed = [n for n in pkgs if n in old_p and pkgs[n]["version"] != old_p[n]["version"]]
+    moved   = [n for n in loose if n in old_l and loose[n]["sha"] != old_l[n]["sha"]]
+    new_l   = [n for n in loose if n not in old_l]
+
+    for n in sorted(added):
+        print(f"  added     {n} {pkgs[n]['version']}")
+    for n in sorted(changed):
+        print(f"  upgraded  {n} {old_p[n]['version']} -> {pkgs[n]['version']}")
+    for n in sorted(removed):
+        print(f"  removed   {n} {old_p[n]['version']}")
+    for n in sorted(moved):
+        if loose[n].get("gone"):
+            print(f"  MISSING   {n} (unpackaged; not at {loose[n]['path']} any more)")
+        else:
+            print(f"  replaced  {n} (unpackaged; content changed at {loose[n]['path']})")
+    for n in sorted(new_l):
+        print(f"  appeared  {n} (unpackaged, at {loose[n]['path']})")
+
+    total = len(added) + len(changed) + len(removed) + len(moved) + len(new_l)
+    if not total:
+        print(f"  nothing changed since {mark.get('recorded', '?')}")
+        return 0
+    print(f"\n{total} change(s) since {mark.get('recorded', '?')}. "
+          f"File them, then run 'ms changes --record'.", file=sys.stderr)
+    return 1
+
+
 def cmd_status(_argv):
     state = load_state()
     targets = load_targets()
@@ -786,6 +941,7 @@ def cmd_unproject(_argv):
 
 
 COMMANDS = {"project": cmd_project, "propose": cmd_propose, "diff": cmd_diff,
+            "changes": cmd_changes,
             "status": cmd_status, "unproject": cmd_unproject}
 
 
