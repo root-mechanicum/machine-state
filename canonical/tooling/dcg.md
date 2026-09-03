@@ -72,7 +72,8 @@ is worthless until logging has run.
 | `log_file`, `history.enabled` | on | every other decision here is empirical |
 | added packs | `system.permissions`, `system.services` | proven by probe: recursive permission changes against `$HOME`, and service disabling |
 | added, narrower than its name | `package_managers` | covers a `pip` install from an untrusted index. **It does not cover pacman**; see below |
-| added, unproven | `secret_disclosure` | matched nothing in 18 probes; kept at `warn` rather than presented as coverage |
+| added, dormant by design | `secret_disclosure` | 11 rules, all for secret-manager CLIs — infisical, `op`, doppler, vault, `aws secretsmanager`/`ssm`. **None of those five is installed**, so it has no surface here. Kept at `warn`; it is correct if one is ever installed |
+| added, ours | `machinestate.secrets` | the gap `secret_disclosure` was mistakenly enabled to cover: key and credential *file* reads, and `printenv` of a credential-shaped variable |
 | not enabled | cloud, kubernetes, containers, database, infrastructure, windows, cicd | none of that software is installed; rules for absent software protect nothing and only misfire |
 | new packs' mode | three now deny, one still `warn` | the staged rollout was reviewed 2026-09-03; see below |
 
@@ -96,13 +97,16 @@ lines; one was not.
 **Two of these packs were enabled for reasons that turned out to be false**, and the config said so
 in its own comments until this review. `package_managers` was enabled because "pacman is the real
 package manager here" — it does not match pacman at all. `secret_disclosure` was enabled because
-"reading private keys and tokens is unguarded today" — and it still is: reading an SSH private key,
-printing an API-key environment variable, reading `~/.aws/credentials`, `gh auth token`, reading a
-`.env`, and literal `sk-ant-…`, `ghp_…` and `AKIA…` strings are all allowed.
+"reading private keys and tokens is unguarded today", which it does not address at all.
 
-Promoting `secret_disclosure` would have changed nothing observable while making an inert pack read
-as enforcement. The two gaps are recorded as their own work rather than closed by the appearance of
-coverage.
+**Resolved 2026-09-03 (`machine-state-00j`), and the pack turned out not to be broken.**
+`dcg pack info secret_disclosure` shows 11 rules, every one targeting a secret-manager CLI:
+infisical, `op`, doppler, vault, and the AWS secrets and parameter-store subcommands. **None of
+those five tools is installed here**, so the pack has no surface. It was enabled against the very
+principle two rows above — that rules for absent software protect nothing — and the 18 probes
+passed because it was never going to match them. Correctly built, wrongly chosen.
+
+The real gap was closed by a custom pack instead; see `machinestate.secrets` below.
 
 **Testing a guard from inside a guarded shell needs care.** `dcg test "<dangerous literal>"` is
 itself blocked, because the hook scans the whole shell block — which is how `system.disk` was
@@ -115,6 +119,31 @@ disabling `system.services`, `system.disk` and `package_managers` for inactivity
 `system.disk`, which had blocked a command minutes earlier — and reported `python3` heredocs as
 "SQL DROP statement" coverage gaps. Logging being on is necessary for its advice to be worth
 anything; it is not sufficient.
+
+**One custom pack, `machinestate.secrets`.** `~/.config/dcg/packs/local-secrets.yaml`, loaded via
+`custom_paths`. It closes the gap the built-in `secret_disclosure` does not cover: reading a private
+key or a credential file, and `printenv` of a credential-shaped variable. Four rules, 26/26 on a
+probe suite of 12 dangerous and 14 legitimate commands, zero false positives, and proven by a
+negative control — pointing `custom_paths` at an empty directory leaves all four unguarded.
+
+**Its one known limit, stated because a rule that quietly does nothing is the failure this record
+exists to prevent.** `echo` and `printf` are matched by *nothing* in dcg 0.13.9. Established across
+every form tried: `/usr/bin/echo` with an absolute path, a literal word instead of a variable, and
+`echo` piped onward. Variable references are not the obstacle — a reader with `$HOME` in the path
+blocks correctly. So `echo $GITHUB_TOKEN` cannot be guarded, and the rule lists `printenv` only
+rather than naming `echo` and failing silently.
+
+Three things about custom packs that cost time to learn and are documented nowhere local:
+
+- **A pack with no `keywords` matches nothing at all.** `dcg pack validate` reports the absence as a
+  performance *suggestion*; it is in fact load-bearing. Keywords are a quick-reject filter, so they
+  must be the executables the rules act on, which are always present and always lower case — not the
+  secret-shaped words, which are neither.
+- **The `enabled` list does not gate a custom pack.** Removing `machinestate.secrets` from it changes
+  nothing; the pack is active because `custom_paths` loads it. The load path is the only control,
+  which is why the negative control above targets that.
+- **`dcg packs --enabled` and `dcg pack info` disagree** about a custom pack: the first lists it, the
+  second reports it not found. Trust `dcg test`.
 
 **Layer.** The posture lives in `~/.config/dcg/config.toml`, the only layer that applies to every
 directory rather than one repository. It is authored by hand and **deliberately not projected**:
