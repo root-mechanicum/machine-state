@@ -855,7 +855,7 @@ def cmd_status(_argv):
 
     tools = read_tool_checks()
     observed = {}
-    unguarded = []
+    unguarded, absent = [], []
     if tools:
         groups = {}
         for tool in tools:
@@ -879,9 +879,18 @@ def cmd_status(_argv):
                     if rc == 0:
                         verdict = tool.get("ok", "ok")
                     elif rc is None:
-                        # the command could not be executed at all — the tool is absent,
-                        # which is a different fact from its check having failed
+                        # The command could not be executed at all — the tool is
+                        # absent, which is a different fact from its check failing.
+                        #
+                        # AND ABSENCE IS A PROBLEM, because a record IS the
+                        # declaration that this machine should have the thing. See
+                        # SUBSTRATE.md §7.2: the registry of desired software is
+                        # the set of tooling records, not a separate file. Writing
+                        # a record and tolerating its absence would make the record
+                        # a description of the past rather than a statement about
+                        # the machine. Remove the record to stop wanting the tool.
                         verdict = tool.get("missing", "unknown")
+                        absent.append(tool["name"])
                     else:
                         verdict = tool.get("fail", "not configured")
 
@@ -912,11 +921,18 @@ def cmd_status(_argv):
               file=sys.stderr)
         return 1
 
+    if absent:
+        print(f"\n{', '.join(absent)}: recorded here but not installed.", file=sys.stderr)
+        print("A tooling record declares that this machine should have the tool. "
+              "Install it, or delete the record to stop wanting it.", file=sys.stderr)
+
     if unguarded:
         print(f"\n{', '.join(unguarded)}: installed but not covered by the command guard.",
               file=sys.stderr)
         print("Wire it before trusting an agent in it — see canonical/tooling/dcg.md.",
               file=sys.stderr)
+
+    if absent or unguarded:
         return 1
     return 0
 

@@ -8,7 +8,7 @@
     "claude": {
       "guarded": true,
       "status": "integrated",
-      "version": "2.1.252"
+      "version": "2.1.259"
     },
     "codex": {
       "guarded": true,
@@ -26,6 +26,10 @@
     "noctalia": {
       "status": "config valid",
       "version": "5.0.0"
+    },
+    "proton-mail": {
+      "status": "files intact",
+      "version": "1.13.4"
     },
     "proton-pass": {
       "status": "files intact",

@@ -6,7 +6,7 @@
     },
     "claude": {
       "path": "/home/klaas/.local/bin/claude",
-      "sha": "a715a45105e593fc9808d035d77781f88480b9897975a9df41837f0c591bd4b3"
+      "sha": "f7dd62ae415378018cd21dd950eb3bac174ab085830304d3b8b098146bfd47b6"
     },
     "dcg": {
       "path": "/home/klaas/.local/bin/dcg",
@@ -4411,6 +4411,6 @@
       "version": "3.1.1-1.1"
     }
   },
-  "recorded": "2026-09-03T13:16:50.825Z",
+  "recorded": "2026-09-03T16:03:30.037Z",
   "schema": 1
 }

@@ -295,6 +295,23 @@ def main():
               rc2 == 0 and rc3 == 0 and "nothing changed" in out3,
               "the mark composes: exit 1 pending, exit 0 clean")
 
+    # --- a tooling record declares the machine should have the tool (an1) ----
+
+    GHOST = ("# Ghost\n\n## Verification\n\n```toml\n"
+             'group   = "Applications"\n'
+             'version = "definitely-not-a-real-command-xyz --version"\n'
+             'check   = "definitely-not-a-real-command-xyz"\n'
+             'ok      = "ok"\nfail = "no"\nmissing = "not installed"\n```\n')
+
+    with Sandbox() as box:
+        rec = box.repo / "canonical" / "tooling" / "ghost.md"
+        rec.write_text(GHOST)
+        rc, out = box.ms("status")
+        rec.unlink()
+        check("17 a recorded tool that is absent fails the run",
+              rc == 1 and "ghost" in out and "recorded here but not installed" in out,
+              "a record is the declaration that the machine should have it")
+
     # negative controls ------------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
     with Sandbox() as box:
@@ -387,6 +404,20 @@ def main():
         check("15n the added-package comparison disabled -> assertion 15 fails",
               "added     " not in out,
               "a package that appeared since the mark goes unreported")
+
+    with Sandbox() as box:
+        # Stop counting absent tools. The line still prints "not installed", so the
+        # surface looks identical — which is precisely the state before an1: a
+        # record described something installed instead of asserting it should be.
+        ms = box.repo / "bin" / "ms"
+        patch(ms, "                        absent.append(tool[\"name\"])", "                        pass")
+        rec = box.repo / "canonical" / "tooling" / "ghost.md"
+        rec.write_text(GHOST)
+        rc, out = box.ms("status")
+        rec.unlink()
+        check("17n absence no longer counted -> assertion 17 fails",
+              "recorded here but not installed" not in out and "not installed" in out,
+              "the tool is still shown missing and the run passes anyway")
 
     failed = [n for n, ok, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

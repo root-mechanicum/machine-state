@@ -357,6 +357,48 @@ not hold: `machine-state-t0u` was written on 2026-09-03 with an acceptance crite
 looks like an inventory invites being kept current. The answer is to say where the inventory
 actually lives.
 
+### 7.2 Desired installed state — decided, and smaller than expected
+
+`machine-state-an1` asked whether `canonical/` should gain a registry declaring what software this
+machine *should* have, or whether installation stays a human step recorded afterwards.
+
+**The measurement settled it.** The decision surface is not 1099 packages, nor the 183 installed
+explicitly. Grouping explicit packages by install date separates the distribution from the choices:
+
+```
+2026-08-30   180 explicit    the CachyOS install — distro composition, not decisions
+2026-09-01     2 explicit    openai-codex, proton-mail-bin
+2026-09-03     1 explicit    proton-pass
+```
+
+**Three.** A registry of three entries duplicating `canonical/tooling/` would be a second inventory
+to keep in step with the first — the `BASELINE.md` mistake under a new name.
+
+**So: the registry already exists, and it is the set of tooling records.** No new directory, no new
+schema. What changed is that a record now *means* something stronger — **a tooling record is the
+declaration that this machine should have the thing** — and `ms status` fails when a recorded tool is
+absent rather than labelling it `not installed` and moving on. To stop wanting a tool, delete its
+record.
+
+The distribution's own 180 packages stay out. They are reproducible by reinstalling CachyOS, and
+recording them would create exactly the drifting second inventory this avoids.
+
+**The evidence was a live instance of the gap.** Of the three packages chosen here,
+`proton-mail-bin` had no record for two days — while `canonical/roles/roles.toml` declared a `mail`
+role resolving to it and `SUPER + M` invoked that role. Nothing noticed, because a record described
+something installed rather than asserting it should be. `ms status` would now fail.
+
+**This deliberately does not install anything.** Declaring desired state and acting on it are
+different powers. `bin/ms` writes files and `bin/cap` runs desktop actions; neither installs software
+nor touches systemd, and installation needs root — the one real boundary here. Reporting drift
+between declared and installed keeps the declare/derive/report shape every other registry has.
+Crossing into apply is a separate decision, deliberately not reached by increment.
+
+**Known limit.** These checks run whatever command the record names, resolved through `PATH`. Under
+a narrower `PATH` than an interactive shell — a cron, a hook — the three tools in `~/.local/bin`
+resolve to nothing and are reported absent when they are present. `ms changes` handles this by
+re-checking a known tool at its recorded path; `ms status` does not yet.
+
 ### 7.1 Our own tools, and why there are three
 
 `bin/ms` projects canonical content onto the machine and reports drift from it. `bin/cap` derives
