@@ -804,6 +804,18 @@ def cmd_changes(argv):
     moved   = [n for n in loose if n in old_l and loose[n]["sha"] != old_l[n]["sha"]]
     new_l   = [n for n in loose if n not in old_l]
 
+    total = len(added) + len(changed) + len(removed) + len(moved) + len(new_l)
+    if not total:
+        # Quiet mode says nothing when nothing happened. A session-start hook that
+        # reports "nothing changed" every single time trains its reader to skip
+        # the line, and then the one time it says something they skip that too.
+        if "--quiet" not in argv:
+            print(f"  nothing changed since {mark.get('recorded', '?')}")
+        return 0
+
+    if "--quiet" in argv:
+        print(f"machine-state: {total} change(s) on this machine since "
+              f"{mark.get('recorded', '?')} —")
     for n in sorted(added):
         print(f"  added     {n} {pkgs[n]['version']}")
     for n in sorted(changed):
@@ -818,10 +830,6 @@ def cmd_changes(argv):
     for n in sorted(new_l):
         print(f"  appeared  {n} (unpackaged, at {loose[n]['path']})")
 
-    total = len(added) + len(changed) + len(removed) + len(moved) + len(new_l)
-    if not total:
-        print(f"  nothing changed since {mark.get('recorded', '?')}")
-        return 0
     print(f"\n{total} change(s) since {mark.get('recorded', '?')}. "
           f"File them, then run 'ms changes --record'.", file=sys.stderr)
     return 1
