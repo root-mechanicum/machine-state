@@ -58,7 +58,14 @@ missing    = "not installed"
 **Falsifiability, stated exactly rather than assumed.** Half of it is proven and half is not, and
 the difference matters more than a tidy claim would.
 
-Proven 2026-09-03: `pacman -Qkk` on an absent package exits 1, so the `missing` path can fail.
+Proven 2026-09-03: `pacman -Qkk` on an absent package exits 1.
+
+**The conclusion drawn from that here was wrong, and is corrected 2026-09-05.** This said "so the
+`missing` path can fail". It cannot. `ms status` reaches the `missing` label only when the check
+command cannot be *executed*, and `pacman` executes perfectly well while reporting that a package is
+not installed — so exit 1 routes to `fail`, and an uninstalled package would read `files altered or
+missing` and would not fail the run at all. The observation was right and the inference was not.
+`machine-state-q4r` carries the fix; `canonical/tooling/steam.md` found it.
 
 Not proven: the *altered file* path. Every file this package owns lives under `/usr` and is
 root-owned, so modifying one to watch the check fail needs a privilege this repository does not

@@ -1000,13 +1000,14 @@ def cmd_status(argv):
 
                 # What this run could not see keeps what the record last saw, and
                 # says so on the line rather than passing it off as fresh.
+                held = []
                 if not seen_version and was.get("version"):
-                    version = was["version"]
+                    version, held = was["version"], held + ["version"]
                 if not seen_verdict and was.get("status"):
-                    verdict = was["status"]
+                    verdict, held = was["status"], held + ["status"]
                 if not seen_guarded and "guarded" in was:
-                    guarded = was["guarded"]
-                    seen_guarded = False
+                    guarded, seen_guarded = was["guarded"], False
+                    held.append("wiring")
                 unseen = [n for n, seen in (("version", seen_version or not tool.get("version")),
                                             ("status", seen_verdict or not tool.get("check")),
                                             ("wiring", seen_guarded or not tool.get("wiring")))
@@ -1015,7 +1016,12 @@ def cmd_status(argv):
                     carried.append(f"{tool['name']} ({', '.join(unseen)})")
 
                 suffix = "" if guarded is not False else "   ** UNGUARDED **"
-                note = "   (not observed this run; last seen)" if unseen else ""
+                # "last seen" is only true if something was in fact last seen. A
+                # record with no prior reading has nothing to carry, and saying it
+                # does would be the same species of small lie this whole mechanism
+                # exists to stop.
+                note = ("   (not observed this run; last seen)" if held
+                        else "   (not observed this run)" if unseen else "")
                 print(f"  {tool['name']:<8} {version:<12} {verdict}{suffix}{note}")
                 rec = {"version": version, "status": verdict}
                 # Remember where this tool was found, so a later run under a
