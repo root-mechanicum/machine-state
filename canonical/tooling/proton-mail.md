@@ -43,8 +43,16 @@ same trap applies as for `proton-pass`: asking an Electron application for its v
 group      = "Applications"
 version    = "pacman -Q proton-mail-bin"
 version_re = "([0-9][0-9.]*)"
+presence   = "pacman -Q proton-mail-bin"
 check      = "pacman -Qkk proton-mail-bin"
 ok         = "files intact"
 fail       = "files altered or missing"
 missing    = "not installed"
 ```
+
+`presence` and `check` ask different questions of the same package, and are separate because one
+exit code cannot answer both: `pacman -Q proton-mail-bin` fails when the package is not installed,
+`pacman -Qkk proton-mail-bin` fails when its files are altered, and both exit `1`. Before
+`machine-state-q4r` this record had only the second, so an uninstalled `proton-mail-bin` would have
+reported `files altered or missing` and passed the run — under a `mail` role that resolves to it and
+a `SUPER + M` that invokes it. `canonical/tooling/steam.md` records how the gap was found.

@@ -377,6 +377,57 @@ def main():
               rc == 0 and not took and "no mark yet" in out and rc2 == 0 and m.exists(),
               "recording is acceptance, and belongs to whoever is looking")
 
+    # --- presence and integrity are different questions (machine-state-q4r) --
+
+    # A package record, in miniature: two commands that both EXECUTE and both
+    # exit 1 — one because the package is not installed, one because its files
+    # are altered. `pacman -Q` and `pacman -Qkk` on an absent package are exactly
+    # this pair, and an exit code cannot say which happened.
+    GONE = ("# Gonepkg\n\n## Verification\n\n```toml\n"
+            'group    = "Applications"\n'
+            'version  = "false"\n'
+            'presence = "false"\n'
+            'check    = "false"\n'
+            'ok       = "files intact"\n'
+            'fail     = "files altered or missing"\n'
+            'missing  = "not installed"\n```\n')
+
+    def tool_line(out, name):
+        return next((l for l in out.splitlines() if l.strip().startswith(name + " ")), "")
+
+    def absent_summary(out):
+        return next((l for l in out.splitlines()
+                     if "recorded here but not installed" in l), "")
+
+    with Sandbox() as box:
+        rec = box.repo / "canonical" / "tooling" / "gonepkg.md"
+        rec.write_text(GONE)
+        rc, out = box.ms("status")
+        rec.unlink()
+        check("22 a package-based record reports an absent package absent",
+              rc == 1 and "not installed" in tool_line(out, "gonepkg")
+              and "files altered or missing" not in tool_line(out, "gonepkg")
+              and "gonepkg" in absent_summary(out),
+              "the presence probe answers 'is it there'; the check answers 'is it intact'")
+
+    # The third state, and the reason absence is not simply 'the probe said no'.
+    # A probe that could not RUN has reported nothing: a missing pacman is not
+    # evidence that every package on the machine is uninstalled.
+    UNSEEN = GONE.replace('presence = "false"',
+                          'presence = "definitely-not-a-real-command-xyz"'
+                          ).replace('check    = "false"', 'check    = "true"')
+
+    with Sandbox() as box:
+        rec = box.repo / "canonical" / "tooling" / "gonepkg.md"
+        rec.write_text(UNSEEN)
+        rc, out = box.ms("status")
+        rec.unlink()
+        check("23 a presence probe that could not run has not said 'absent'",
+              "gonepkg" not in absent_summary(out)
+              and "not observed this run" in tool_line(out, "gonepkg")
+              and "files intact" not in tool_line(out, "gonepkg"),
+              "an unobservable probe is carried, not counted — and does not pass the check off as seen")
+
     # negative controls ------------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
     with Sandbox() as box:
@@ -530,6 +581,22 @@ def main():
         check("21n the hook guard removed -> assertion 21 fails",
               m.exists(),
               "the least examined environment on the machine froze the inventory")
+
+    with Sandbox() as box:
+        # Take the presence probe away, restoring exactly the pre-q4r path: the
+        # check runs, pacman's exit 1 for "not installed" is read as "altered",
+        # and the record that declares the machine should have the package does
+        # not notice that it does not.
+        ms = box.repo / "bin" / "ms"
+        patch(ms, '                if tool.get("presence"):', "                if False:")
+        rec = box.repo / "canonical" / "tooling" / "gonepkg.md"
+        rec.write_text(GONE)
+        rc, out = box.ms("status")
+        rec.unlink()
+        check("22n the presence probe removed -> assertion 22 fails",
+              "files altered or missing" in tool_line(out, "gonepkg")
+              and "gonepkg" not in absent_summary(out),
+              "an uninstalled package reads as a broken one, and the run passes it")
 
     failed = [n for n, ok, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

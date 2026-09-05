@@ -397,6 +397,19 @@ nor touches systemd, and installation needs root — the one real boundary here.
 between declared and installed keeps the declare/derive/report shape every other registry has.
 Crossing into apply is a separate decision, deliberately not reached by increment.
 
+**A record says how absence is detected when the check cannot tell.** `ms status` infers absence
+from a check command that could not be *executed*, which is exact for a record whose check is the
+tool's own binary and wrong for one built on a package query: `pacman -Qkk steam` executes perfectly
+well while reporting that steam is not installed, and exits `1` — the same `1` it uses for altered
+files. An exit code cannot separate *the subject does not exist* from *the subject is broken* when
+one tool uses it for both, so `ms` does not guess. A record that needs the distinction declares it,
+with an optional `presence` probe beside `check`: the probe failing means **absent**, the check
+failing means **broken**. For a binary the two collapse into one command, which is why the gap was
+invisible until the first package-based record was written — and why, for two days,
+`machine-state-q4r` was true of exactly the three records that most looked like a declaration of
+desired state. A probe that could not *run* says nothing: a missing `pacman` is not evidence that
+every package is uninstalled, so that reading is carried, not counted absent.
+
 **Where a tool was last found is remembered**, in `state/tooling.json` alongside its version, and
 used when `PATH` cannot resolve it. Without that, a record which now *declares* the machine should
 have a tool would report the three tools in `~/.local/bin` as absent under any narrower `PATH` than

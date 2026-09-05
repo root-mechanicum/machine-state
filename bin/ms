@@ -638,7 +638,7 @@ def read_tool_checks():
                 meta = tomllib.loads(block)
             except tomllib.TOMLDecodeError:
                 continue
-            if "check" in meta or "version" in meta:
+            if "check" in meta or "version" in meta or "presence" in meta:
                 meta["name"] = rec.stem
                 tools.append(meta)
                 break
@@ -951,7 +951,41 @@ def cmd_status(argv):
                             m = re.search(tool["version_re"], version)
                             version = m.group(1) if m and m.groups() else version
                 verdict, seen_verdict, rc = "unknown", False, None
-                if tool.get("check"):
+
+                # IS IT THERE AND IS IT INTACT ARE ONE QUESTION ONLY WHEN THE
+                # CHECK IS THE TOOL'S OWN BINARY. Below, absence is inferred from
+                # a command that could not be EXECUTED — true for `dcg doctor`,
+                # false for `pacman -Qkk steam`, which executes perfectly well
+                # while reporting that steam is not installed and exits 1, the
+                # same 1 it uses for altered files. ms cannot tell those apart
+                # from an exit code, so it does not try: a record that needs the
+                # distinction DECLARES it, with a `presence` probe whose failure
+                # means absent, beside a `check` whose failure means broken.
+                #
+                # Without this the three package records — the three that most
+                # look like a declaration of desired state — were the three that
+                # could not enforce one: an uninstalled package read `files
+                # altered or missing`, was never counted absent, and passed the
+                # run. Found by writing canonical/tooling/steam.md before the
+                # install (machine-state-q4r).
+                there = "present"
+                if tool.get("presence"):
+                    cmd, w2, _ = resolve_tool_cmd(tool["presence"], remembered)
+                    where = where or w2
+                    prc = run(cmd)[0]
+                    # A PROBE THAT COULD NOT RUN HAS NOT SAID "ABSENT". The
+                    # binary case may equate the two because the command that
+                    # failed to execute IS the tool. Here the probe is a third
+                    # party, so a pacman that cannot run would otherwise declare
+                    # every package on this machine uninstalled — an observation
+                    # about the run, filed under the machine's name.
+                    there = ("present" if prc == 0
+                             else "absent" if prc is not None else "unobserved")
+
+                if there == "absent":
+                    verdict, seen_verdict = tool.get("missing", "unknown"), True
+                    absent.append(tool["name"])
+                elif there == "present" and tool.get("check"):
                     cmd, w2, via = resolve_tool_cmd(tool["check"], remembered)
                     where = where or w2
                     blind = blind or via == "remembered"

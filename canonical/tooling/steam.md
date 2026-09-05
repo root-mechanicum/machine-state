@@ -86,6 +86,7 @@ package is installed is not a check.
 group      = "Applications"
 version    = "pacman -Q steam"
 version_re = "([0-9][0-9.]*)"
+presence   = "pacman -Q steam"
 check      = "pacman -Qkk steam"
 ok         = "files intact"
 fail       = "files altered or missing"
@@ -110,14 +111,28 @@ size of that boundary. A green line for this record means the launcher is intact
 
 Proven 2026-09-05: `pacman -Qkk steam` on an absent package exits 1.
 
-**But exiting 1 routes to `fail`, not to `missing`** — `ms status` uses the `missing` label only when
-the check command cannot be executed at all, and `pacman` executes perfectly well while reporting
-that a package is not there. So for every package-based record on this machine, the `missing` label
-is unreachable, an uninstalled package reads as `files altered or missing`, and `ms status` does not
-count it absent or fail the run. `SUBSTRATE.md` §7.2 claims a tooling record is the declaration that
-this machine should have the thing; that claim currently holds only for records whose command is the
-tool's own binary. `machine-state-q4r` carries this. `canonical/tooling/proton-pass.md` states the
-same observation and draws the opposite conclusion from it; it is wrong and is corrected there.
+**Exiting 1 routed to `fail`, not to `missing`.** `ms status` reached the `missing` label only when
+the check command could not be executed at all, and `pacman` executes perfectly well while reporting
+that a package is not there. So for every package-based record on this machine the `missing` label
+was unreachable, an uninstalled package read as `files altered or missing`, and `ms status` neither
+counted it absent nor failed the run — the three records that most look like a declaration of
+desired state were the three that could not enforce one.
+
+**Closed 2026-09-05 by the `presence` line above** (`machine-state-q4r`). An exit code cannot
+separate *the subject does not exist* from *the subject is broken* when one tool uses `1` for both,
+so `ms` no longer infers it: the record declares the difference. `pacman -Q steam` answers whether
+the package is installed, `pacman -Qkk steam` answers whether its files are intact; the first
+failing means absent, the second failing means altered. For a binary the two collapse into one
+command, which is why nothing noticed until a package-based record was written.
+`canonical/tooling/proton-pass.md` drew the opposite conclusion from the same observation and is
+corrected there.
+
+**Demonstrated against real `pacman`, both ways**, in a throwaway copy of the repository with `HOME`
+redirected — a record for a package that does not exist. With the `presence` line: `not installed`,
+named in `recorded here but not installed`, exit 1. With that one line deleted and nothing else
+changed: `files altered or missing`, not counted absent, and the run passes. `tests/acceptance.py`
+asserts 22 and 23 with a negative control that removes the probe and shows the assertion then misses
+the absent package.
 
 Not proven: the *altered file* path. Every file this package owns is root-owned under `/usr`, so
 modifying one to watch the check fail needs a privilege this repository does not have. Trusted on

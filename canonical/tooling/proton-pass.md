@@ -49,6 +49,7 @@ proves nothing at all.
 group      = "Applications"
 version    = "pacman -Q proton-pass"
 version_re = "([0-9][0-9.]*)"
+presence   = "pacman -Q proton-pass"
 check      = "pacman -Qkk proton-pass"
 ok         = "files intact"
 fail       = "files altered or missing"
@@ -61,11 +62,17 @@ the difference matters more than a tidy claim would.
 Proven 2026-09-03: `pacman -Qkk` on an absent package exits 1.
 
 **The conclusion drawn from that here was wrong, and is corrected 2026-09-05.** This said "so the
-`missing` path can fail". It cannot. `ms status` reaches the `missing` label only when the check
-command cannot be *executed*, and `pacman` executes perfectly well while reporting that a package is
-not installed — so exit 1 routes to `fail`, and an uninstalled package would read `files altered or
-missing` and would not fail the run at all. The observation was right and the inference was not.
-`machine-state-q4r` carries the fix; `canonical/tooling/steam.md` found it.
+`missing` path can fail". It could not. `ms status` reached the `missing` label only when the check
+command could not be *executed*, and `pacman` executes perfectly well while reporting that a package
+is not installed — so exit 1 routed to `fail`, and an uninstalled package would have read `files
+altered or missing` and would not have failed the run at all. The observation was right and the
+inference was not. `canonical/tooling/steam.md` found it, by being written before its install.
+
+**What makes the `missing` path reachable is the `presence` line above**, added by
+`machine-state-q4r`. `pacman -Q proton-pass` asks whether the package is installed and
+`pacman -Qkk proton-pass` asks whether its files are intact — two questions that one exit code
+cannot separate, so the record states which command answers which instead of leaving `ms` to guess.
+The probe failing means absent and fails the run; the check failing means altered.
 
 Not proven: the *altered file* path. Every file this package owns lives under `/usr` and is
 root-owned, so modifying one to watch the check fail needs a privilege this repository does not
