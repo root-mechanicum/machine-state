@@ -50,6 +50,12 @@
       "path": "/usr/bin/pacman",
       "status": "files intact",
       "version": "1.39.1"
+    },
+    "steam": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "files intact",
+      "version": "1.0.0.87"
     }
   }
 }

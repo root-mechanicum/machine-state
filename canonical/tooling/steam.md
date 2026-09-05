@@ -5,6 +5,9 @@
 Games client. The delivery mechanism for Valve's store, its Proton compatibility layer, and the
 library of third-party software that comes with both.
 
+Installed 2026-09-05. The record was written first and this line added after, which is the order
+`machine-state-t0u.4` planned and the order that found `machine-state-q4r`.
+
 ## Role
 
 An application, not substrate. Nothing in this repository depends on it and removing it costs
@@ -39,6 +42,10 @@ wait.
 **One system-level side effect, named rather than discovered later.** The `steam-devices` dependency
 installs udev rules under `/usr/lib/udev/rules.d` granting access to controller hardware. It is the
 only part of this transaction that changes device permissions.
+
+Confirmed after the install: exactly two files, `60-steam-input.rules` and `60-steam-vr.rules`. The
+second is for VR hardware this machine does not have; it is inert rather than removable, since it
+arrives with the package.
 
 ## Intent
 
@@ -84,7 +91,8 @@ fail       = "files altered or missing"
 missing    = "not installed"
 ```
 
-**What this check does not cover, stated plainly.** It verifies the 19.53 MiB launcher. It says
+**What this check does not cover, stated plainly.** It verifies the 50 packaged files of the
+19.53 MiB launcher. It says
 nothing about the tens or hundreds of gigabytes Steam will place under `~/.local/share/Steam`, none
 of which any package owns. Reporting `files intact` for this record is a true statement about a
 small fraction of what Steam is on this machine, and it should never be read as more than that.
