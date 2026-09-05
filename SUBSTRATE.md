@@ -251,6 +251,8 @@ that needs the grants mechanism in `CAPABILITIES.md` §8, which is unresolved.
 
 `ms status` reports one line per target and per tool, grouped. Every line is the result of running
 a declared check, never a hardcoded string. A check that cannot run reports `unknown`, never `ok`.
+**It reports; it does not record.** The inventory in `state/tooling.json` is written only by `ms
+status --record`, and even then only from what that run actually observed — see §7.2.
 
 **Its exit code carries a narrower meaning than the output.** Only a safety failure is fatal: a
 harness that is installed but not covered by the command guard prints `** UNGUARDED **` and exits
@@ -329,7 +331,8 @@ Five sections: **Function, Role, Ownership, Intent, Verification.**
 **declared check, not prose**, and `ms status` runs it. A tool with no such check gets a record
 saying `none available`, so the gap stays visible rather than papered over.
 
-Versions do not belong here. `state/tooling.json` is derived by `ms status`. `BASELINE.md` is a
+Versions do not belong here. `state/tooling.json` is derived by `ms status --record`; a plain `ms
+status` reports without writing. `BASELINE.md` is a
 frozen point-in-time capture and is **not** maintained as an inventory — it already omits `bd`,
 having been written twelve minutes before `bd init` ran.
 
@@ -401,12 +404,41 @@ an interactive shell — a cron, a timer, a hook — and fail the run on a machi
 wrong. The remembered path is checked for existence rather than assumed, so a genuinely absent tool
 is still absent.
 
-**Two verdicts do still vary with the environment, and both are correct rather than broken.**
-`hyprctl version` needs `HYPRLAND_INSTANCE_SIGNATURE`, so a check that asks a running compositor
-must run inside that session. And `dcg doctor` itself verifies that `dcg` is on `PATH` — under a
-narrow one it reports `binary in PATH... NOT FOUND`, which is a true statement about that
-environment. Neither is a case of a present tool being called absent; they are checks whose subject
-genuinely is the environment.
+**Two verdicts do still vary with the environment.** `hyprctl version` needs
+`HYPRLAND_INSTANCE_SIGNATURE`, so a check that asks a running compositor must run inside that
+session. And `dcg doctor` itself verifies that `dcg` is on `PATH` — under a narrow one it reports
+`binary in PATH... NOT FOUND`, which is a true statement about that environment. Neither is a case
+of a present tool being called absent; they are checks whose subject genuinely is the environment.
+
+**Recording them was the mistake, and this paragraph used to end by calling them correct rather than
+broken.** They are correct as *readings*. They were not correct as *record*, and `ms status`
+rewrote `state/tooling.json` on every run, so whatever the ambient environment could see became the
+committed inventory. `machine-state-c4v`: a session without the compositor recorded hypr's version
+as `-`; a run whose `PATH` lacked `~/.local/bin` recorded dcg as `degraded` and claude as unguarded.
+Each is a fact about the run, filed under the machine's name. The evidence was a working tree found
+dirty at session start with exactly that shape — including a `files altered or missing` verdict on
+both Proton packages that no `pacman` activity since three days earlier could explain, and that the
+next ordinary run silently reverted. A wrong reading is an incident; a wrong reading that becomes
+the record is a lie the substrate will repeat.
+
+**So a reading is either OBSERVED or NOT OBSERVED, and the two never look alike.** A version command
+that fails produced no reading, and writing `-` over a known version would turn "I could not look"
+into "there is nothing there". A failing *check* is a statement about the machine only when this run
+could see the machine as an ordinary session does: when a command had to be found at its remembered
+path, `PATH` here is narrower than `PATH` there, and any non-zero verdict is set aside rather than
+recorded. What was not observed keeps what the record last held and says so on its line.
+
+**And reporting was separated from recording.** `ms status` now writes `state/tooling.json` only on
+`--record`, exactly as `ms changes` has always written its mark. The asymmetry between the two was
+itself the bug: one command reported freely and accepted deliberately, the other did both at once
+and could not tell them apart. Readings that differ from the record are reported and left for a
+person to accept. This also makes `ms status` read-only in fact and not only in the skill's
+description of it, where it was already listed as free.
+
+**A session-start hook may not take the first mark.** `ms changes` used to record one when none
+existed, and `--quiet` is the hook form — so the least examined environment on the machine would
+have defined what "unchanged" means from then on. It now reports and exits `0`, leaving the mark to
+whoever is looking. Recording is an act of acceptance, and acceptance is not a side effect.
 
 ### 7.1 Our own tools, and why there are three
 

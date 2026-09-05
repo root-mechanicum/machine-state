@@ -12,7 +12,7 @@
       "guarded": true,
       "path": "/home/klaas/.local/bin/claude",
       "status": "integrated",
-      "version": "2.1.259"
+      "version": "2.1.261"
     },
     "codex": {
       "binary": "codex",

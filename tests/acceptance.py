@@ -325,6 +325,58 @@ def main():
               "recorded here but not installed" not in out,
               "an inventory that changes with the environment is not an inventory")
 
+    # --- a run records only what it observed (machine-state-c4v) ------------
+
+    # A version command that exits non-zero and prints nothing: this run can take
+    # no reading at all. `false` is on the sandbox PATH, so the tool is present and
+    # its check passes — the two facts are deliberately separated.
+    BLIND = ("# Blind\n\n## Verification\n\n```toml\n"
+             'group   = "Applications"\n'
+             'version = "false"\n'
+             'check   = "true"\n'
+             'ok      = "ok"\nfail = "no"\nmissing = "not installed"\n```\n')
+
+    def seed_blind(box):
+        t = box.repo / "state" / "tooling.json"
+        d = json.loads(t.read_text())
+        d["tooling"]["blind"] = {"binary": "false", "path": "/usr/bin/false",
+                                 "status": "ok", "version": "9.9.9"}
+        t.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n")
+        (box.repo / "canonical" / "tooling" / "blind.md").write_text(BLIND)
+        return t, t.read_bytes()
+
+    def blind_line(out):
+        return next((l for l in out.splitlines() if l.strip().startswith("blind ")), "")
+
+    with Sandbox() as box:
+        t, before = seed_blind(box)
+        rc, out = box.ms("status")
+        line = blind_line(out)
+        check("19 reporting does not record, and what was not seen is not written",
+              t.read_bytes() == before and "9.9.9" in line
+              and "not observed this run" in line,
+              "the run reports, the file is untouched, the carried value says so")
+
+    with Sandbox() as box:
+        t, before = seed_blind(box)
+        box.ms("status", "--record")
+        after = json.loads(t.read_text())["tooling"]["blind"]
+        check("20 --record accepts observations, never blanks",
+              after["version"] == "9.9.9" and after["status"] == "ok",
+              "an explicit record still refuses to write '-' over a known reading")
+
+    # --- the least examined environment may not freeze the mark (c4v) -------
+
+    with Sandbox() as box:
+        m = box.repo / "state" / "machine.json"
+        m.unlink(missing_ok=True)
+        rc, out = box.ms("changes", "--quiet")
+        took = m.exists()
+        rc2, _ = box.ms("changes", "--record")
+        check("21 a session-start hook reports; it does not take the first mark",
+              rc == 0 and not took and "no mark yet" in out and rc2 == 0 and m.exists(),
+              "recording is acceptance, and belongs to whoever is looking")
+
     # negative controls ------------------------------------------------------
     print("\n  negative controls (the mechanism is broken on purpose):")
     with Sandbox() as box:
@@ -441,6 +493,43 @@ def main():
         check("18n remembered-path fallback removed -> assertion 18 fails",
               rc == 1 and "recorded here but not installed" in out,
               "present tools reported absent because PATH could not see them")
+
+    with Sandbox() as box:
+        # Write on every run again. Nothing else changes: the same readings, the
+        # same output — and the inventory silently becomes whatever this
+        # environment could see, which is how "-" and "degraded" got committed.
+        ms = box.repo / "bin" / "ms"
+        patch(ms, "    if observed and (record or not TOOLSTATE.exists()):",
+                  "    if observed:")
+        t, before = seed_blind(box)
+        box.ms("status")
+        check("19n the write gate removed -> assertion 19 fails",
+              t.read_bytes() != before,
+              "a plain status run rewrote the inventory, unasked")
+
+    with Sandbox() as box:
+        # Keep the gate, remove the carry-over. --record is now honest about being
+        # asked and dishonest about what it saw: a known version becomes a blank.
+        ms = box.repo / "bin" / "ms"
+        patch(ms, '                if not seen_version and was.get("version"):',
+                  '                if False and was.get("version"):')
+        t, _ = seed_blind(box)
+        box.ms("status", "--record")
+        check("20n the carry-over removed -> assertion 20 fails",
+              json.loads(t.read_text())["tooling"]["blind"]["version"] == "-",
+              "'could not look' was recorded as 'nothing there'")
+
+    with Sandbox() as box:
+        # Let the hook record again. The quiet form takes the mark, and whatever
+        # the hook's environment could see becomes the definition of unchanged.
+        ms = box.repo / "bin" / "ms"
+        patch(ms, '    if not mark and "--quiet" in argv:', "    if False:")
+        m = box.repo / "state" / "machine.json"
+        m.unlink(missing_ok=True)
+        box.ms("changes", "--quiet")
+        check("21n the hook guard removed -> assertion 21 fails",
+              m.exists(),
+              "the least examined environment on the machine froze the inventory")
 
     failed = [n for n, ok, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

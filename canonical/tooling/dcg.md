@@ -41,7 +41,10 @@ exists yet; see `machine-state-3r1`.
 manual step per harness, so this is the intent most at risk of silently lapsing. It is now checked
 rather than merely stated: a harness record may declare a `wiring` command, and a harness that is
 installed but unwired makes `ms status` exit non-zero. Absent harnesses are skipped — what is not
-installed cannot be unguarded.
+installed cannot be unguarded, and neither is a guard the run could not check. `dcg doctor` verifies
+that `dcg` is on `PATH`, so under a hook's narrower `PATH` it exits non-zero about the run rather
+than about the machine; that reading is set aside instead of being reported as `UNGUARDED` or
+written to the inventory. See `SUBSTRATE.md` §7.2.
 
 **This intent is met as of 2026-09-03.** Both harnesses are wired: Claude by `dcg install`, Codex by
 a hand-written `PreToolUse` entry in `~/.codex/hooks.json` with matcher `Bash|PowerShell`. `ms

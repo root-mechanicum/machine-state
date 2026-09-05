@@ -71,7 +71,8 @@ only at runtime is how a machine drifts from its own description.
 The repository governs *state* — who owns which file. This governs *action*, and it is
 deliberately conservative while the fuller model is still being worked out.
 
-**Free.** Anything read-only: `ms status`, `ms diff`, `hyprctl monitors|clients|workspaces|getoption`,
+**Free.** Anything read-only: `ms status` (it reports only — `ms status --record` accepts the
+readings into `state/tooling.json` and is not free), `ms diff`, `hyprctl monitors|clients|workspaces|getoption`,
 `bd list|show|ready`, `dcg test|explain|doctor`, `pacman -Q*`, `systemctl --user status`, and the
 eight `noctalia msg` query commands named above. These answer questions without changing anything.
 

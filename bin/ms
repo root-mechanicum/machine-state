@@ -788,6 +788,15 @@ def cmd_changes(argv):
         except json.JSONDecodeError as exc:
             die(f"{MACHINE}: {exc}")
 
+    # A HOOK MAY NOT FREEZE THE INVENTORY. Without a mark this command would
+    # create one, and `--quiet` is the session-start form: the least examined
+    # environment on the machine would decide what "unchanged" means from then on.
+    # Recording is an act of acceptance and belongs to whoever is looking.
+    if not mark and "--quiet" in argv:
+        print("machine-state: no mark yet; run 'ms changes --record' to take one.",
+              file=sys.stderr)
+        return 0
+
     if "--record" in argv or not mark:
         MACHINE.parent.mkdir(parents=True, exist_ok=True)
         write_atomic(MACHINE, (json.dumps(
@@ -851,20 +860,37 @@ def resolve_tool_cmd(cmd, remembered):
 
     A genuinely absent tool is still absent — the remembered path is checked for
     existence, not assumed.
+
+    Returns (command, path, via), where `via` is "path" when PATH resolved it,
+    "remembered" when only the recorded path could, and None when neither did.
+    The caller needs that distinction: reaching a tool only by memory means this
+    run's PATH is narrower than the machine's, which makes some verdicts
+    statements about the run rather than about the machine.
     """
     argv = shlex.split(cmd)
     if not argv:
-        return cmd, None
+        return cmd, None, None
     found = shutil.which(argv[0])
     if found:
-        return cmd, found
+        return cmd, found, "path"
     seen = (remembered or {}).get(argv[0])
     if seen and pathlib.Path(seen).is_file() and os.access(seen, os.X_OK):
-        return shlex.join([seen, *argv[1:]]), seen
-    return cmd, None
+        return shlex.join([seen, *argv[1:]]), seen, "remembered"
+    return cmd, None, None
 
 
-def cmd_status(_argv):
+def cmd_status(argv):
+    """Report the machine as it is, and only record it when told to.
+
+    THE INVENTORY IS ACCEPTED, NOT ACCUMULATED. state/tooling.json used to be
+    rewritten by every run, so whatever the ambient environment happened to be
+    able to see became the committed truth. A session without the compositor
+    recorded hypr's version as "-"; a hook's PATH recorded dcg as "degraded".
+    Neither was a fact about this machine. `ms changes` had the right shape all
+    along — it reports freely and writes its mark only on `--record` — and this
+    command now matches it. Reporting is cheap and safe; accepting is a decision.
+    """
+    record = "--record" in argv
     state = load_state()
     targets = load_targets()
 
@@ -883,16 +909,18 @@ def cmd_status(_argv):
     print(f"\nBoundary\n  grants   {'':<12} {label}")
 
     tools = read_tool_checks()
-    remembered = {}
+    prev = {}
     if TOOLSTATE.exists():
         try:
             prev = json.loads(TOOLSTATE.read_text()).get("tooling", {})
-            remembered = {v["binary"]: v["path"] for v in prev.values()
-                          if v.get("binary") and v.get("path")}
         except (json.JSONDecodeError, AttributeError, TypeError):
-            remembered = {}
+            prev = {}
+    if not isinstance(prev, dict):
+        prev = {}
+    remembered = {v["binary"]: v["path"] for v in prev.values()
+                  if isinstance(v, dict) and v.get("binary") and v.get("path")}
     observed = {}
-    unguarded, absent = [], []
+    unguarded, absent, carried, differs = [], [], [], []
     if tools:
         groups = {}
         for tool in tools:
@@ -900,26 +928,36 @@ def cmd_status(_argv):
         for group in sorted(groups):
             print(f"\n{group}")
             for tool in groups[group]:
-                version = "-"
+                was = prev.get(tool["name"]) or {}
+                if not isinstance(was, dict):
+                    was = {}
                 binary = (shlex.split(tool.get("version") or tool.get("check") or "") or [None])[0]
-                where = None
+                where, blind = None, False
+
+                # Every reading is either OBSERVED or NOT OBSERVED, and the two
+                # are never allowed to look alike. A version command that fails
+                # produced no reading at all; writing "-" over a known version
+                # would turn "I could not look" into "there is nothing there".
+                version, seen_version = "-", False
                 if tool.get("version"):
-                    cmd, where = resolve_tool_cmd(tool["version"], remembered)
+                    cmd, where, via = resolve_tool_cmd(tool["version"], remembered)
+                    blind = blind or via == "remembered"
                     rc, out = run(cmd)
                     if rc == 0 and out:
-                        version = out.splitlines()[0].strip()
+                        version, seen_version = out.splitlines()[0].strip(), True
                         # Optional: pull the version out of a chattier line.
                         # Explicit in the record — ms never guesses the shape.
                         if tool.get("version_re"):
                             m = re.search(tool["version_re"], version)
                             version = m.group(1) if m and m.groups() else version
-                verdict, rc = "unknown", None
+                verdict, seen_verdict, rc = "unknown", False, None
                 if tool.get("check"):
-                    cmd, w2 = resolve_tool_cmd(tool["check"], remembered)
+                    cmd, w2, via = resolve_tool_cmd(tool["check"], remembered)
                     where = where or w2
+                    blind = blind or via == "remembered"
                     rc, _ = run(cmd)
                     if rc == 0:
-                        verdict = tool.get("ok", "ok")
+                        verdict, seen_verdict = tool.get("ok", "ok"), True
                     elif rc is None:
                         # The command could not be executed at all — the tool is
                         # absent, which is a different fact from its check failing.
@@ -931,36 +969,91 @@ def cmd_status(_argv):
                         # a record and tolerating its absence would make the record
                         # a description of the past rather than a statement about
                         # the machine. Remove the record to stop wanting the tool.
-                        verdict = tool.get("missing", "unknown")
+                        verdict, seen_verdict = tool.get("missing", "unknown"), True
                         absent.append(tool["name"])
                     else:
                         verdict = tool.get("fail", "not configured")
+                        # A FAILING CHECK IS ONLY A FACT ABOUT THE MACHINE IF THIS
+                        # RUN COULD SEE THE MACHINE AS AN ORDINARY SESSION DOES.
+                        # When a command had to be found at its remembered path,
+                        # PATH here is narrower than PATH there, and a check that
+                        # asks a question about PATH answers about the run instead.
+                        # `dcg doctor --strict` does exactly that: under a hook's
+                        # PATH it prints "binary in PATH... NOT FOUND" and exits 1
+                        # while dcg is installed and working. Recording that as
+                        # "degraded" files a fact about the environment under the
+                        # machine's name.
+                        seen_verdict = not blind
 
                 # A harness that is present but not covered by the command guard is a
                 # louder problem than anything else on this line, so it fails the run.
                 # Absent tools are skipped: what is not installed cannot be unguarded.
-                guarded = None
+                # An unobserved guard is not an unguarded one, so a lean run reports
+                # neither — it says nothing it cannot stand behind.
+                guarded, seen_guarded = None, False
                 if tool.get("wiring") and rc is not None:
-                    guarded = run(resolve_tool_cmd(tool["wiring"], remembered)[0])[0] == 0
-                    if not guarded:
+                    wcmd, _, wvia = resolve_tool_cmd(tool["wiring"], remembered)
+                    guarded = run(wcmd)[0] == 0
+                    seen_guarded = guarded or wvia != "remembered"
+                    if not guarded and seen_guarded:
                         unguarded.append(tool["name"])
 
+                # What this run could not see keeps what the record last saw, and
+                # says so on the line rather than passing it off as fresh.
+                if not seen_version and was.get("version"):
+                    version = was["version"]
+                if not seen_verdict and was.get("status"):
+                    verdict = was["status"]
+                if not seen_guarded and "guarded" in was:
+                    guarded = was["guarded"]
+                    seen_guarded = False
+                unseen = [n for n, seen in (("version", seen_version or not tool.get("version")),
+                                            ("status", seen_verdict or not tool.get("check")),
+                                            ("wiring", seen_guarded or not tool.get("wiring")))
+                          if not seen]
+                if unseen:
+                    carried.append(f"{tool['name']} ({', '.join(unseen)})")
+
                 suffix = "" if guarded is not False else "   ** UNGUARDED **"
-                print(f"  {tool['name']:<8} {version:<12} {verdict}{suffix}")
-                observed[tool["name"]] = {"version": version, "status": verdict}
+                note = "   (not observed this run; last seen)" if unseen else ""
+                print(f"  {tool['name']:<8} {version:<12} {verdict}{suffix}{note}")
+                rec = {"version": version, "status": verdict}
                 # Remember where this tool was found, so a later run under a
                 # narrower PATH can still reach it. Only recorded when actually
-                # resolved: a guess would defeat the point.
+                # resolved: a guess would defeat the point. A run that resolved
+                # nothing keeps the path the record already holds, for the same
+                # reason it keeps the verdict.
                 if binary and where:
-                    observed[tool["name"]]["binary"] = binary
-                    observed[tool["name"]]["path"] = where
+                    rec["binary"], rec["path"] = binary, where
+                elif was.get("binary") and was.get("path"):
+                    rec["binary"], rec["path"] = was["binary"], was["path"]
                 if guarded is not None:
-                    observed[tool["name"]]["guarded"] = guarded
+                    rec["guarded"] = guarded
+                observed[tool["name"]] = rec
+                if was and rec != was:
+                    differs.append(tool["name"])
     else:
         print("\n(no canonical/tooling records yet; nothing to verify)")
 
-    write_atomic(TOOLSTATE, (json.dumps(
-        {"schema": 1, "tooling": observed}, indent=2, sort_keys=True) + "\n").encode())
+    if carried:
+        print(f"\n{len(carried)} reading(s) this run could not take: "
+              f"{', '.join(carried)}.")
+        print("Shown from the record instead. Nothing here overwrites it.")
+
+    # First run has no record to protect and no remembered paths to offer, so it
+    # writes. Every run after that records only when asked. A reading that differs
+    # is reported, never silently accepted, and it does not change the exit code:
+    # this command already exits non-zero for the machine being wrong, and a
+    # harness that updated itself overnight is not the machine being wrong.
+    if observed and (record or not TOOLSTATE.exists()):
+        write_atomic(TOOLSTATE, (json.dumps(
+            {"schema": 1, "tooling": observed}, indent=2, sort_keys=True) + "\n").encode())
+        if differs and record:
+            print(f"\nrecorded: {', '.join(sorted(differs))}")
+    elif differs:
+        print(f"\n{len(differs)} reading(s) differ from the recorded inventory: "
+              f"{', '.join(sorted(differs))}.", file=sys.stderr)
+        print("Accept them with 'ms status --record'.", file=sys.stderr)
 
     if not intact:
         print("\nThe authority boundary is compromised. Grants decide what may run",
