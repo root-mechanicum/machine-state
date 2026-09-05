@@ -5,8 +5,9 @@
 Games client. The delivery mechanism for Valve's store, its Proton compatibility layer, and the
 library of third-party software that comes with both.
 
-Installed 2026-09-05. The record was written first and this line added after, which is the order
-`machine-state-t0u.4` planned and the order that found `machine-state-q4r`.
+Installed 2026-09-05, first launched and signed in by the user the same day. The record was written
+first and these lines added after, which is the order `machine-state-t0u.4` planned and the order
+that found `machine-state-q4r`.
 
 ## Role
 
@@ -92,10 +93,18 @@ missing    = "not installed"
 ```
 
 **What this check does not cover, stated plainly.** It verifies the 50 packaged files of the
-19.53 MiB launcher. It says
-nothing about the tens or hundreds of gigabytes Steam will place under `~/.local/share/Steam`, none
-of which any package owns. Reporting `files intact` for this record is a true statement about a
-small fraction of what Steam is on this machine, and it should never be read as more than that.
+19.53 MiB launcher. It says nothing about the tens or hundreds of gigabytes Steam will place under
+`~/.local/share/Steam`, none of which any package owns. Reporting `files intact` for this record is
+a true statement about a small fraction of what Steam is on this machine, and it should never be
+read as more than that.
+
+**Demonstrated within the hour, and this is the useful part of the record.** The first launch pulled
+roughly 2 GiB of Steam's own runtime — `/home` went from 938 GiB free to 936 GiB. `ms changes`
+reported *nothing changed*. `ms status` reported *files intact*. Both are correct: the content is
+unpackaged, so no package database knows it exists, and the integrity check covers 50 files that did
+not move. The substrate is not blind here by accident or by defect — it is blind by the boundary
+this record draws, and the distance between "2 GiB arrived" and "nothing changed" is exactly the
+size of that boundary. A green line for this record means the launcher is intact and nothing more.
 
 **Falsifiability, and a gap this record found.**
 
