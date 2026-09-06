@@ -83,10 +83,40 @@ every context the CLI runs in, agent sessions included; a context that missed it
 different store, silently. The third option, `unsafe_file`, writes the session to disk in the clear
 and is **refused**.
 
-**This depends on `machine-state-t0u.10`, and until that lands there is no store to write to.**
-Measured 2026-09-05: `org.freedesktop.secrets` is not activatable on this machine, so
-`proton-drive auth login` has nowhere to put a session. The CLI is installed and verified; it is not
-authenticated, and cannot be until a Secret Service exists.
+**Authenticated 2026-09-06, and the session is where this record said it would be.** That paragraph
+previously read: `org.freedesktop.secrets` is not activatable on this machine, so `auth login` has
+nowhere to put a session, and the CLI cannot be authenticated until one exists. True on 2026-09-05,
+settled by `machine-state-t0u.10`, and closed by `machine-state-t0u.13`.
+
+The item, read back off the bus rather than assumed:
+
+| | |
+| --- | --- |
+| Collection | `login` — the keyring `pam_gnome_keyring` created, not `Default_keyring` |
+| Label | `ch.proton.drive/drive-sdk-cli/auth-session` |
+| Attributes | `service=ch.proton.drive/drive-sdk-cli`, `account=auth-session`, `xdg:schema=com.oven-sh.bun.Secret` |
+
+**That schema is worth noticing: `com.oven-sh.bun.Secret`.** The credential is written through *Bun's*
+secrets API, not through libsecret directly — the same embedded runtime that makes the binary 112
+MiB. It means the storage behaviour belongs to Bun, and a future Bun change can move it without
+Proton changing anything.
+
+Demonstrated the same day: `proton-drive filesystem list /` returns the account's real top level —
+`/my-files`, `/devices`, `/shared-by-me`, `/shared-with-me`, `/trash`, `/albums`, `/photos`,
+`/photos-shared-by-me`, `/photos-shared-with-me`, `/photos-trash` — exit `0`. Before the login the
+same command printed `You need to login first` and exited `1`, promptly and without prompting.
+
+**A LOCKED STORE PROMPTS; IT DOES NOT LIE.** This was the open worry, and it was tested rather than
+assumed: the login collection was locked again over D-Bus (`Secret.Service.Lock`) and the same
+command re-run. It raised a visible `Unlock Login Keyring` prompt and WAITED — it did not fall back
+to `You need to login first`, which would have made a locked keyring indistinguishable from a lost
+session. Answering the prompt completed the listing, exit `0`.
+
+The cost of that correctness is a command that blocks until someone answers. On this machine the
+login keyring is not reliably unlocked at boot (`machine-state-t0u.11`), and an unanswered gcr prompt
+is not withdrawn when its client is killed (`machine-state-jw9`). **Anything that runs `proton-drive`
+unattended must use a timeout and must treat a timeout as "the store was locked", not as an error
+from Drive.**
 
 **The Drive session is re-derivable, which is why a keychain is the right weight for it.** Lose it
 and `auth login` regenerates it. Durable, portable, backed-up storage is for secrets that cannot be
