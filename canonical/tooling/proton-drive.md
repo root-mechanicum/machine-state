@@ -136,6 +136,58 @@ typed at the command line. An agent cannot complete it and should not try.
 data and cache directories (`$PROTON_DRIVE_CACHE_DIR` if set, otherwise the XDG-standard locations).
 Then delete this record, which is how this repository stops wanting a tool.
 
+## The local mirror
+
+**`~/Drive/my-files` is remote `/my-files`, and one local directory maps one remote root.** That
+shape is deliberate: `/photos` is going to Immich (`machine-state-t0u.5` territory, `immich-go` is
+packaged and the server wants Docker) and will need a staging directory with a pipeline behind it,
+not a plain mirror. Keeping the roots separate now means nothing has to be renamed then.
+`machine-state-t0u.15`.
+
+**It is a mirror by command. It is not a sync, and it never becomes one.** This CLI has no daemon, no
+watcher and no memory of what it saw last, so a scheduled `download` is a one-way copy: it cannot
+tell *deleted here* from *added there*. A local file can be stale with nothing on screen to say so —
+Dolphin shows the tree under Home as an ordinary folder, with no emblems, no status column and no
+badge, because nothing is watching it. Deleting a file here does not touch the Drive; editing one
+does not push.
+
+**Two named modes, and the strategy flag is never left off.** `download` and `upload` both *prompt*
+when no conflict strategy is given, and on this machine an unanswered `gcr` prompt hangs its caller
+and is not withdrawn when that caller dies (`machine-state-jw9`).
+
+| Mode | Command | Meaning |
+| --- | --- | --- |
+| stage | `download -f skip -d merge` | never overwrites a local file |
+| refresh | `download -f remove -d merge` | remote wins, deliberately |
+| push | `upload -f create-new-revision -d merge` | keeps the remote history rather than replacing it |
+
+`upload` also offers `replace`, which **trashes the remote copy** before uploading the local one. It
+is not used here: `create-new-revision` keeps a revision, and `replace` throws the remote version
+away on the strength of a local file whose freshness nothing has established.
+
+**An allowlist, not a denylist, and it is empty today.** Nothing is pulled unless it is named here.
+`/my-files` contains a folder called `ssh` and a file called `Tesla Backup Passcodes`; a blanket
+mirror would put those on this disk in the clear, and secrets management is a recorded non-goal
+(`SUBSTRATE.md` §9). A denylist would include each new sensitive folder by default until somebody
+remembered to exclude it. **Excluded even if the allowlist grows:** `/my-files/ssh`, and any file
+whose contents are a credential.
+
+The repository records the convention and nothing about the contents: no projection, no backup, no
+index, no file list.
+
+**MODIFICATION TIMES ARE NOT PRESERVED, measured 2026-09-06 and not inferred.** A 67-byte file
+uploaded at `13:48:58Z` and downloaded back reported `modificationTime 2026-09-06T13:48:58.000Z` on
+the server and landed locally with an mtime of `14:49:18` — the moment it was written. So **mtime
+cannot decide which side is newer**, with this client either. rclone's Proton Drive backend is
+documented as not supporting modification times; this is the same limit reached from the other
+direction, and it constrains any future sync design regardless of which engine wins.
+
+**The round trip is proven, both ways, in one pass.** A 67-byte probe was uploaded to `/my-files`,
+confirmed server-side with `filesystem info` (`type: file`, `mediaType: text/plain;charset=utf-8`,
+`directRole: admin`), downloaded into `~/Drive/my-files`, compared byte-for-byte against the original
+— identical — and then trashed. It left `/my-files` and appeared in `/trash`, which is where a trashed
+file is supposed to be and is not the same as gone.
+
 ## Verification
 
 `help` prints the command surface and exits `0`. It is the only command that touches neither the
