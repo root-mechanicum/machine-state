@@ -56,8 +56,8 @@ fail       = "files altered or missing"
 missing    = "not installed"
 ```
 
-**Falsifiability, stated exactly rather than assumed.** Half of it is proven and half is not, and
-the difference matters more than a tidy claim would.
+**Falsifiability, stated exactly rather than assumed.** Both halves are proven now; one of them was
+recorded as unproven for three days first, and the way it was eventually closed is the useful part.
 
 Proven 2026-09-03: `pacman -Qkk` on an absent package exits 1.
 
@@ -74,9 +74,34 @@ inference was not. `canonical/tooling/steam.md` found it, by being written befor
 cannot separate, so the record states which command answers which instead of leaving `ms` to guess.
 The probe failing means absent and fails the run; the check failing means altered.
 
-Not proven: the *altered file* path. Every file this package owns lives under `/usr` and is
-root-owned, so modifying one to watch the check fail needs a privilege this repository does not
-have. The check is trusted here on pacman's behaviour rather than on a local demonstration — which
-is a weaker footing than `SUBSTRATE.md` §5 asks for, and is recorded as such instead of being
-written up as though it had been tested. Anyone with a root shell can close this in ten seconds by
-appending a byte to a file in `/usr/lib/proton-pass` and re-running the check.
+**Proven 2026-09-06, and it needed no root after all.** This record previously said the *altered
+file* path was untestable here — every file the package owns is root-owned under `/usr` — and that
+only a root shell could close it. That was wrong about the means, not about the difficulty: the
+repository's own throwaway rule closes it, applied to a **mount namespace** instead of a directory.
+`unshare -r -m` gives a private mount table, and an altered copy of a packaged file can be
+bind-mounted over the original inside it. Nothing under `/usr` is written. Verified after every run:
+`27 total files, 0 altered files`, exit `0`, and the file's md5 unchanged (`machine-state-03m`).
+
+Inside the namespace, with an altered copy bind-mounted over
+`/usr/share/applications/proton-pass.desktop`:
+
+```
+warning: proton-pass: /usr/share/applications/proton-pass.desktop (Modification time mismatch)
+warning: proton-pass: /usr/share/applications/proton-pass.desktop (Size mismatch)
+warning: proton-pass: /usr/share/applications/proton-pass.desktop (SHA256 checksum mismatch)
+```
+
+With a byte-identical copy bind-mounted at the same path instead — `cp -p`, so the mtime survives —
+pacman reports **no warning for that file at all**. Same namespace, same path, only the bytes differ.
+That pair is the proof; either run alone would not be.
+
+**The summary line lies inside a namespace, and the warning kinds are what discriminate.**
+`unshare -r` maps this user to uid 0, so every file owned by real root appears as `nobody`: pacman
+reports `UID mismatch` and `GID mismatch` for all of them and ends with `27 altered files` in the
+CONTROL run too. The count is worthless here. A user-owned copy appears as `root:root` inside the
+namespace, which is exactly why the bind-mounted pristine file is the one that reports clean.
+
+Exit code `1` from both runs inside the namespace: a mismatch of any kind is enough, so the `fail`
+label is reachable for an altered file. That is what this record needed and could not previously
+show, and it closes the same gap for every record built on `pacman -Qkk` — `steam`, `proton-mail`,
+`gnome-keyring`.

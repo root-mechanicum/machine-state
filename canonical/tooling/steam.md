@@ -134,7 +134,10 @@ changed: `files altered or missing`, not counted absent, and the run passes. `te
 asserts 22 and 23 with a negative control that removes the probe and shows the assertion then misses
 the absent package.
 
-Not proven: the *altered file* path. Every file this package owns is root-owned under `/usr`, so
-modifying one to watch the check fail needs a privilege this repository does not have. Trusted on
-pacman's behaviour rather than a local demonstration, and recorded as such — the same weaker footing
-`proton-pass` records, closable in ten seconds by anyone with a root shell.
+Proven for `pacman -Qkk` generally, 2026-09-06, and not against this package: `machine-state-03m`
+demonstrated the *altered file* path in a mount namespace — `unshare -r -m`, an altered copy
+bind-mounted over one packaged file, nothing under `/usr` written — and `canonical/tooling/
+proton-pass.md` carries the method and the trap in its summary line. The check here is the same
+command against a different package, so what was previously trusted on pacman's behaviour is now
+trusted on a demonstration of that behaviour. Repeating it against `steam` would cost one bind mount
+and prove nothing new.
