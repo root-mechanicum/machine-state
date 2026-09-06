@@ -49,16 +49,34 @@ Whether it knows *this* device is the first question below, not an assumption.
 
 ## Intent
 
-**Root daemon, `ratbagd`.** Unit name, activation route and whether it enables itself on install are
-all **unverified** until it is on the machine. `asusctl` taught the lesson that makes this worth
-writing down: installing a device daemon is a configuration change, and that one silently moved the
-machine to a different power profile on first start.
+**Root daemon, `ratbagd`, D-Bus activated.** Installed 2026-09-06: the unit ships **`disabled`** and
+reads `inactive`, and the first `ratbagctl` call starts it — after which `systemctl is-active` says
+`active`. Same pattern as `asusd`, and it means "the unit is disabled" says nothing about whether the
+daemon runs. Unlike `asusd`, it changed nothing about the machine on first start.
 
-**The device support question, which is the whole risk.** The G203 comes in two generations —
-Prodigy (`046d:c084`) and LIGHTSYNC (`046d:c092`) — with different LED handling, and the attached
-device is the **LIGHTSYNC**. Whether `libratbag 0.18` drives its zones is **unverified and not
-assumed**. Three outcomes are possible and all are acceptable as findings: full LED control, DPI and
-buttons but no usable LEDs, or the device not recognised at all.
+**The device support question is answered, and the answer is partial — in the useful direction.**
+`libratbag 0.18`, built two years ago, recognises the newer LIGHTSYNC variant:
+
+```
+cheering-viscacha - Logitech G203 LIGHTSYNC Gaming Mouse
+             Model: usb:046d:c092:0
+ Number of Buttons: 6
+    Number of Leds: 1
+Number of Profiles: 1
+Profile 0: (disabled) (active)
+```
+
+**One LED for hardware that has three zones** — and setting it lit **all three**, confirmed by eye.
+So the single handle drives the whole device rather than one zone, which is the outcome that makes
+this useful. LED capabilities: `on`, `off`, `breathing`, `cycle`, depth `rgb`.
+
+Demonstrated the same day: keyboard and mouse set to the same `002040` with two explicit calls,
+`asusctl aura effect static -c 002040` and
+`ratbagctl cheering-viscacha led 0 set mode on color 002040`. That is what "sync" means here.
+
+**Not established: persistence.** The mouse reports `Profile 0: (disabled)`, which on Logitech
+hardware usually means the onboard profile is not in charge, so whether a colour survives an unplug
+or a reboot is unknown. It has not been tested and is not claimed.
 
 **Nothing here depends on it**, and no colour set through it is load-bearing.
 
