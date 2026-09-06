@@ -319,10 +319,15 @@ def main():
         # the cron/hook/timer case. Before the fix this reported beads, claude and
         # dcg as "recorded here but not installed" and failed the run.
         rc, out = box.ms("status")
-        wrong = [n for n in ("beads", "claude", "dcg")
-                 if f"{n}" in out and "recorded here but not installed" in out]
+        # The assertion is about THESE tools, not about the phrase. A record
+        # drafted before its install — the order this repository prefers, see
+        # canonical/tooling/asusctl.md — legitimately reports its tool absent,
+        # and that must not read as a PATH failure. Ask which names are missing.
+        absent_line = next((l for l in out.splitlines()
+                            if "recorded here but not installed" in l), "")
+        wrong = [n for n in ("beads", "claude", "dcg") if n in absent_line]
         check("18 tools outside PATH are found where they were last seen",
-              "recorded here but not installed" not in out,
+              not wrong,
               "an inventory that changes with the environment is not an inventory")
 
     # --- a run records only what it observed (machine-state-c4v) ------------
@@ -526,7 +531,12 @@ def main():
         # surface looks identical — which is precisely the state before an1: a
         # record described something installed instead of asserting it should be.
         ms = box.repo / "bin" / "ms"
-        patch(ms, "                        absent.append(tool[\"name\"])", "                        pass")
+        # BOTH sites, not one. bin/ms records absence in two places — the presence
+        # probe answering "absent", and the check being unable to run — at
+        # different indentation. Anchoring on the indented form disabled only the
+        # second, so the control passed while half the mechanism still worked, and
+        # went unnoticed until a record with a presence probe was absent.
+        patch(ms, "absent.append(tool[\"name\"])", "pass")
         rec = box.repo / "canonical" / "tooling" / "ghost.md"
         rec.write_text(GHOST)
         rc, out = box.ms("status")
