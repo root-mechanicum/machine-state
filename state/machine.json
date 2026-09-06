@@ -6,11 +6,15 @@
     },
     "claude": {
       "path": "/home/klaas/.local/bin/claude",
-      "sha": "4ae40dd1784e85753e742e09f267d29ecbb82890361ad3817d27560866d364a6"
+      "sha": "26d020351e8112f4006790f3cfce43b4c9df0c1bb1d0e542364d64151b81d5ba"
     },
     "dcg": {
       "path": "/home/klaas/.local/bin/dcg",
       "sha": "4bfb819433755b35c6c65d3b11bf07417565c5332a0368ada91edf3ff3446300"
+    },
+    "proton-drive": {
+      "path": "/home/klaas/.local/bin/proton-drive",
+      "sha": "9443d771719c892790db17e6f02ecd99ad7c53593329f3a67c77677dce577735"
     }
   },
   "packages": {
@@ -4515,6 +4519,6 @@
       "version": "3.1.1-1.1"
     }
   },
-  "recorded": "2026-09-05T15:28:06.053Z",
+  "recorded": "2026-09-06T08:02:41.184Z",
   "schema": 1
 }

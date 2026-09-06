@@ -12,7 +12,7 @@
       "guarded": true,
       "path": "/home/klaas/.local/bin/claude",
       "status": "integrated",
-      "version": "2.1.261"
+      "version": "2.1.263"
     },
     "codex": {
       "binary": "codex",
@@ -38,6 +38,12 @@
       "path": "/usr/bin/noctalia",
       "status": "config valid",
       "version": "5.0.0"
+    },
+    "proton-drive": {
+      "binary": "proton-drive",
+      "path": "/home/klaas/.local/bin/proton-drive",
+      "status": "responds",
+      "version": "0.8.0"
     },
     "proton-mail": {
       "binary": "pacman",
