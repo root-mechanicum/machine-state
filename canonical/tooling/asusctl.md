@@ -88,6 +88,63 @@ or removed `asusd` must never take the thermal work with it.
 **Uninstall:** `pacman -R asusctl` (plus `rog-control-center` if installed), then remove whatever
 configuration it created outside the package — path unverified — and delete this record.
 
+## Lighting, as the machine reports it
+
+Probed 2026-09-06 against the running daemon, with every visible change confirmed by eye and the
+whole state restored afterwards (`machine-state-t0u.8`).
+
+**`asusd` claims six interfaces on this board** — `Anime`, `Aura`, `AsusArmoury`, `Backlight`,
+`FanCurves`, `Platform` — and *not* `Slash`, the Zephyrus ledbar, which it reports as absent rather
+than pretending. `Platform` carries `ChargeControlEndThreshold` and `ThrottlePolicy`.
+
+**One Aura device, not two.** `/xyz/ljones/aura/19b6_2_4` is the N-KEY HID (`0b05:19b6`). The other
+ASUS HID on this machine, `0b05:193b` (ITE 8295), is **not claimed by asusd at all**.
+
+**The model is one colour, many surfaces, independent power** — which is not what the property names
+suggest and had to be established by testing.
+
+- `SupportedBasicModes` lists twelve effects; `SupportedBasicZones` is `0`. So a named effect paints
+  the whole keyboard at once.
+- Zone-specific effects are **refused**, demonstrated rather than assumed:
+  `NotSupported: AuraEffect { mode: Static, zone: Logo, … }` and the same for `BarLeft`.
+- `SupportedPowerZones` is `1, 2, 0`, each with `boot` / `awake` / `sleep` / `shutdown` flags.
+  Powering zone 2 off **darkened the front edge while the keyboard stayed lit**, and powering it back
+  on restored it. Confirmed by eye.
+
+So surfaces share a colour and differ only in whether they are lit. For anything that wants to *say*
+something with light, that is the constraint that matters.
+
+**Per-key is not missing from the hardware; named effects are the wrong abstraction.** The Aura
+interface also exposes `DirectAddressingRaw (aay)` — raw per-LED frames. Untested here, deliberately:
+it needs a key layout and its own careful pass. `machine-state-bru.11` is the reason to do it.
+
+**AniMe Vision is a genuinely separate device**, `/xyz/ljones/aura/anime`, with its own `Write`
+method and power rules: `OffWhenLidClosed`, `OffWhenSuspended`, `OffWhenUnplugged`, all `true`. Found
+already running — `EnableDisplay true`, brightness `2`, `BuiltinsEnabled true`, cycling
+`GlitchConstruction`, `BinaryBannerScroll`, `BannerSwipe`, `GlitchOut` — since the install, without
+anyone asking for it.
+
+**One flag, two properties, and it will bite a script.** `asusctl anime --brightness off` sets
+`Brightness 0` *and* flips `EnableDisplay` to `false`. Coming back needs both: `--enable-display true`
+then `--brightness med`. Dimming to nothing and switching off are the same command at the bottom of
+the range.
+
+**Turning every surface off:** `asusctl leds set off` for the keyboard and everything sharing its
+colour, `asusctl aura power <zone>` with no flags for a single surface, and
+`asusctl anime --brightness off` for the lid. Each was demonstrated independently.
+
+**ORDER MATTERS WHEN RESTORING, and getting it wrong is visible.** The restore here re-enabled the
+light bar's power zone, set the colour back to its original red while brightness was still `1`, and
+only then set brightness to off — producing a **short red burst on the edge**, spotted by the user. A
+sequence meant to leave no trace emitted a signal instead.
+
+Set brightness to zero **first**, then colour, then power zones. This is not cosmetic for
+`machine-state-bru.11`: a channel that flashes during its own cleanup is indistinguishable, to the
+person reading it, from a channel that means something.
+
+**Configuration lives in `/etc/asusd/`**, root-owned: `asusd.ron`, `aura_19b6.ron`, `anime.ron`,
+`fan_curves.ron`. Per-device files, so removing a device's config does not disturb the others.
+
 ## Verification
 
 **The draft was wrong, which is why it said so.** This record predicted `asusctl --version` would
