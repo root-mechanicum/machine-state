@@ -5,6 +5,17 @@
 Credential manager. Installed 2026-09-03 as the first half of `machine-state-t0u.1`, and as the
 first application installed through the substrate's own loop rather than by hand.
 
+**There is an official CLI, and this record's framing implied there was not.** `pass-cli`
+(`github.com/protonpass/pass-cli`, docs `protonpass.github.io/pass-cli`) lists and reads vaults and
+items, injects secrets into environment variables or template files through a
+`pass://vault/item/field` URI, and integrates SSH keys — on the paid tiers. It is **not installed
+here**, not in any configured repository, and distributed as a Proton-published binary or a
+`curl | bash` script. `machine-state-t0u.16` evaluates it.
+
+The claim it corrects was built from this machine's *desktop app* — no daemon, no D-Bus name, no
+command surface — which was accurate about the app and was never evidence about the product. Worth
+remembering the shape of that error: absence in one client is not absence in the vendor's offering.
+
 ## Role
 
 An application, not substrate. Nothing here depends on it, and removing it costs this repository
