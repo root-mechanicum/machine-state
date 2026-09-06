@@ -27,6 +27,12 @@
       "status": "active",
       "version": "0.13.9"
     },
+    "gnome-keyring": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "secret service answers",
+      "version": "50.0"
+    },
     "hypr": {
       "binary": "hyprctl",
       "path": "/usr/bin/hyprctl",

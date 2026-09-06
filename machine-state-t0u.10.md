@@ -1,12 +1,18 @@
 # Secrets on this machine — what landed, and what needs your root
 
-**Status, 2026-09-06.** Section 4 is **done**: the Proton Drive CLI is installed, verified and
-recorded — it needed no root and no keyring. Sections 2 and 3 are **still proposals** and authorize
-nothing: `gnome-keyring` is not installed, `/etc/pam.d/greetd` is untouched, and
-`canonical/tooling/gnome-keyring.md` does not exist at that path. Both need your `sudo`.
+**Status, 2026-09-06.** Sections 2 and 4 are **done**. `gnome-keyring 1:50.0-1.1` is installed, the
+Secret Service answers, and both tooling records are at their canonical paths;
+`machine-state-t0u.10` and `machine-state-t0u.1` are closed.
 
-Covers `machine-state-t0u.10` (the Secret Service), which `machine-state-t0u.1` (the Proton Drive
-CLI) depends on for authentication only.
+**Section 3 — the PAM change — is still a proposal and has not been applied.** `/etc/pam.d/greetd` is
+untouched. It is optional: without it the keyring prompts once per session.
+
+Two corrections this document earned by being checked against the machine rather than trusted. The
+falsifiability control proposed in §2 — masking the systemd socket unit — **does not work**:
+activation is by D-Bus and both systemd units are inactive while the service answers, so that control
+would have passed while disabling nothing. And the `version_re` in the drafted record would have
+reported the pacman **epoch** (`1`) as the version instead of `50.0`. Both are fixed in
+`canonical/tooling/gnome-keyring.md`, which supersedes §2 below.
 
 ---
 
