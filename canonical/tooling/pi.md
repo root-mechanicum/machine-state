@@ -17,6 +17,11 @@ versioned `package.json` and `package-lock.json` are installed with `npm ci --ig
 The canonical model configuration belongs at `~/.pi/agent/models.json`; it routes the `vllm`
 provider to `http://localhost:8000/v1` and selects `RedHatAI/Qwen3.8-27B-INT4`.
 
+The current Pi-managed extensions are `pi-mono-context`, `pi-mono-context-guard`,
+`pi-mono-multi-edit`, and `pi-mono-web-search`. Pi owns their package manifest and install
+directory under `~/.pi/agent/npm`; this record documents the intended set without projecting over
+Pi's package-manager state.
+
 ## Requirements
 
 * Pi 1.3.0 or a later managed release.
