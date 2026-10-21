@@ -20,7 +20,7 @@ vLLM nor a meaningful machine-state path. Keep a separate launch wrapper and env
 `~/.local/share/vllm-qwen38` so the model cache can be reclaimed independently.
 
 The first launch should use the Red Hat recipe's parser/tool flags, one request at a time, and a
-conservative context limit such as 16K or 32K. Increase context only after observing `nvidia-smi`
+32K context is the current target; increase it only after observing `nvidia-smi`
 and a real request. Do not download the checkpoint until the user explicitly approves the model
 download and the NVIDIA device is visible to the process.
 
@@ -29,7 +29,7 @@ The initial launch shape is:
 ```sh
 vllm serve RedHatAI/Qwen3.8-27B-INT4 \
   --tensor-parallel-size 1 \
-  --max-model-len 16384 \
+  --max-model-len 32768 \
   --max-num-seqs 1 \
   --reasoning-parser qwen3 \
   --enable-auto-tool-choice \

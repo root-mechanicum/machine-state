@@ -11,7 +11,7 @@
           "name": "Qwen3.8 27B INT4",
           "reasoning": true,
           "input": ["text", "image"],
-          "contextWindow": 16384,
+          "contextWindow": 32768,
           "maxTokens": 4096
         }
       ]

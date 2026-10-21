@@ -41,8 +41,8 @@
     "/home/klaas/.config/systemd/user/vllm-qwen38.service": {
       "adapter": "vllm",
       "kind": "render",
-      "projected_at": "2026-10-21T15:07:42.036Z",
-      "sha": "f1af5aa4602b527de6208a7a1cfc2f24e59729be42e5531001c6a1c701ef2d06",
+      "projected_at": "2026-10-21T15:47:15.563Z",
+      "sha": "348d2602c3d7c80e670e80a96cff6db22bb93f4f9a4fa5aac1df21237ddb5d99",
       "sources": [
         "canonical/vllm/vllm-qwen38.service"
       ]
@@ -70,8 +70,8 @@
     "/home/klaas/.pi/agent/models.json": {
       "adapter": "pi",
       "kind": "render",
-      "projected_at": "2026-10-21T12:53:40.329Z",
-      "sha": "187b1a48ed831ed61f77121a6c075cc91181f24575fc6971e77a5fb5c58bc70b",
+      "projected_at": "2026-10-21T15:47:15.562Z",
+      "sha": "0c7b73b9c1ea4d9ec635de79d3c3e1e33e66aff1b1326f9ab5c0824be3518103",
       "sources": [
         "canonical/pi/models.json"
       ]
