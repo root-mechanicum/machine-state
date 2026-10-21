@@ -1,0 +1,5 @@
+# An on-demand user service. Projection does not start or enable it.
+[[target]]
+kind = "render"
+path = "~/.config/systemd/user/vllm-qwen38.service"
+sources = ["canonical/vllm/vllm-qwen38.service"]

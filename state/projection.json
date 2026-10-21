@@ -38,6 +38,50 @@
         "canonical/desktop/hypr/require.lua"
       ]
     },
+    "/home/klaas/.config/systemd/user/vllm-qwen38.service": {
+      "adapter": "vllm",
+      "kind": "render",
+      "projected_at": "2026-10-21T15:07:42.036Z",
+      "sha": "f1af5aa4602b527de6208a7a1cfc2f24e59729be42e5531001c6a1c701ef2d06",
+      "sources": [
+        "canonical/vllm/vllm-qwen38.service"
+      ]
+    },
+    "/home/klaas/.pi/agent/AGENTS.md": {
+      "adapter": "pi",
+      "comment": "html",
+      "kind": "splice",
+      "marker": "MACHINE-STATE POLICY",
+      "projected_at": "2026-10-21T12:53:40.328Z",
+      "region_sha": "d8b3fadb8f8e5eeda249f9871c2d8d3f0d3751aad9c617d80139bbae663d8634",
+      "sources": [
+        "canonical/policy/00-generated.md",
+        "canonical/policy/10-substrate.md",
+        "canonical/policy/20-operating.md",
+        "canonical/policy/agents/pi-harness.md"
+      ]
+    },
+    "/home/klaas/.pi/agent/extensions/machine-state": {
+      "adapter": "pi",
+      "kind": "link",
+      "projected_at": "2026-10-21T12:53:40.329Z",
+      "source": "/home/klaas/src/machine-state/canonical/pi/extensions"
+    },
+    "/home/klaas/.pi/agent/models.json": {
+      "adapter": "pi",
+      "kind": "render",
+      "projected_at": "2026-10-21T12:53:40.329Z",
+      "sha": "187b1a48ed831ed61f77121a6c075cc91181f24575fc6971e77a5fb5c58bc70b",
+      "sources": [
+        "canonical/pi/models.json"
+      ]
+    },
+    "/home/klaas/.pi/agent/skills/machine-state": {
+      "adapter": "pi",
+      "kind": "link",
+      "projected_at": "2026-10-21T12:53:40.329Z",
+      "source": "/home/klaas/src/machine-state/canonical/skills/machine-state"
+    },
     "/home/klaas/src/machine-state/.beads/hooks/pre-push": {
       "adapter": "git",
       "comment": "hash",

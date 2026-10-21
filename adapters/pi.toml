@@ -1,0 +1,31 @@
+# Pi coding agent. See adapters/README.md for the schema and SUBSTRATE.md for the contract.
+
+# Pi owns this file as its agent configuration; we own only the marked policy region.
+[[target]]
+kind    = "splice"
+path    = "~/.pi/agent/AGENTS.md"
+marker  = "MACHINE-STATE POLICY"
+comment = "html"
+sources = [
+  "canonical/policy/00-generated.md",
+  "canonical/policy/10-substrate.md",
+  "canonical/policy/20-operating.md",
+  "canonical/policy/agents/pi-harness.md",
+]
+
+# Link the specific skill directory, leaving Pi's shared skills directory available to it.
+[[target]]
+kind    = "link"
+path    = "~/.pi/agent/skills/machine-state"
+sources = ["canonical/skills/machine-state"]
+
+[[target]]
+kind    = "link"
+path    = "~/.pi/agent/extensions/machine-state"
+sources = ["canonical/pi/extensions"]
+
+# Pi's model registry is a file we create from canonical configuration.
+[[target]]
+kind    = "render"
+path    = "~/.pi/agent/models.json"
+sources = ["canonical/pi/models.json"]

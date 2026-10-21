@@ -1,0 +1,20 @@
+{
+  "$schema": "https://pi.dev/schemas/models.schema.json",
+  "providers": {
+    "vllm": {
+      "baseUrl": "http://localhost:8000/v1",
+      "api": "openai-completions",
+      "apiKey": "vllm",
+      "models": [
+        {
+          "id": "RedHatAI/Qwen3.8-27B-INT4",
+          "name": "Qwen3.8 27B INT4",
+          "reasoning": true,
+          "input": ["text", "image"],
+          "contextWindow": 16384,
+          "maxTokens": 4096
+        }
+      ]
+    }
+  }
+}
