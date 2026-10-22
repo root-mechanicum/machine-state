@@ -21,6 +21,11 @@ sources = ["canonical/skills/machine-state"]
 
 [[target]]
 kind    = "link"
+path    = "~/.pi/agent/skills/local-pi"
+sources = ["canonical/skills/local-pi"]
+
+[[target]]
+kind    = "link"
 path    = "~/.pi/agent/extensions/machine-state"
 sources = ["canonical/pi/extensions"]
 

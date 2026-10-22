@@ -11,6 +11,12 @@
       "projected_at": "2026-09-02T20:43:39.358Z",
       "source": "/home/klaas/src/machine-state/canonical/skills/machine-state"
     },
+    "/home/klaas/.codex/skills/local-pi": {
+      "adapter": "codex",
+      "kind": "link",
+      "projected_at": "2026-10-22T13:27:30.148Z",
+      "source": "/home/klaas/src/machine-state/canonical/skills/local-pi"
+    },
     "/home/klaas/.codex/skills/machine-state": {
       "adapter": "codex",
       "kind": "link",
@@ -75,6 +81,12 @@
       "sources": [
         "canonical/pi/models.json"
       ]
+    },
+    "/home/klaas/.pi/agent/skills/local-pi": {
+      "adapter": "pi",
+      "kind": "link",
+      "projected_at": "2026-10-22T13:27:30.150Z",
+      "source": "/home/klaas/src/machine-state/canonical/skills/local-pi"
     },
     "/home/klaas/.pi/agent/skills/machine-state": {
       "adapter": "pi",
