@@ -20,8 +20,9 @@ vLLM nor a meaningful machine-state path. Keep a separate launch wrapper and env
 `~/.local/share/vllm-qwen38` so the model cache can be reclaimed independently.
 
 The first launch should use the Red Hat recipe's parser/tool flags, one request at a time, and a
-32K context is the current target; increase it only after observing `nvidia-smi`
-and a real request. Do not download the checkpoint until the user explicitly approves the model
+64K context is the current setting. It was verified on 2026-10-29: the KV cache holds 76,458
+tokens (1.17x one full request) and the GPU sits at about 21.7 of 24.4 GB. Raise it further only
+after observing `nvidia-smi` and a real request. Do not download the checkpoint until the user explicitly approves the model
 download and the NVIDIA device is visible to the process.
 
 The initial launch shape is:
@@ -35,6 +36,15 @@ vllm serve RedHatAI/Qwen3.8-27B-INT4 \
   --enable-auto-tool-choice \
   --tool-call-parser qwen3_xml
 ```
+
+## Lifecycle
+
+The service is enabled for `default.target` and starts at login, but only on AC power
+(`ConditionACPower=true`). It is the always-warm backend for the OS agent layer: scheduled agents
+and the per-window assistant need it available without a cold start, which takes roughly two
+minutes. The cost is about 22 GB of pinned VRAM and a dGPU that never suspends (about 8 W idle at
+P8); stop the unit by hand to free the GPU for other work, and start it by hand on battery.
+Socket activation with an idle-exit proxy was considered and rejected for that cold-start latency.
 
 ## Requirements
 

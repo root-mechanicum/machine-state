@@ -1,4 +1,5 @@
-# An on-demand user service. Projection does not start or enable it.
+# A user service that autostarts at login on AC power. Projection does not start or enable it;
+# enabling it is a separate, explicit step.
 [[target]]
 kind = "render"
 path = "~/.config/systemd/user/vllm-qwen38.service"
