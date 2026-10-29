@@ -11,3 +11,13 @@ sources = ["canonical/events/cap-time-daily.service"]
 kind = "render"
 path = "~/.config/systemd/user/cap-time-daily.timer"
 sources = ["canonical/events/cap-time-daily.timer"]
+
+[[target]]
+kind = "render"
+path = "~/.config/systemd/user/cap-time-hourly.service"
+sources = ["canonical/events/cap-time-hourly.service"]
+
+[[target]]
+kind = "render"
+path = "~/.config/systemd/user/cap-time-hourly.timer"
+sources = ["canonical/events/cap-time-hourly.timer"]

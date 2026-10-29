@@ -62,6 +62,24 @@
         "canonical/events/cap-time-daily.timer"
       ]
     },
+    "/home/klaas/.config/systemd/user/cap-time-hourly.service": {
+      "adapter": "events",
+      "kind": "render",
+      "projected_at": "2026-10-29T15:52:43.200Z",
+      "sha": "a2ae391b04b3f82ab45a9f0e2ee22e3d9871ac9eed6b7cfb983dc6b5475a466d",
+      "sources": [
+        "canonical/events/cap-time-hourly.service"
+      ]
+    },
+    "/home/klaas/.config/systemd/user/cap-time-hourly.timer": {
+      "adapter": "events",
+      "kind": "render",
+      "projected_at": "2026-10-29T15:52:43.200Z",
+      "sha": "792db03ca60fb9d4bed4908cbf9d399febd8ec4b69e91e5db9b24a8f6c30f1e1",
+      "sources": [
+        "canonical/events/cap-time-hourly.timer"
+      ]
+    },
     "/home/klaas/.config/systemd/user/vllm-qwen38.service": {
       "adapter": "vllm",
       "kind": "render",
@@ -76,8 +94,8 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-10-21T12:53:40.328Z",
-      "region_sha": "d8b3fadb8f8e5eeda249f9871c2d8d3f0d3751aad9c617d80139bbae663d8634",
+      "projected_at": "2026-10-29T15:53:00.318Z",
+      "region_sha": "e7d937071bd28ccd4b925548ad7540a1d4a5b28c3a3617922da8d0bb9afd9941",
       "sources": [
         "canonical/policy/00-generated.md",
         "canonical/policy/10-substrate.md",
@@ -128,8 +146,8 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-09-02T20:43:39.358Z",
-      "region_sha": "1322485d627f97342640dd064f821e71118df1dd253b9e43d1d97cef763e7ac5",
+      "projected_at": "2026-10-29T15:53:00.316Z",
+      "region_sha": "ffe8c7946cc74898c0667b43d45264d2bd56a31b3ebf7dc60f2f1f12d0e0ef1e",
       "sources": [
         "canonical/policy/00-generated.md",
         "canonical/policy/10-substrate.md",
@@ -142,8 +160,8 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-09-02T20:43:39.357Z",
-      "region_sha": "a5d981ebe02909a4eb8d79bc0bef84c292649b12bbc739e85fc45341dafc6fe4",
+      "projected_at": "2026-10-29T15:53:00.315Z",
+      "region_sha": "321e233455706b1b9830d1e53860976a2913c83ed2c201d9016bc01022d9d817",
       "sources": [
         "canonical/policy/00-generated.md",
         "canonical/policy/10-substrate.md",

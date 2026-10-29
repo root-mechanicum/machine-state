@@ -1,0 +1,7 @@
+[Unit]
+Description=Emit the time.hourly event (cap)
+
+[Service]
+Type=oneshot
+ExecStart=%h/src/machine-state/bin/cap emit time.hourly --source timer
+TimeoutStartSec=10min

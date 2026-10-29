@@ -150,6 +150,8 @@ def roles():
 
 VALID_CONSEQUENCE = {"observe", "report", "adjust", "commit"}
 
+HOSTNAME = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+
 
 def actions():
     """Declared actions, with malformed ones REJECTED rather than tolerated.
@@ -168,6 +170,10 @@ def actions():
         if c not in VALID_CONSEQUENCE:
             die(f"{where}: action {name!r} has unknown consequence {c!r}; "
                 f"expected one of {', '.join(sorted(VALID_CONSEQUENCE))}")
+        net = a.get("network", [])
+        if not isinstance(net, list) or not all(
+                isinstance(h, str) and HOSTNAME.match(h) for h in net):
+            die(f"{where}: action {name!r} network must be a list of host names, got {net!r}")
     return acts
 
 
@@ -742,6 +748,10 @@ def journal_errors(since="-24h"):
 def requires_journal_and_desktop():
     if not shutil.which("journalctl"):
         return False, "journalctl is not installed"
+    return requires_desktop()
+
+
+def requires_desktop():
     if not shutil.which("notify-send"):
         return False, "notify-send is not installed"
     if not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
@@ -813,7 +823,17 @@ def model_url():
     return url
 
 
+# The hosts the running action declared. Set around each provider call by
+# run_provider(); empty means loopback only. Declared in canonical/ and matched by
+# the grant, so a host reaches here only if a human granted it.
+ALLOWED_HOSTS = frozenset()
+
+
 def _http_json(url, body=None, timeout=10):
+    host = urllib.parse.urlparse(url).hostname
+    if host not in ("127.0.0.1", "localhost", "::1") and host not in ALLOWED_HOSTS:
+        raise PermissionError(f"{host!r} is not among the hosts this action declares "
+                              f"({', '.join(sorted(ALLOWED_HOSTS)) or 'loopback only'})")
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(url, data=data,
                                  headers={"Content-Type": "application/json"})
@@ -887,6 +907,73 @@ def do_digest():
     return plan, "ok"
 
 
+# ---------------------------------------------------------------- watches
+
+# CAP_HF_URL lets tests stand in a loopback server. It cannot widen anything:
+# the host still has to be loopback or one the action declared and was granted.
+HF_URL = "https://huggingface.co"
+
+
+def _watch_state(kind, *key):
+    h = re.sub(r"[^a-z0-9]+", "-", "-".join((kind,) + key).lower()).strip("-")
+    return INBOX.parent / "watch" / f"{h}.json"
+
+
+def _hf_matches(author, match):
+    base = os.environ.get("CAP_HF_URL", HF_URL).rstrip("/")
+    q = urllib.parse.urlencode({"author": author, "limit": 200, "sort": "createdAt"})
+    models = _http_json(f"{base}/api/models?{q}", timeout=60)   # newest first, verified
+    try:
+        rx = re.compile(match, re.I)
+    except re.error as exc:
+        raise ValueError(f"match {match!r} is not a valid pattern: {exc}")
+    return [m["modelId"] for m in models if rx.search(m.get("modelId", ""))]
+
+
+def plan_hf_watch(author, match):
+    state = _watch_state("hf", author, match)
+    seen = set(json.loads(state.read_text())) if state.exists() else set()
+    hits = _hf_matches(author, match)
+    new = [m for m in hits if m not in seen]
+    return {"branch": "notify" if new else "quiet", "new": new, "state": str(state),
+            "detail": (f"{len(new)} new {author} model(s) matching /{match}/: {', '.join(new)}"
+                       if new else f"nothing new from {author} matching /{match}/ "
+                                   f"({len(hits)} known match(es))")}
+
+
+def do_hf_watch(author, match):
+    """Tell the human about new matching models, then — only then — remember them.
+
+    Marking a model seen before the notification is delivered loses it for good
+    when the desktop is not answering; that was the bug in the hand-written
+    watch this replaced.
+    """
+    plan = plan_hf_watch(author, match)
+    if not plan["new"]:
+        return plan, "skipped"
+    new = plan["new"]
+    r = subprocess.run(["notify-send", "--app-name=cap", "--urgency=normal",
+                        f"New on Hugging Face: {author}", "\n".join(new)],
+                       capture_output=True, timeout=10)
+    if r.returncode != 0:
+        return plan, "failed"
+    INBOX.mkdir(parents=True, exist_ok=True)
+    note = INBOX / f"{now().replace(':', '')[:15]}-hf-{author.lower()}.md"
+    note.write_text(
+        "---\n"
+        f"action: huggingface.models.watch\nevent: {EVENT_ID or 'none'}\n"
+        f"author: {author}\nmatch: {match}\ngenerated: {now()}\n"
+        "---\n\n"
+        f"# New {author} models on Hugging Face\n\n"
+        + "".join(f"- [{m}](https://huggingface.co/{m})\n" for m in new))
+    state = pathlib.Path(plan["state"])
+    state.parent.mkdir(parents=True, exist_ok=True)
+    seen = set(json.loads(state.read_text())) if state.exists() else set()
+    state.write_text(json.dumps(sorted(seen | set(new))))
+    plan["outcome_detail"] = f"notified; wrote {note}"
+    return plan, "ok"
+
+
 # DECLARATIONS COMPOSE THE SYSTEM; IMPLEMENTATIONS EXTEND ITS ABILITIES.
 #
 # Roles, bindings, labels, previews and catalogue entries are pure data and need
@@ -902,6 +989,7 @@ PROVIDERS = {
     "desktop.window.list": (plan_list, do_list, requires_hyprland),
     "journal.errors.notify": (plan_errors_notify, do_errors_notify, requires_journal_and_desktop),
     "journal.digest": (plan_digest, do_digest, requires_model),
+    "huggingface.models.watch": (plan_hf_watch, do_hf_watch, requires_desktop),
 }
 
 
@@ -1004,8 +1092,9 @@ def grants():
     out = doc.get("grant", [])
     want = {"event", "action", "implementation", "class"}
     if not isinstance(out, list) or not all(
-            isinstance(g, dict) and want <= set(g) <= want | {"args"} for g in out):
-        return [], f"{GRANTS} is malformed; every [[grant]] needs exactly {', '.join(sorted(want))} (+ args)"
+            isinstance(g, dict) and want <= set(g) <= want | {"args", "network"} for g in out):
+        return [], (f"{GRANTS} is malformed; every [[grant]] needs exactly "
+                    f"{', '.join(sorted(want))} (+ args, network)")
     return out, None
 
 
@@ -1021,9 +1110,25 @@ def grant_for(binding, a, granted):
     for g in entries:
         if (g["event"] == binding["event"] and g["action"] == binding["action"]
                 and g["implementation"] == a.get("implementation")
-                and g["class"] == cls and g.get("args", {}) == binding.get("args", {})):
+                and g["class"] == cls and g.get("args", {}) == binding.get("args", {})
+                and sorted(g.get("network", [])) == sorted(a.get("network", []))):
             return True, None
     return False, f"no grant matches {binding['event']} -> {binding['action']} ({cls})"
+
+
+def run_provider(fn, a, args):
+    """Call a provider with the action's declared hosts, and only those, allowed.
+
+    `role` stays positional for the desktop providers written before keyword
+    arguments existed; everything else is passed by name.
+    """
+    global ALLOWED_HOSTS
+    ALLOWED_HOSTS = frozenset(a.get("network", []))
+    try:
+        rest = {k: v for k, v in args.items() if k != "role"}
+        return fn(*([args["role"]] if "role" in args else []), **rest)
+    finally:
+        ALLOWED_HOSTS = frozenset()
 
 
 # ---------------------------------------------------------------- commands
@@ -1173,7 +1278,7 @@ def cmd_propose(argv):
     if not available:
         return refuse(name, args, "propose", reason, "agent",
                       "unavailable" if implemented else "unimplemented")
-    plan = prov[0](*( [args["role"]] if "role" in args else [] ))
+    plan = run_provider(prov[0], a, args)
     print(f"  {name}")
     print(f"  branch : {plan['branch']}")
     print(f"  would  : {plan['detail']}")
@@ -1197,7 +1302,10 @@ def cmd_act(argv):
         return refuse(name, args, "act", reason, caller,
                       "unavailable" if implemented else "unimplemented")
     started = now()
-    plan, outcome = prov[1](*( [args["role"]] if "role" in args else [] ))
+    try:
+        plan, outcome = run_provider(prov[1], a, args)
+    except (OSError, ValueError, RuntimeError) as exc:   # incl. a refused host
+        return refuse(name, args, "act", f"{type(exc).__name__}: {exc}", caller, "failed")
     # CONVENTION, NOT ENFORCEMENT. Nothing above required a proposal, checked
     # the consequence class, or consulted a grant: this line is reached whether
     # the caller proposed or not. The convention is that a person pressing a key
@@ -1316,7 +1424,7 @@ def cmd_emit(argv):
             continue
         started = now()
         try:
-            plan, outcome = prov[1](*([args["role"]] if "role" in args else []))
+            plan, outcome = run_provider(prov[1], a, args)
         except Exception as exc:          # one response must not take down the rest
             failures += refuse(act, args, "event", f"{type(exc).__name__}: {exc}",
                                "event", "failed", event=EVENT_ID)

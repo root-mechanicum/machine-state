@@ -11,6 +11,8 @@
     loopback     -> the model endpoint cannot be moved off the machine
     quiet        -> a notification repeats only for a new kind of error
     inbox        -> notes are listed, shown, and marked read
+    watch        -> a new match notifies once; undelivered is not seen
+    network      -> hosts are declared, granted, and enforced
     envelope     -> malformed events are usage errors, not events
 
 Hermetic: a throwaway copy of the repository, stub journalctl and notify-send,
@@ -71,6 +73,20 @@ class = "report"
 """
 
 
+HF_FIXTURE = [{"modelId": "Qwen/Qwen4-27B"}, {"modelId": "Qwen/Qwen3.8-27B"},
+              {"modelId": "Qwen/Qwen-Image-2.1"}]
+
+GRANT_HF = """
+[[grant]]
+event = "time.hourly"
+action = "huggingface.models.watch"
+implementation = "huggingface.models.watch"
+class = "report"
+args = { author = "Qwen", match = "qwen-?4" }
+network = ["huggingface.co"]
+"""
+
+
 class Model(http.server.BaseHTTPRequestHandler):
     fail = False
 
@@ -83,6 +99,8 @@ class Model(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        if self.path.startswith("/api/models"):    # stands in for huggingface.co
+            return self._send(200, HF_FIXTURE)
         self._send(200, {"data": [{"id": "fake-model"}]})
 
     def do_POST(self):
@@ -128,15 +146,18 @@ class Box:
         stubs.mkdir()
         self.journal(JOURNAL_FIXTURE)
         (stubs / "journalctl").write_text(f'#!/bin/sh\ncat "{self.dir}/journal.jsonl"\n')
+        # Fails while notify.fail exists: a desktop that is not answering.
         (stubs / "notify-send").write_text(
-            f'#!/bin/sh\nprintf "%s\\n" "$*" >> "{self.dir}/notify.log"\n')
+            f'#!/bin/sh\n[ -e "{self.dir}/notify.fail" ] && exit 1\n'
+            f'printf "%s\\n" "$*" >> "{self.dir}/notify.log"\n')
         for f in stubs.iterdir():
             f.chmod(0o755)
         self.server = http.server.HTTPServer(("127.0.0.1", 0), Model)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.env = {"HOME": str(self.dir), "PATH": f"{stubs}:/usr/bin:/bin",
                     "DBUS_SESSION_BUS_ADDRESS": "unix:path=/nonexistent",
-                    "CAP_MODEL_URL": f"http://127.0.0.1:{self.server.server_port}/v1"}
+                    "CAP_MODEL_URL": f"http://127.0.0.1:{self.server.server_port}/v1",
+                    "CAP_HF_URL": f"http://127.0.0.1:{self.server.server_port}"}
         return self
 
     def __exit__(self, *_):
@@ -272,6 +293,53 @@ def case_inbox(b):
     return ok, "listed, shown, moved to read/"
 
 
+def _hf(b, **env):
+    rc, out = b.cap("emit", "time.hourly", "--source", "timer", **env)
+    w = [r for r in b.records() if r.get("action") == "huggingface.models.watch"]
+    return rc, out, w
+
+
+def case_watch(b):
+    rc1, _, _ = _hf(b)
+    first = b.notified()
+    rc2, _, w = _hf(b)
+    notes = [n for n in b.notes() if "-hf-" in n.name]
+    ok = (rc1 == 0 and rc2 == 0 and "Qwen/Qwen4-27B" in first
+          and "Qwen3.8" not in first and b.notified() == first
+          and [r.get("outcome") for r in w] == ["ok", "skipped"]
+          and len(notes) == 1 and "huggingface.co/Qwen/Qwen4-27B" in notes[0].read_text())
+    return ok, f"outcomes={[r.get('outcome') for r in w]}, notes={len(notes)}"
+
+
+def case_undelivered(b):
+    # The desktop is down when the model appears: it must not be marked seen.
+    (b.dir / "notify.fail").touch()
+    rc1, _, _ = _hf(b)
+    (b.dir / "notify.fail").unlink()
+    rc2, _, w = _hf(b)
+    ok = (rc1 == 1 and rc2 == 0 and "Qwen/Qwen4-27B" in b.notified()
+          and [r.get("outcome") for r in w] == ["failed", "ok"])
+    return ok, f"outcomes={[r.get('outcome') for r in w]}"
+
+
+def case_network_grant(b):
+    # The same grant without the network line: hosts are part of the authority.
+    p = b.dir / "etc-machine-state" / "grants.toml"
+    patch(p, 'network = ["huggingface.co"]\n', '')
+    rc, _, w = _hf(b)
+    ok = rc == 1 and len(w) == 1 and w[0].get("state") == "ungranted" and not b.notified()
+    return ok, f"state={w[0].get('state') if w else None}"
+
+
+def case_host(b):
+    # Granted for huggingface.co, pointed somewhere else: refused before connecting.
+    rc, _, w = _hf(b, CAP_HF_URL="http://example.invalid")
+    r = w[0] if w else {}
+    ok = (rc == 1 and r.get("state") == "failed"
+          and "not among the hosts" in r.get("reason", "") and not b.notified())
+    return ok, r.get("reason", "")[:70]
+
+
 def case_loopback(b):
     rc, out = b.cap("act", "journal.digest", CAP_MODEL_URL="http://example.invalid:9/v1")
     ok = rc == 2 and "not loopback" in out
@@ -306,6 +374,14 @@ def main():
         check("11 a repeat stays quiet; a new kind of error notifies", *case_quiet(b))
     with Box(grants=GRANT_BOTH) as b:
         check("12 the inbox lists, shows, and marks read", *case_inbox(b))
+    with Box(grants=GRANT_HF) as b:
+        check("13 a watch notifies a new match once, and notes it", *case_watch(b))
+    with Box(grants=GRANT_HF) as b:
+        check("14 an undelivered notification is not marked seen", *case_undelivered(b))
+    with Box(grants=GRANT_HF) as b:
+        check("15 a grant must name the action's network hosts", *case_network_grant(b))
+    with Box(grants=GRANT_HF) as b:
+        check("16 an undeclared host is refused before any connection", *case_host(b))
     with Box() as b:
         bad = [b.cap("emit", "Daily", "--source", "timer")[0],
                b.cap("emit", "time.daily")[0],
@@ -355,6 +431,21 @@ def main():
               '    new = groups\n    if not new:')
         ok, d = case_quiet(b)
         check("11n novelty check removed -> assertion 11 fails", not ok, d)
+    with Box(grants=GRANT_HF) as b:
+        patch(b.cap_path, '    if r.returncode != 0:\n        return plan, "failed"\n    INBOX.mkdir',
+              '    INBOX.mkdir')
+        ok, d = case_undelivered(b)
+        check("14n seen-before-delivered restored -> assertion 14 fails", not ok, d)
+    with Box(grants=GRANT_HF) as b:
+        patch(b.cap_path, '\n                and sorted(g.get("network", [])) == sorted(a.get("network", []))', '')
+        ok, d = case_network_grant(b)
+        check("15n network match removed -> assertion 15 fails", not ok, d)
+    with Box(grants=GRANT_HF) as b:
+        patch(b.cap_path,
+              '    if host not in ("127.0.0.1", "localhost", "::1") and host not in ALLOWED_HOSTS:',
+              '    if False:')
+        ok, d = case_host(b)
+        check("16n host check removed -> assertion 16 fails", not ok, d)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
