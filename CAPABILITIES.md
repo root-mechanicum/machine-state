@@ -1,6 +1,8 @@
 # CAPABILITIES.md
 
-**Status: design. Nothing here is implemented.** This is the design pass `machine-state-yxb`
+**Status: design, partly implemented.** `bin/cap` implements the event envelope, declared event
+bindings and grant-gated unattended runs for observe/report (`cap emit`, `tests/events.py`,
+2026-10-29); the rest is still design. This is the design pass `machine-state-yxb`
 asked for — the capability model, event semantics, and authority boundaries for reactive and
 scheduled operation on this workstation.
 

@@ -66,6 +66,11 @@ class Box:
                 shutil.copytree(src, dst, symlinks=True)
             elif src.exists():
                 shutil.copy2(src, dst)
+        # The machine's real grants must not reach the copy: once /etc held
+        # some, the catalogue began reporting this machine instead of the case.
+        patch(self.repo / "bin" / "cap",
+              'GRANTS = pathlib.Path("/etc/machine-state/grants.toml")',
+              f'GRANTS = pathlib.Path("{self.dir}/no-grants/grants.toml")')
         return self
 
     def __exit__(self, *_):

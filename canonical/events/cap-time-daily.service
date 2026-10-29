@@ -1,0 +1,11 @@
+[Unit]
+Description=Emit the time.daily event (cap)
+# Ordering only: if the model is down or still loading, journal.digest is refused
+# as unavailable and the other responses still run. Never Wants= it — vLLM
+# decides for itself whether to start (AC power only).
+After=vllm-qwen38.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/src/machine-state/bin/cap emit time.daily --source timer
+TimeoutStartSec=15min

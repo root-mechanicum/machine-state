@@ -44,11 +44,29 @@
         "canonical/desktop/hypr/require.lua"
       ]
     },
+    "/home/klaas/.config/systemd/user/cap-time-daily.service": {
+      "adapter": "events",
+      "kind": "render",
+      "projected_at": "2026-10-29T15:29:18.792Z",
+      "sha": "da9a89976e384407a23700ec8706cafdec2d49810f76abdc1a0d18a0c832f43d",
+      "sources": [
+        "canonical/events/cap-time-daily.service"
+      ]
+    },
+    "/home/klaas/.config/systemd/user/cap-time-daily.timer": {
+      "adapter": "events",
+      "kind": "render",
+      "projected_at": "2026-10-29T15:29:18.792Z",
+      "sha": "b6a3d7cf10dd57cf7de5fe423d3e39304406737c16b09eaff1ed5d3c5f5fe954",
+      "sources": [
+        "canonical/events/cap-time-daily.timer"
+      ]
+    },
     "/home/klaas/.config/systemd/user/vllm-qwen38.service": {
       "adapter": "vllm",
       "kind": "render",
-      "projected_at": "2026-10-21T15:47:15.563Z",
-      "sha": "348d2602c3d7c80e670e80a96cff6db22bb93f4f9a4fa5aac1df21237ddb5d99",
+      "projected_at": "2026-10-29T14:59:27.344Z",
+      "sha": "2139cad6161b0b880a473bd24f2b54f4d2c067fdf33c07a8b17dd0748a05806b",
       "sources": [
         "canonical/vllm/vllm-qwen38.service"
       ]

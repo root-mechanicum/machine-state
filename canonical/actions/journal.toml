@@ -1,0 +1,19 @@
+# Responses to the journal. Two implementations of the same concern on purpose:
+# one is a plain command, one asks the local model. An agent is a kind of
+# response, not the only one, and the event path must not care which it runs.
+
+[action."journal.errors.notify"]
+implementation = "journal.errors.notify"
+label       = "Notify how many journal errors the last day held"
+category    = "Journal"
+mutating    = false
+consequence = "report"
+
+[action."journal.digest"]
+implementation = "journal.digest"
+label       = "Explain the last day's journal errors in an inbox note"
+category    = "Journal"
+mutating    = false
+consequence = "report"
+# Reads the journal and writes one note under ~/.local/state/agents/inbox. The
+# errors go to the local model on 127.0.0.1 and nowhere else.

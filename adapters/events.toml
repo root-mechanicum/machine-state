@@ -1,0 +1,13 @@
+# Timer event sources for bin/cap. A timer is just another event: the unit only
+# runs `cap emit`; what responds is declared in canonical/bindings/events.toml and
+# granted in /etc/machine-state/grants.toml. Projection does not enable the
+# timer; enabling it is a separate, explicit step.
+[[target]]
+kind = "render"
+path = "~/.config/systemd/user/cap-time-daily.service"
+sources = ["canonical/events/cap-time-daily.service"]
+
+[[target]]
+kind = "render"
+path = "~/.config/systemd/user/cap-time-daily.timer"
+sources = ["canonical/events/cap-time-daily.timer"]

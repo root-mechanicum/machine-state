@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily time.daily event for cap (08:00)
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+# A laptop that was off at 08:00 catches up at the next login instead of skipping the day.
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

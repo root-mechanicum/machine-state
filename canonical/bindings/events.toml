@@ -1,0 +1,14 @@
+# Event bindings: event -> action. Declared, never discovered — an event with no
+# binding here is recorded and nothing runs.
+#
+# One event, many responses: each binding is one response, run in the order
+# written, independently. A binding authorises nothing by itself; a root-owned
+# grant in /etc/machine-state/grants.toml must name it too (see bin/cap).
+
+[[event_binding]]
+event  = "time.daily"
+action = "journal.errors.notify"
+
+[[event_binding]]
+event  = "time.daily"
+action = "journal.digest"
