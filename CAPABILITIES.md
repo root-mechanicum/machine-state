@@ -206,6 +206,16 @@ it cannot read makes the surface *more* confident and *less* correct at the same
 
 ## 6. Boundaries
 
+> **Grant shape, decided 2026-10-29: grant the edges, not the responses.** The root-owned file
+> names which **events** may start unattended work (`trusted`: payload-free, e.g. `time.*`;
+> `untrusted`: foreign text, e.g. mail) and which **channels** unattended work may touch
+> (`journal`, `model:local`, `notify`, `inbox`, `net:<host>`), under a class **ceiling**. Every
+> action declares its channels and `cap` enforces them on use. A new binding, topic or
+> channel-compatible action needs no sudo; a new event source or channel does. Untrusted events
+> never reach `net:` channels — foreign text plus an outbound channel is how prompt injection
+> exfiltrates. The first version granted each binding exactly, which made every new topic a
+> sudo edit; that cost fell on the wrong thing.
+
 **Information may flow up from `canonical/`. Authority may never.**
 
 This is the rule that keeps the broker honest, and it is not hypothetical: `canonical/` is

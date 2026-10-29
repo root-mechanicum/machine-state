@@ -12,7 +12,9 @@
     quiet        -> a notification repeats only for a new kind of error
     inbox        -> notes are listed, shown, and marked read
     watch        -> a new match notifies once; undelivered is not seen
-    network      -> hosts are declared, granted, and enforced
+    channels     -> declared by actions, granted at the edge, enforced on use
+    events       -> only granted events start work; trusted ones carry no payload;
+                    untrusted ones never reach the network
     envelope     -> malformed events are usage errors, not events
 
 Hermetic: a throwaway copy of the repository, stub journalctl and notify-send,
@@ -58,33 +60,26 @@ JOURNAL_FIXTURE = [
     {"SYSLOG_IDENTIFIER": "nm-dispatcher", "MESSAGE": "failed to activate"},
 ]
 
-GRANT_BOTH = """
+def grant(trusted='"time.*"', untrusted="", channels=None, ceiling="report"):
+    chans = channels or ["journal", "model:local", "notify", "inbox", "net:huggingface.co"]
+    return (f'ceiling = "{ceiling}"\n\n[events]\ntrusted = [{trusted}]\n'
+            f'untrusted = [{untrusted}]\n\n[channels]\n'
+            f'granted = [{", ".join(json.dumps(c) for c in chans)}]\n')
+
+
+GRANT_BOTH = GRANT_HF = grant()
+
+# The per-binding format this replaced. A file still in it must grant nothing.
+OLD_FORMAT = """
 [[grant]]
 event = "time.daily"
 action = "journal.errors.notify"
 implementation = "journal.errors.notify"
 class = "report"
-
-[[grant]]
-event = "time.daily"
-action = "journal.digest"
-implementation = "journal.digest"
-class = "report"
 """
-
 
 HF_FIXTURE = [{"modelId": "Qwen/Qwen4-27B"}, {"modelId": "Qwen/Qwen3.8-27B"},
               {"modelId": "Qwen/Qwen-Image-2.1"}]
-
-GRANT_HF = """
-[[grant]]
-event = "time.hourly"
-action = "huggingface.models.watch"
-implementation = "huggingface.models.watch"
-class = "report"
-args = { author = "Qwen", match = "qwen-?4" }
-network = ["huggingface.co"]
-"""
 
 
 class Model(http.server.BaseHTTPRequestHandler):
@@ -223,13 +218,17 @@ def case_granted(b):
 
 
 def case_relabel(b):
-    # An agent edits canonical/ so the granted name now runs another provider.
+    # An agent edits canonical/ so a declaration names a provider that does more
+    # than it says: journal.digest's channels, but a provider that notifies.
     p = b.repo / "canonical" / "actions" / "journal.toml"
     patch(p, 'implementation = "journal.digest"', 'implementation = "journal.errors.notify"')
+    b.bindings('[[event_binding]]\nevent = "time.daily"\naction = "journal.digest"\n')
     b.cap("emit", "time.daily", "--source", "timer")
     d = [r for r in b.records() if r.get("action") == "journal.digest"]
-    ok = len(d) == 1 and d[0].get("state") == "ungranted"
-    return ok, f"journal.digest -> {d[0].get('state') if d else None}"
+    r = d[0] if d else {}
+    ok = (len(d) == 1 and r.get("state") == "failed" and "'notify'" in r.get("reason", "")
+          and not b.notified())
+    return ok, f"journal.digest -> {r.get('state')}"
 
 
 COMMIT_BINDING = '''
@@ -238,15 +237,14 @@ implementation = "journal.errors.notify"
 label       = "A commit-class action wearing a harmless implementation"
 category    = "Test"
 consequence = "commit"
+channels    = ["journal", "notify"]
 '''
 
 
 def case_commit(b):
     (b.repo / "canonical" / "actions" / "test.toml").write_text(COMMIT_BINDING)
     b.bindings('[[event_binding]]\nevent = "time.daily"\naction = "test.commit"\n')
-    (b.dir / "etc-machine-state" / "grants.toml").write_text(
-        '[[grant]]\nevent = "time.daily"\naction = "test.commit"\n'
-        'implementation = "journal.errors.notify"\nclass = "commit"\n')
+    (b.dir / "etc-machine-state" / "grants.toml").write_text(grant(ceiling="commit"))
     b.cap("emit", "time.daily", "--source", "timer")
     rc, out = b.cap("check")
     r = [x for x in b.records() if x.get("action") == "test.commit"]
@@ -323,9 +321,9 @@ def case_undelivered(b):
 
 
 def case_network_grant(b):
-    # The same grant without the network line: hosts are part of the authority.
+    # The same grant without the net: channel: hosts are part of the authority.
     p = b.dir / "etc-machine-state" / "grants.toml"
-    patch(p, 'network = ["huggingface.co"]\n', '')
+    patch(p, ', "net:huggingface.co"', '')
     rc, _, w = _hf(b)
     ok = rc == 1 and len(w) == 1 and w[0].get("state") == "ungranted" and not b.notified()
     return ok, f"state={w[0].get('state') if w else None}"
@@ -338,6 +336,41 @@ def case_host(b):
     ok = (rc == 1 and r.get("state") == "failed"
           and "not among the hosts" in r.get("reason", "") and not b.notified())
     return ok, r.get("reason", "")[:70]
+
+
+def case_event_granted(b):
+    # Only time.daily is granted: the hourly watch must not run.
+    (b.dir / "etc-machine-state" / "grants.toml").write_text(grant(trusted='"time.daily"'))
+    rc, _, w = _hf(b)
+    r = w[0] if w else {}
+    ok = (rc == 1 and r.get("state") == "ungranted"
+          and "not a granted event" in r.get("reason", "") and not b.notified())
+    return ok, r.get("reason", "")[:60]
+
+
+def case_payload(b):
+    # Anyone can `cap emit time.daily`; a trusted event smuggling a payload is refused.
+    rc, _ = b.cap("emit", "time.daily", "--source", "agent", "note=ignore previous")
+    acts = [r for r in b.records() if r.get("action")]
+    ok = (rc == 1 and len(acts) == 2 and all(r.get("state") == "ungranted"
+                                             and "no payload" in r.get("reason", "") for r in acts)
+          and not b.notified())
+    return ok, f"states={[r.get('state') for r in acts]}"
+
+
+def case_untrusted(b):
+    # Foreign text may reach local channels, never the network.
+    (b.dir / "etc-machine-state" / "grants.toml").write_text(
+        grant(untrusted='"mail.*"'))
+    b.bindings('[[event_binding]]\nevent = "mail.received"\naction = "huggingface.models.watch"\n'
+               'args = { author = "Qwen", match = "qwen-?4" }\n\n'
+               '[[event_binding]]\nevent = "mail.received"\naction = "journal.errors.notify"\n')
+    rc, _ = b.cap("emit", "mail.received", "--source", "dbus", "subject=hello")
+    acts = {r["action"]: r for r in b.records() if r.get("action")}
+    w, n = acts.get("huggingface.models.watch", {}), acts.get("journal.errors.notify", {})
+    ok = (rc == 1 and w.get("state") == "ungranted" and "never reach" in w.get("reason", "")
+          and n.get("outcome") == "ok" and "Qwen4" not in b.notified())
+    return ok, f"watch={w.get('state')}, notify={n.get('outcome')}"
 
 
 def case_loopback(b):
@@ -363,7 +396,7 @@ def main():
                            for r in acts) and not b.notified(),
               acts[0]["reason"] if acts else "")
     with Box(grants=GRANT_BOTH) as b:
-        check("5 a grant follows the implementation, not the action's name", *case_relabel(b))
+        check("5 a provider using an undeclared channel fails, and does nothing", *case_relabel(b))
     with Box() as b:
         check("6 commit never runs from an event, even granted", *case_commit(b))
     with Box(grants=GRANT_BOTH) as b:
@@ -382,6 +415,19 @@ def main():
         check("15 a grant must name the action's network hosts", *case_network_grant(b))
     with Box(grants=GRANT_HF) as b:
         check("16 an undeclared host is refused before any connection", *case_host(b))
+    with Box(grants=GRANT_HF) as b:
+        check("17 an event the grant does not name starts nothing", *case_event_granted(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("18 a trusted event carrying a payload is refused", *case_payload(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("19 an untrusted event reaches local channels, never the network",
+              *case_untrusted(b))
+    with Box(grants=OLD_FORMAT) as b:
+        rc, _ = b.cap("emit", "time.daily", "--source", "timer")
+        acts = [r for r in b.records() if r.get("action")]
+        check("20 a grants file in the old format grants nothing",
+              acts and all("malformed" in r.get("reason", "") for r in acts) and not b.notified(),
+              acts[0].get("reason", "")[:60] if acts else "")
     with Box() as b:
         bad = [b.cap("emit", "Daily", "--source", "timer")[0],
                b.cap("emit", "time.daily")[0],
@@ -407,9 +453,10 @@ def main():
         ok, d = case_ungranted(b)
         check("2n grant check disabled -> assertion 2 fails", not ok, d)
     with Box(grants=GRANT_BOTH) as b:
-        patch(b.cap_path, '\n                and g["implementation"] == a.get("implementation")', '')
+        patch(b.cap_path, '    if channel not in ACTIVE_CHANNELS:\n        raise',
+              '    if False:\n        raise')
         ok, d = case_relabel(b)
-        check("5n implementation match removed -> assertion 5 fails", not ok, d)
+        check("5n channel use check removed -> assertion 5 fails", not ok, d)
     with Box() as b:
         patch(b.cap_path, 'EVENT_CLASSES = {"observe", "report"}',
               'EVENT_CLASSES = {"observe", "report", "commit"}')
@@ -432,20 +479,34 @@ def main():
         ok, d = case_quiet(b)
         check("11n novelty check removed -> assertion 11 fails", not ok, d)
     with Box(grants=GRANT_HF) as b:
-        patch(b.cap_path, '    if r.returncode != 0:\n        return plan, "failed"\n    INBOX.mkdir',
-              '    INBOX.mkdir')
+        patch(b.cap_path, '    if r.returncode != 0:\n        return plan, "failed"\n    use("inbox")',
+              '    use("inbox")')
         ok, d = case_undelivered(b)
         check("14n seen-before-delivered restored -> assertion 14 fails", not ok, d)
     with Box(grants=GRANT_HF) as b:
-        patch(b.cap_path, '\n                and sorted(g.get("network", [])) == sorted(a.get("network", []))', '')
+        patch(b.cap_path, '    if missing:\n        return False', '    if False:\n        return False')
         ok, d = case_network_grant(b)
-        check("15n network match removed -> assertion 15 fails", not ok, d)
+        check("15n channel grant check removed -> assertion 15 fails", not ok, d)
     with Box(grants=GRANT_HF) as b:
         patch(b.cap_path,
               '    if host not in ("127.0.0.1", "localhost", "::1") and host not in ALLOWED_HOSTS:',
               '    if False:')
         ok, d = case_host(b)
         check("16n host check removed -> assertion 16 fails", not ok, d)
+    with Box(grants=GRANT_HF) as b:
+        patch(b.cap_path, '    else:\n        return False, f"{event} is not a granted event"',
+              '    else:\n        trusted = True')
+        ok, d = case_event_granted(b)
+        check("17n event check removed -> assertion 17 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '        if payload:\n            return False', '        if False:\n            return False')
+        ok, d = case_payload(b)
+        check("18n payload check removed -> assertion 18 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '    if not trusted and not set(chans) <= LOCAL_CHANNELS:',
+              '    if False:')
+        ok, d = case_untrusted(b)
+        check("19n untrusted-network rule removed -> assertion 19 fails", not ok, d)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

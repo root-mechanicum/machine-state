@@ -1,7 +1,6 @@
 # Watches: tell the human when something new appears somewhere outside the
-# machine. These are the first actions that reach the network, so each one
-# DECLARES the hosts it may contact. A grant must name the same hosts, and cap
-# refuses any other host while the action runs.
+# machine. A net:<host> channel is the only way out, and cap refuses any host the
+# action does not declare. Unattended, the grant must name that channel too.
 
 [action."huggingface.models.watch"]
 implementation = "huggingface.models.watch"
@@ -10,6 +9,6 @@ category    = "Watch"
 args        = { author = "Hugging Face organisation, e.g. Qwen", match = "case-insensitive pattern on the model id" }
 mutating    = false
 consequence = "report"
-network     = ["huggingface.co"]
+channels    = ["net:huggingface.co", "notify", "inbox"]
 # Reads the public model list; sends nothing but the query. A match is marked
 # seen only after the notification is delivered, then noted in the inbox.

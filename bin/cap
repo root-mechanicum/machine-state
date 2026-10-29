@@ -17,17 +17,19 @@ If those three can disagree there is no shared model.
 Events are the fourth surface (machine-state-bru.4). `cap emit <event>` records
 a typed envelope and runs every action an event binding declares for it — one
 event, many responses, and an agent is one kind of response among others. A
-response runs only if a root-owned grant names it; otherwise it is refused and
-recorded.
+response runs only if a root-owned grant names its event and every channel it
+declares; otherwise it is refused and recorded.
 
 PROVISIONAL. The file layout under canonical/ is an experimental fixture, not the
 registry schema. machine-state-bru.7 defines roles, actions and key bindings as
 separate registries properly, and is expected to move all of this.
 
-Stdlib only. Never root, never sudo, no network beyond the loopback model.
+Stdlib only. Never root, never sudo, no network beyond the loopback model and
+the net:<host> channels an action declares.
 """
 
 import datetime
+import fnmatch
 import json
 import os
 import pathlib
@@ -170,10 +172,10 @@ def actions():
         if c not in VALID_CONSEQUENCE:
             die(f"{where}: action {name!r} has unknown consequence {c!r}; "
                 f"expected one of {', '.join(sorted(VALID_CONSEQUENCE))}")
-        net = a.get("network", [])
-        if not isinstance(net, list) or not all(
-                isinstance(h, str) and HOSTNAME.match(h) for h in net):
-            die(f"{where}: action {name!r} network must be a list of host names, got {net!r}")
+        chans = a.get("channels", [])
+        if not isinstance(chans, list) or not all(valid_channel(c) for c in chans):
+            die(f"{where}: action {name!r} channels must be a list drawn from "
+                f"{', '.join(sorted(LOCAL_CHANNELS))} or net:<host>, got {chans!r}")
     return acts
 
 
@@ -723,6 +725,7 @@ def journal_errors(since="-24h"):
     repeated dozens of times. Numbers and hex are folded out of the grouping key
     so `returns -6` on two devices is one finding with a count, not two.
     """
+    use("journal")
     r = subprocess.run(["journalctl", "-p", "err", f"--since={since}", "-q",
                         "--no-pager", "-o", "json"],
                        capture_output=True, text=True, timeout=60)
@@ -798,6 +801,7 @@ def do_errors_notify():
     top = ", ".join(f"{g['source']} ({g['count']})" for g in new[:3])
     body = (f"{len(new)} new kind(s) of error in the last 24h: {top}. "
             f"Details: cap inbox")
+    use("notify")
     r = subprocess.run(["notify-send", "--app-name=cap", "--urgency=low",
                         "Journal", body], capture_output=True, timeout=10)
     if r.returncode != 0:
@@ -823,9 +827,10 @@ def model_url():
     return url
 
 
-# The hosts the running action declared. Set around each provider call by
-# run_provider(); empty means loopback only. Declared in canonical/ and matched by
-# the grant, so a host reaches here only if a human granted it.
+# The hosts from the running action's net:<host> channels. Set around each
+# provider call by run_provider(); empty means loopback only. A net: channel
+# runs unattended only if the grant names it, so a host reaches here from an
+# event only if a human granted it.
 ALLOWED_HOSTS = frozenset()
 
 
@@ -853,6 +858,7 @@ def requires_model():
 
 def ask_model(system, user, max_tokens=1200):
     """One completion from the local model, thinking off: an answer, not a monologue."""
+    use("model:local")
     base = model_url()
     model = _http_json(base + "/models", timeout=5)["data"][0]["id"]
     r = _http_json(base + "/chat/completions", {
@@ -894,6 +900,7 @@ def do_digest():
     else:
         model, body = None, "No error-priority journal entries in the last 24 hours."
     stamp = now().replace(":", "")[:15]
+    use("inbox")
     INBOX.mkdir(parents=True, exist_ok=True)
     note = INBOX / f"{stamp}-journal-digest.md"
     note.write_text(
@@ -952,11 +959,13 @@ def do_hf_watch(author, match):
     if not plan["new"]:
         return plan, "skipped"
     new = plan["new"]
+    use("notify")
     r = subprocess.run(["notify-send", "--app-name=cap", "--urgency=normal",
                         f"New on Hugging Face: {author}", "\n".join(new)],
                        capture_output=True, timeout=10)
     if r.returncode != 0:
         return plan, "failed"
+    use("inbox")
     INBOX.mkdir(parents=True, exist_ok=True)
     note = INBOX / f"{now().replace(':', '')[:15]}-hf-{author.lower()}.md"
     note.write_text(
@@ -1057,14 +1066,31 @@ ENFORCEMENT = "advisory"
 UNATTENDED_AVAILABLE = False
 
 
-# UNATTENDED MEANS GRANTED. An event binding lives in canonical/, which agents
-# can write, so a binding — or an action relabelled `report` — authorises
-# nothing on its own. A response to an event runs only when a root-owned grant
-# names the same event, action, implementation, class and arguments. Absence is
-# the starting state: every response is refused, and recorded as refused.
+# UNATTENDED MEANS GRANTED, AT THE EDGES. Bindings and actions live in
+# canonical/, which agents can write, so they authorise nothing on their own. A
+# root-owned grant names the two edges instead of every response between them:
+#
+#   events    which events may start unattended work. Trusted ones carry no
+#             payload; untrusted ones carry foreign text (mail, a window title).
+#   channels  what unattended work may touch: journal, model:local, notify,
+#             inbox, net:<host>. Every action declares the channels it uses.
+#   ceiling   the highest consequence class that runs unattended — never above
+#             EVENT_CLASSES, whatever the file says.
+#
+# A new topic, binding or channel-compatible action needs no sudo; a new event
+# source or a new channel does. An untrusted event never reaches the network:
+# foreign text plus an outbound channel is how prompt injection exfiltrates.
 #
 # Scope of the boundary: it guards DECLARATIONS. bin/cap itself sits in the same
 # agent-writable repository, so code changes are review's job, not this check's.
+
+LOCAL_CHANNELS = {"journal", "model:local", "notify", "inbox"}
+CLASS_RANK = {"observe": 0, "report": 1, "adjust": 2, "commit": 3}
+
+
+def valid_channel(c):
+    return isinstance(c, str) and (
+        c in LOCAL_CHANNELS or (c.startswith("net:") and bool(HOSTNAME.match(c[4:]))))
 
 def grants_boundary():
     """(intact, reason). The same two-level check bin/ms reports on."""
@@ -1081,54 +1107,94 @@ def grants_boundary():
 
 
 def grants():
-    """(entries, reason-if-none). Malformed grants are ignored whole, not in part."""
+    """(grant, reason-if-none). Malformed grants are ignored whole, not in part.
+
+    Unknown keys make the file malformed rather than being skipped: a misspelled
+    `chanels` that is silently ignored would look granted and grant nothing, or
+    look restrictive and restrict nothing.
+    """
     intact, why = grants_boundary()
     if not intact:
-        return [], why
+        return None, why
     try:
         doc = tomllib.loads(GRANTS.read_text())
     except (OSError, tomllib.TOMLDecodeError) as exc:
-        return [], f"{GRANTS} is unreadable: {exc}"
-    out = doc.get("grant", [])
-    want = {"event", "action", "implementation", "class"}
-    if not isinstance(out, list) or not all(
-            isinstance(g, dict) and want <= set(g) <= want | {"args", "network"} for g in out):
-        return [], (f"{GRANTS} is malformed; every [[grant]] needs exactly "
-                    f"{', '.join(sorted(want))} (+ args, network)")
-    return out, None
+        return None, f"{GRANTS} is unreadable: {exc}"
+    bad = f"{GRANTS} is malformed"
+    if set(doc) != {"ceiling", "events", "channels"}:
+        return None, f"{bad}: expected exactly ceiling, [events] and [channels]"
+    if doc["ceiling"] not in CLASS_RANK:
+        return None, f"{bad}: ceiling {doc['ceiling']!r} is not a consequence class"
+    ev, ch = doc["events"], doc["channels"]
+    if (not isinstance(ev, dict) or set(ev) != {"trusted", "untrusted"}
+            or not all(isinstance(v, list) and all(isinstance(p, str) for p in v)
+                       for v in ev.values())):
+        return None, f"{bad}: [events] needs trusted and untrusted lists of patterns"
+    if (not isinstance(ch, dict) or set(ch) != {"granted"}
+            or not isinstance(ch["granted"], list)
+            or not all(valid_channel(c) for c in ch["granted"])):
+        return None, f"{bad}: [channels] needs granted, a list of known channels"
+    return doc, None
 
 
-def grant_for(binding, a, granted):
-    """(granted, reason). Every field must match; a near miss is a refusal."""
+def grant_for(event, a, granted, payload=None):
+    """(granted, reason) for one action answering one event, unattended."""
     cls = a.get("consequence")
     if cls not in EVENT_CLASSES:
         return False, (f"{cls}-class actions never run from an event in this phase "
                        f"(only {', '.join(sorted(EVENT_CLASSES))})")
-    entries, why = granted
+    g, why = granted
     if why:
         return False, why
-    for g in entries:
-        if (g["event"] == binding["event"] and g["action"] == binding["action"]
-                and g["implementation"] == a.get("implementation")
-                and g["class"] == cls and g.get("args", {}) == binding.get("args", {})
-                and sorted(g.get("network", [])) == sorted(a.get("network", []))):
-            return True, None
-    return False, f"no grant matches {binding['event']} -> {binding['action']} ({cls})"
+    if CLASS_RANK[cls] > CLASS_RANK[g["ceiling"]]:
+        return False, f"{cls} is above the granted ceiling ({g['ceiling']})"
+    if any(fnmatch.fnmatchcase(event, p) for p in g["events"]["trusted"]):
+        if payload:
+            return False, f"{event} is granted as trusted, and trusted events carry no payload"
+        trusted = True
+    elif any(fnmatch.fnmatchcase(event, p) for p in g["events"]["untrusted"]):
+        trusted = False
+    else:
+        return False, f"{event} is not a granted event"
+    chans = a.get("channels")
+    if not chans:
+        return False, "the action declares no channels, so nothing can be checked"
+    missing = [c for c in chans if c not in g["channels"]["granted"]]
+    if missing:
+        return False, f"channel(s) not granted: {', '.join(missing)}"
+    if not trusted and not set(chans) <= LOCAL_CHANNELS:
+        return False, (f"{event} is untrusted, and untrusted events never reach the "
+                       f"network ({', '.join(c for c in chans if c not in LOCAL_CHANNELS)})")
+    return True, None
+
+
+# The channels the running action declared. Set by run_provider() alone; every
+# helper that touches a channel asks use() first, so a provider that does
+# something its declaration does not say fails instead of succeeding quietly.
+ACTIVE_CHANNELS = frozenset()
+
+
+def use(channel):
+    if channel not in ACTIVE_CHANNELS:
+        raise PermissionError(f"channel {channel!r} is not declared by this action "
+                              f"({', '.join(sorted(ACTIVE_CHANNELS)) or 'none'})")
 
 
 def run_provider(fn, a, args):
-    """Call a provider with the action's declared hosts, and only those, allowed.
+    """Call a provider with the action's declared channels, and only those, open.
 
     `role` stays positional for the desktop providers written before keyword
     arguments existed; everything else is passed by name.
     """
-    global ALLOWED_HOSTS
-    ALLOWED_HOSTS = frozenset(a.get("network", []))
+    global ALLOWED_HOSTS, ACTIVE_CHANNELS
+    chans = a.get("channels", [])
+    ACTIVE_CHANNELS = frozenset(chans)
+    ALLOWED_HOSTS = frozenset(c[4:] for c in chans if c.startswith("net:"))
     try:
         rest = {k: v for k, v in args.items() if k != "role"}
         return fn(*([args["role"]] if "role" in args else []), **rest)
     finally:
-        ALLOWED_HOSTS = frozenset()
+        ALLOWED_HOSTS, ACTIVE_CHANNELS = frozenset(), frozenset()
 
 
 # ---------------------------------------------------------------- commands
@@ -1228,7 +1294,7 @@ def cmd_list(argv):
             implemented, available, reason = action_state(a)
             # Unattended only through a granted event binding; never via `act`.
             via = [b["event"] for b in evb
-                   if b["action"] == name and grant_for(b, a, granted)[0]]
+                   if b["action"] == name and grant_for(b["event"], a, granted)[0]]
             out.append({
                 "action": name, "label": a.get("label"), "category": a.get("category"),
                 "args": a.get("args", {}), "mutating": a.get("mutating", True),
@@ -1237,8 +1303,9 @@ def cmd_list(argv):
                 "unattended": UNATTENDED_AVAILABLE or bool(via),
                 "unattended_reason":
                     f"granted for event(s): {', '.join(via)}" if via else
-                    "only from an event binding a root-owned grant names "
+                    "only from a granted event, with every declared channel granted "
                     "(observe/report); act is never unattended (machine-state-bru.5)",
+                "channels": a.get("channels", []),
                 # Stated rather than left to be inferred from enforcement=advisory.
                 # An agent reading a mutating action beside an `invoke.propose`
                 # string can reasonably conclude the proposal is required. It is
@@ -1412,7 +1479,7 @@ def cmd_emit(argv):
                                "unknown", event=EVENT_ID)
             continue
         check_args(act, args, a)
-        ok, why = grant_for(b, a, granted)
+        ok, why = grant_for(name, a, granted, payload)
         if not ok:
             failures += refuse(act, args, "event", why, "event", "ungranted", event=EVENT_ID)
             continue
@@ -1559,7 +1626,7 @@ def cmd_check(_argv):
             print(f"  NEVER    {label}  <- {a.get('consequence')}-class, not runnable from an event")
             problems.append(f"event binding {label} names a {a.get('consequence')}-class action")
             continue
-        ok, why = grant_for(b, a, granted)
+        ok, why = grant_for(b["event"], a, granted)
         print(f"  {'granted ' if ok else 'ungrant.'} {label}" + ("" if ok else f"  <- {why}"))
 
     _, unreadable_v, unrecognised = vendor_bindings()

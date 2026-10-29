@@ -8,6 +8,7 @@ label       = "Notify how many journal errors the last day held"
 category    = "Journal"
 mutating    = false
 consequence = "report"
+channels    = ["journal", "notify"]
 
 [action."journal.digest"]
 implementation = "journal.digest"
@@ -15,5 +16,6 @@ label       = "Explain the last day's journal errors in an inbox note"
 category    = "Journal"
 mutating    = false
 consequence = "report"
+channels    = ["journal", "model:local", "inbox"]
 # Reads the journal and writes one note under ~/.local/state/agents/inbox. The
 # errors go to the local model on 127.0.0.1 and nowhere else.
