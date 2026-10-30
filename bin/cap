@@ -1458,12 +1458,19 @@ def do_ask(prompt=""):
     plan["note"] = str(note)
     use("notify")
     short = answer if len(answer) <= 240 else answer[:237].rstrip() + "…"
-    n = subprocess.run(["notify-send", "--app-name=cap", "--urgency=normal",
-                        prompt.strip()[:60], short + "\n\nFull answer: cap inbox"],
-                       capture_output=True, timeout=10)
-    # The note is the answer; a missed popup is a detail, not a failure.
-    plan["outcome_detail"] = f"wrote {note}" + ("" if n.returncode == 0
-                                                else "; the notification failed")
+    # Clicking the popup opens the note. notify-send waits for that click, so it
+    # runs detached and act returns now. Everything reaches it as an argument,
+    # never inside the shell text: the answer is the model's, and the model read
+    # the screen.
+    subprocess.Popen(
+        ["sh", "-c", '[ "$(notify-send "$@")" = default ] && exec "$CAP" inbox open "$NOTE"',
+         "notify-send", "--app-name=cap", "--urgency=normal", "--action=default=Open",
+         prompt.strip()[:60], short + "\n\nClick to read the full answer."],
+        env={**os.environ, "CAP": str(pathlib.Path(__file__).resolve()), "NOTE": note.name},
+        start_new_session=True, stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # The note is the answer; the popup is a pointer to it, so not awaited.
+    plan["outcome_detail"] = f"wrote {note}; popup waiting for a click"
     return plan, "ok"
 
 
@@ -1912,6 +1919,7 @@ def cmd_inbox(argv):
         cap inbox            list unread notes, oldest first
         cap inbox show [N]   print note N (default: the oldest unread), mark it read
         cap inbox read       list notes already read
+        cap inbox open NAME  open note NAME in a window, mark it read (a popup click)
 
     Read means moved into inbox/read/ — visible, and undone by moving it back.
     """
@@ -1947,7 +1955,26 @@ def cmd_inbox(argv):
         done.mkdir(parents=True, exist_ok=True)
         p.rename(done / p.name)
         return 0
-    die(f"inbox: unknown subcommand {sub!r}; expected list, show or read")
+    if sub == "open":
+        name = argv[1] if len(argv) > 1 else ""
+        # A file name, never a path: the name arrives from a popup click.
+        if not re.fullmatch(r"[\w.-]+\.md", name):
+            die(f"inbox open: {name!r} is not a note name")
+        p = INBOX / name
+        if p.exists():
+            done.mkdir(parents=True, exist_ok=True)
+            p = p.rename(done / name)
+        else:
+            p = done / name
+        if not p.exists():
+            die(f"inbox open: no note {name!r}")
+        subprocess.Popen(["kitty", "--class", "cap-answer", "--title", title(p),
+                          "-e", "bat", "--paging=always", "--style=plain",
+                          "--language=md", str(p)],
+                         start_new_session=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return 0
+    die(f"inbox: unknown subcommand {sub!r}; expected list, show, read or open")
 
 
 def cmd_interests(_argv):

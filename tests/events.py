@@ -208,7 +208,9 @@ class Box:
         # Fails while notify.fail exists: a desktop that is not answering.
         (stubs / "notify-send").write_text(
             f'#!/bin/sh\n[ -e "{self.dir}/notify.fail" ] && exit 1\n'
-            f'printf "%s\\n" "$*" >> "{self.dir}/notify.log"\n')
+            f'printf "%s\\n" "$*" >> "{self.dir}/notify.log"\n'
+            # While click exists: a person clicked the popup, which picks "default".
+            f'if [ -e "{self.dir}/click" ]; then echo default; fi\n')
         (stubs / "secret-tool").write_text(
             "#!/bin/sh\nprintf '[/1]\\nlabel = Proton Bridge IMAP\\nsecret = fixture-pw\\n"
             "attribute.service = protonmail-bridge\\nattribute.username = me@example.com\\n'\n")
@@ -564,6 +566,18 @@ def _agent(b, answer="It is a test.", rc=0):
         f'  *clients*) cat "{b.dir}/clients.json";;\n  *) exit 1;;\nesac\n')
     pi.chmod(0o755)
     (stubs / "hyprctl").chmod(0o755)
+    (stubs / "kitty").write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" >> "{b.dir}/kitty.log"\n')
+    (stubs / "kitty").chmod(0o755)
+
+
+def _eventually(path, seconds=5):
+    """The popup runs detached; give it a moment rather than racing it."""
+    import time
+    deadline = time.time() + seconds
+    while time.time() < deadline and not path.exists():
+        time.sleep(0.05)
+    time.sleep(0.1)
+    return path.read_text() if path.exists() else ""
 
 
 def case_ask(b):
@@ -572,7 +586,7 @@ def case_ask(b):
     args = (b.dir / "pi.args").read_text() if (b.dir / "pi.args").exists() else ""
     notes = b.notes()
     ok = (rc == 0 and len(notes) == 1 and "It is a test." in notes[0].read_text()
-          and "what is this page?" in b.notified()
+          and "what is this page?" in _eventually(b.dir / "notify.log")
           and "Question: what is this page?" in args
           and re.search(r"It is \w+day \d+ \w+ \d{4}, \d\d:\d\d", args)
           # The hostile title is inside the fenced screen block, never elsewhere.
@@ -581,6 +595,28 @@ def case_ask(b):
           and (b.dir / "pi.cwd").read_text().strip() == str(b.dir)
           and pathlib.Path((b.dir / "pi.ctx").read_text()).exists())
     return ok, f"rc={rc} notes={len(notes)} {out.strip()[-120:]}"
+
+
+def case_ask_click(b):
+    _agent(b)
+    (b.dir / "click").touch()
+    rc, _ = b.cap("act", "agent.ask", "prompt=and now?")
+    opened = _eventually(b.dir / "kitty.log").splitlines()
+    read = b.dir / ".local" / "state" / "agents" / "inbox" / "read"
+    moved = sorted(read.glob("*-ask.md")) if read.is_dir() else []
+    ok = (rc == 0 and not b.notes() and len(moved) == 1
+          and "bat" in opened and str(moved[0]) in opened)
+    return ok, f"rc={rc} read={len(moved)} kitty={opened[:3]}"
+
+
+def case_open_name_only(b):
+    _agent(b)
+    # Planted where the crafted name points, so only the name check stops it.
+    bait = b.dir / ".local" / "state" / "agents" / "inbox" / ".." / "secret.md"
+    bait.parent.mkdir(parents=True, exist_ok=True)
+    bait.write_text("# secret\n")
+    rc, _ = b.cap("inbox", "open", "../secret.md")
+    return rc == 2 and not (b.dir / "kitty.log").exists(), f"rc={rc}"
 
 
 def case_ask_no_answer(b):
@@ -704,6 +740,11 @@ def main():
     with Box() as b:
         check("31 ask: the screen goes in fenced, the answer to a note and a popup",
               *case_ask(b))
+    with Box() as b:
+        check("31b ask: clicking the popup opens the note and marks it read",
+              *case_ask_click(b))
+    with Box() as b:
+        check("31c inbox open takes a note name, never a path", *case_open_name_only(b))
     with Box() as b:
         check("32 ask: no answer is a failure, with no note and no popup",
               *case_ask_no_answer(b))
@@ -842,6 +883,10 @@ def main():
         patch(b.cap_path, '            cwd=pathlib.Path.home(), env=', '            env=')
         ok, d = case_ask(b)
         check("31n agent cwd unpinned -> assertion 31 fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, 'if not re.fullmatch(r"[\\w.-]+\\.md", name):', 'if False:')
+        ok, d = case_open_name_only(b)
+        check("31cn name check removed -> assertion 31c fails", not ok, d)
     with Box() as b:
         patch(b.cap_path, 'UNTRUSTED_CHANNELS = {"mail:read", "desktop:read"}',
               'UNTRUSTED_CHANNELS = {"mail:read"}')
