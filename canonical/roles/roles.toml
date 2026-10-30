@@ -12,3 +12,12 @@ window_class = ["Proton Mail", "proton-mail"]
 label        = "Browser"
 command      = "firefox"
 window_class = ["firefox", "Firefox"]
+
+# The agent. `command` opens a conversation; `ask` answers one question headless,
+# the question appended as the last argument. Pinned to the local model and to no
+# tools: agent.ask treats the screen as untrusted, and cap cannot see inside Pi.
+[role.agent]
+label        = "Agent"
+command      = "kitty --class pi-agent -e pi"
+window_class = ["pi-agent"]
+ask          = "pi -p --no-tools --no-session --model vllm/RedHatAI/Qwen3.8-27B-INT4"

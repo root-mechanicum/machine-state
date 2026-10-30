@@ -1,0 +1,13 @@
+# The agent as a capability: whatever role.agent names answers. A key, a launcher
+# and another agent all reach it by this name, never by the agent's executable.
+
+# Asked by a person, answered later. Reads the screen (untrusted titles), so no
+# net: channel; the answer goes to a notification and an inbox note.
+[action."agent.ask"]
+implementation = "agent.ask"
+label       = "Ask the agent a quick question about what is on screen"
+category    = "Agent"
+args        = { prompt = "the question" }
+mutating    = false
+consequence = "report"
+channels    = ["desktop:read", "model:local", "notify", "inbox"]
