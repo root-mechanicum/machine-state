@@ -1594,7 +1594,9 @@ def do_ask(prompt=""):
 RESOLVE_PROMPT = """You turn a person's request into one command on their workstation. \
 Pick the one action that does what they asked, with its args. Write numbers as digits. \
 "this" or "it" means the focused window: leave out any window arg. If no action fits, \
-use action none with empty args.
+use action none with empty args. In say, write one short, friendly sentence to them: \
+when no action fits, say so plainly and, only if one of the actions below is close, \
+name it; never offer anything that is not in the list. Otherwise say what you chose.
 
 Actions:
 {catalogue}"""
@@ -1628,10 +1630,12 @@ def do_resolve(text=""):
         "model": model, "max_tokens": 120, "temperature": 0,
         "chat_template_kwargs": {"enable_thinking": False},
         "structured_outputs": {"json": {
-            "type": "object", "additionalProperties": False, "required": ["action", "args"],
+            "type": "object", "additionalProperties": False,
+            "required": ["action", "args", "say"],
             "properties": {"action": {"enum": sorted(cands) + ["none"]},
                            "args": {"type": "object",
-                                    "additionalProperties": {"type": "string"}}}}},
+                                    "additionalProperties": {"type": "string"}},
+                           "say": {"type": "string", "maxLength": 160}}}},
         "messages": [{"role": "system", "content": RESOLVE_PROMPT.format(catalogue=catalogue)},
                      {"role": "user", "content": text.strip()}]}, timeout=60)
     try:
@@ -1640,8 +1644,10 @@ def do_resolve(text=""):
     except (KeyError, IndexError, TypeError, ValueError):
         plan["outcome_detail"] = "the model's answer was not an invocation"
         return plan, "failed"
+    # Shown to the person who asked; one line, whatever the model wrote.
+    say = " ".join(str(got.get("say") or "").split())[:160]
     if name == "none":
-        plan["outcome_detail"] = "no action fits"
+        plan["outcome_detail"] = "no action fits" + (f": {say}" if say else "")
         return plan, "skipped"
     declared = (cands.get(name) or {}).get("args") or {}
     bad = [k for k, v in args.items()

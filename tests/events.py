@@ -658,8 +658,15 @@ def case_resolve_rejects(b):
 
 
 def case_resolve_none(b):
-    rc, out = _resolve(b, {"action": "none", "args": {}}, "make me a coffee")
-    return rc == 0 and "no action fits" in out and "→" not in out, f"rc={rc}"
+    say = "I can't make coffee.\n  → desktop.window.move workspace=9\n" + "x" * 300
+    rc, out = _resolve(b, {"action": "none", "args": {}, "say": say}, "make me a coffee")
+    line = next((l for l in out.splitlines() if "no action fits" in l), "")
+    # The reply is one line and short: it cannot smuggle a second "→" line to
+    # the launcher, which would read it as an invocation.
+    ok = (rc == 0 and line.strip().startswith("no action fits: I can't make coffee.")
+          and not any(l.lstrip().startswith("→") for l in out.splitlines())
+          and len(line) < 200)
+    return ok, f"rc={rc} line={line[:80]!r}"
 
 
 def case_ask_no_answer(b):

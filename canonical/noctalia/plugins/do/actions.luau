@@ -74,11 +74,20 @@ end
 -- waits instead. The words reach it as "$2", never inside the script text; the
 -- invocation it reads back is one cap has already validated.
 local RESOLVE = [[
-inv=$("$1" act agent.resolve "text=$2" 2>/dev/null | sed -n 's/^ *→ //p')
+out=$("$1" act agent.resolve "text=$2" 2>&1)
+inv=$(printf '%s\n' "$out" | sed -n 's/^ *→ //p')
 if [ -n "$inv" ]; then
 	exec noctalia msg panel-open launcher "/do $inv "
 fi
-notify-send --app-name=cap "Do" "Could not work out: $2"
+# Understood but impossible is not the same as broken; say which.
+case "$out" in
+*"no action fits"*)
+	say=$(printf '%s\n' "$out" | sed -n 's/^.*no action fits: //p' | head -1)
+	notify-send --app-name=cap "Can't do that" "${say:-Nothing on this machine does “$2”.}" ;;
+*)
+	notify-send --app-name=cap --urgency=critical "Do: something went wrong" \
+		"$(printf '%s\n' "$out" | tail -1 | cut -c1-200)" ;;
+esac
 ]]
 
 local function resolve(text)
