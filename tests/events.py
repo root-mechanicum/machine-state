@@ -146,6 +146,8 @@ HF_FIXTURE = [{"modelId": "Qwen/Qwen4-27B"}, {"modelId": "Qwen/Qwen3.8-27B"},
 
 class Model(http.server.BaseHTTPRequestHandler):
     fail = False
+    answer = "FAKE DIGEST BODY"
+    last = None
 
     def _send(self, code, body):
         data = json.dumps(body).encode()
@@ -163,10 +165,10 @@ class Model(http.server.BaseHTTPRequestHandler):
         self._send(200, {"data": [{"id": "fake-model"}]})
 
     def do_POST(self):
-        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        Model.last = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
         if Model.fail:
             return self._send(500, {"error": "boom"})
-        self._send(200, {"choices": [{"message": {"content": "FAKE DIGEST BODY"}}]})
+        self._send(200, {"choices": [{"message": {"content": Model.answer}}]})
 
     def log_message(self, *_):
         pass
@@ -233,7 +235,7 @@ class Box:
         self.server.shutdown()
         self.imap.shutdown()
         self.imap.server_close()
-        Model.fail = False
+        Model.fail, Model.answer, Model.last = False, "FAKE DIGEST BODY", None
         shutil.rmtree(self.dir, ignore_errors=True)
 
     def store(self, name):
@@ -619,6 +621,47 @@ def case_open_name_only(b):
     return rc == 2 and not (b.dir / "kitty.log").exists(), f"rc={rc}"
 
 
+def _resolve(b, answer, text="explain today's errors"):
+    Model.answer = json.dumps(answer)
+    rc, out = b.cap("act", "agent.resolve", f"text={text}")
+    return rc, out
+
+
+def case_resolve(b):
+    rc, out = _resolve(b, {"action": "journal.digest", "args": {}})
+    sent = Model.last or {}
+    enum = (sent.get("structured_outputs", {}).get("json", {})
+            .get("properties", {}).get("action", {}).get("enum", []))
+    # Translated, not run: the digest it names wrote no note.
+    ok = (rc == 0 and "→ journal.digest" in out and not b.notes()
+          and "journal.digest" in enum and "none" in enum
+          and not any(n.startswith("agent.") for n in enum))
+    return ok, f"rc={rc} enum={enum}"
+
+
+def case_resolve_rejects(b):
+    bad = [{"action": "desktop.workspace.arrange", "args": {}},          # not available
+           {"action": "journal.digest", "args": {"since": "-1y"}},       # undeclared arg
+           {"action": "desktop.window.move", "args": {"workspace": "4; rm"}},  # spaces
+           "not json"]
+    # A compositor that answers, so window actions are available and the space
+    # is what gets the third answer refused.
+    stub = b.dir / "stubs" / "hyprctl"
+    stub.write_text("#!/bin/sh\necho stub\n")
+    stub.chmod(0o755)
+    rcs = []
+    for a in bad:
+        Model.answer = a if isinstance(a, str) else json.dumps(a)
+        rc, out = b.cap("act", "agent.resolve", "text=anything")
+        rcs.append((rc, "→" in out))
+    return all(rc == 1 and not arrow for rc, arrow in rcs), f"{rcs}"
+
+
+def case_resolve_none(b):
+    rc, out = _resolve(b, {"action": "none", "args": {}}, "make me a coffee")
+    return rc == 0 and "no action fits" in out and "→" not in out, f"rc={rc}"
+
+
 def case_ask_no_answer(b):
     _agent(b, answer="", rc=3)
     rc, out = b.cap("act", "agent.ask", "prompt=anything")
@@ -745,6 +788,13 @@ def main():
               *case_ask_click(b))
     with Box() as b:
         check("31c inbox open takes a note name, never a path", *case_open_name_only(b))
+    with Box() as b:
+        check("31d resolve: words to one invocation, printed, not run", *case_resolve(b))
+    with Box() as b:
+        check("31e resolve: an unavailable action, an undeclared arg, a spaced value "
+              "or garbage is refused", *case_resolve_rejects(b))
+    with Box() as b:
+        check("31f resolve: nothing fits is said, not guessed", *case_resolve_none(b))
     with Box() as b:
         check("32 ask: no answer is a failure, with no note and no popup",
               *case_ask_no_answer(b))
@@ -887,6 +937,10 @@ def main():
         patch(b.cap_path, 'if not re.fullmatch(r"[\\w.-]+\\.md", name):', 'if False:')
         ok, d = case_open_name_only(b)
         check("31cn name check removed -> assertion 31c fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '    if name not in cands or bad:', '    if False:')
+        ok, d = case_resolve_rejects(b)
+        check("31en resolve validation removed -> assertion 31e fails", not ok, d)
     with Box() as b:
         patch(b.cap_path, 'UNTRUSTED_CHANNELS = {"mail:read", "desktop:read"}',
               'UNTRUSTED_CHANNELS = {"mail:read"}')

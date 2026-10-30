@@ -1585,6 +1585,76 @@ def do_ask(prompt=""):
     return plan, "ok"
 
 
+# Text to one invocation. The model only translates: it chooses from the
+# catalogue under a JSON schema, cap validates the choice again, and the result
+# is printed for a person to look at and run. Nothing here acts. The schema is
+# flat (an enum and string args) because vLLM's grammar did not hold an anyOf
+# per action; the per-action check is therefore cap's, below.
+
+RESOLVE_PROMPT = """You turn a person's request into one command on their workstation. \
+Pick the one action that does what they asked, with its args. Write numbers as digits. \
+"this" or "it" means the focused window: leave out any window arg. If no action fits, \
+use action none with empty args.
+
+Actions:
+{catalogue}"""
+
+
+def _resolvable():
+    """Available actions a person might mean. Not the agent's own: resolving to
+    ask or resolve again would be a loop, not an answer."""
+    return {n: a for n, a in actions().items()
+            if not n.startswith("agent.") and action_state(a)[1]}
+
+
+def plan_resolve(text=""):
+    return {"branch": "resolve",
+            "detail": f"ask the local model which action fits {text[:60]!r}; runs nothing"}
+
+
+def do_resolve(text=""):
+    plan = plan_resolve(text)
+    if not text.strip():
+        raise ValueError("nothing to resolve")
+    cands = _resolvable()
+    catalogue = "\n".join(
+        f"{n}: {a['label']}. args: "
+        + ("; ".join(f"{k} ({v})" for k, v in (a.get("args") or {}).items()) or "none")
+        for n, a in sorted(cands.items()))
+    use("model:local")
+    base = model_url()
+    model = _http_json(base + "/models", timeout=5)["data"][0]["id"]
+    r = _http_json(base + "/chat/completions", {
+        "model": model, "max_tokens": 120, "temperature": 0,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "structured_outputs": {"json": {
+            "type": "object", "additionalProperties": False, "required": ["action", "args"],
+            "properties": {"action": {"enum": sorted(cands) + ["none"]},
+                           "args": {"type": "object",
+                                    "additionalProperties": {"type": "string"}}}}},
+        "messages": [{"role": "system", "content": RESOLVE_PROMPT.format(catalogue=catalogue)},
+                     {"role": "user", "content": text.strip()}]}, timeout=60)
+    try:
+        got = json.loads(r["choices"][0]["message"]["content"])
+        name, args = got["action"], got["args"]
+    except (KeyError, IndexError, TypeError, ValueError):
+        plan["outcome_detail"] = "the model's answer was not an invocation"
+        return plan, "failed"
+    if name == "none":
+        plan["outcome_detail"] = "no action fits"
+        return plan, "skipped"
+    declared = (cands.get(name) or {}).get("args") or {}
+    bad = [k for k, v in args.items()
+           if k not in declared or not isinstance(v, str) or not v or re.search(r"\s", v)]
+    if name not in cands or bad:
+        plan["outcome_detail"] = f"the model chose {name} with unusable args {bad}"
+        return plan, "failed"
+    plan["invocation"] = " ".join([name] + [f"{k}={v}" for k, v in args.items()])
+    # The launcher reads this line back; keep its shape.
+    plan["outcome_detail"] = "→ " + plan["invocation"]
+    return plan, "ok"
+
+
 def requires_noctalia():
     if not shutil.which("noctalia"):
         return False, "noctalia is not installed"
@@ -1629,6 +1699,7 @@ PROVIDERS = {
     "interests.digest": (plan_interests_digest, do_interests_digest, requires_local_model),
     "agent.ask": (plan_ask, do_ask, requires_agent),
     "agent.summon": (plan_summon, do_summon, requires_noctalia),
+    "agent.resolve": (plan_resolve, do_resolve, requires_local_model),
 }
 
 

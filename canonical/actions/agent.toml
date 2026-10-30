@@ -20,3 +20,14 @@ label       = "Open the quick-ask box"
 category    = "Agent"
 mutating    = true
 consequence = "adjust"
+
+# Words to one invocation, for a person to look at and run (/do's "work it
+# out"). Translates only: the answer is printed, nothing is run.
+[action."agent.resolve"]
+implementation = "agent.resolve"
+label       = "Work out which action a request means"
+category    = "Agent"
+args        = { text = "the request, in words" }
+mutating    = false
+consequence = "observe"
+channels    = ["model:local"]

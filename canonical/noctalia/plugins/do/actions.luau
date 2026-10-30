@@ -5,6 +5,9 @@
 --                     or puts its name in the query to take args
 --   <action> <args>   one row; bare values fill the declared args in order,
 --                     key=value names one. Enter runs it.
+--   <words>           also a last row, "Work it out": the local model turns the
+--                     words into one invocation (agent.resolve) and /do reopens
+--                     with it, so a person sees what will run before it runs.
 --
 -- Everything runs as an argv table, never through a shell.
 
@@ -62,6 +65,24 @@ local function run(argv, label)
 			noctalia.notifyError(label, msg:match("[^\n]*$") or "failed")
 		end
 	end, 60000)
+end
+
+-- Words to an invocation, then back into /do to be read before it runs.
+--
+-- Detached on purpose: the launcher closes on Enter and takes any process it is
+-- still waiting on with it, and the model needs most of a second. So a small sh
+-- waits instead. The words reach it as "$2", never inside the script text; the
+-- invocation it reads back is one cap has already validated.
+local RESOLVE = [[
+inv=$("$1" act agent.resolve "text=$2" 2>/dev/null | sed -n 's/^ *→ //p')
+if [ -n "$inv" ]; then
+	exec noctalia msg panel-open launcher "/do $inv "
+fi
+notify-send --app-name=cap "Do" "Could not work out: $2"
+]]
+
+local function resolve(text)
+	noctalia.runAsync({ "env", "CAP_CALLER=launcher", "sh", "-c", RESOLVE, "sh", cap(), text })
 end
 
 local function rows(catalogue, filter, category)
@@ -129,7 +150,16 @@ function M.provider(category)
 					subtitle = (res.stderr or ""):match("[^\n]*") or "", glyph = "alert-triangle" } })
 				return
 			end
-			launcher.setResults(query, withArgs(catalogue, text, category) or rows(catalogue, text, category))
+			local out = withArgs(catalogue, text, category) or rows(catalogue, text, category)
+			if text ~= "" and not withArgs(catalogue, text, category) then
+				table.insert(out, {
+					id = noctalia.json.encode({ resolve = text }),
+					title = "Work it out: " .. text,
+					subtitle = "The local model picks the action; you see it before it runs",
+					glyph = "sparkles",
+				})
+			end
+			launcher.setResults(query, out)
 		end, 10000)
 	end
 
@@ -138,7 +168,9 @@ function M.provider(category)
 			return
 		end
 		local job = noctalia.json.decode(id)
-		if type(job) == "table" and type(job.argv) == "table" then
+		if type(job) == "table" and type(job.resolve) == "string" then
+			resolve(job.resolve)
+		elseif type(job) == "table" and type(job.argv) == "table" then
 			table.insert(job.argv, 1, "env")
 			table.insert(job.argv, 2, "CAP_CALLER=launcher")
 			run(job.argv, job.label or "cap")
