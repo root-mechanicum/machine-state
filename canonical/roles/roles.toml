@@ -14,11 +14,12 @@ command      = "firefox"
 window_class = ["firefox", "Firefox"]
 
 # The agent. `command` opens a conversation; `ask` answers one question headless,
-# the question appended as the last argument. Pinned to the local model and to no
-# tools: agent.ask treats the screen as untrusted, and cap cannot see inside Pi.
+# the question appended as the last argument. Pinned to the local model and to
+# read-only tools — no bash, no edits, no MCP, no extension tools (web search is
+# one): agent.ask treats the screen as untrusted, and cap cannot see inside Pi.
 # Pi by path: keys and the launcher do not get the shell's PATH.
 [role.agent]
 label        = "Agent"
 command      = "kitty --class pi-agent -e ~/.pi/agent/bin/pi --model vllm/RedHatAI/Qwen3.8-27B-INT4"
 window_class = ["pi-agent"]
-ask          = "~/.pi/agent/bin/pi -p --no-tools --no-session --model vllm/RedHatAI/Qwen3.8-27B-INT4"
+ask          = "~/.pi/agent/bin/pi -p --tools read,grep,find,ls --no-mcp --no-session --model vllm/RedHatAI/Qwen3.8-27B-INT4"

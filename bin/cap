@@ -1344,7 +1344,7 @@ def do_interests_digest():
 # The context is what was on screen: window classes and titles. Titles are text
 # other people wrote, so desktop:read is an untrusted channel and agent.ask holds
 # no net: channel. cap cannot see inside the ask command, so the role pins it to
-# the local model and to no tools; that is a declaration, not something cap checks.
+# the local model and to read-only tools; a declaration, not something cap checks.
 
 CONTEXT = INBOX.parent / "context" / "current.json"
 
