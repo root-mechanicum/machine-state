@@ -1,0 +1,23 @@
+# Every cap action, from the launcher: /do, then type to filter ("move", "float").
+# Not /win: noctalia's own window switcher has that prefix. The list is `cap list --json`, so an action declared in canonical/
+# appears here with no change to this plugin. Typing it and pressing Enter is the
+# person's intent: it runs, like a key would.
+id = "machine-state/do"
+name = "Do"
+version = "0.1.0"
+plugin_api = 3
+author = "machine-state"
+license = "MIT"
+icon = "bolt"
+description = "Run machine-state actions from the launcher via /do."
+tags = ["launcher"]
+dependencies = []
+
+[[launcher_provider]]
+id = "do"
+entry = "do.luau"
+prefix = "do"
+glyph = "bolt"
+include_in_global_search = false
+debounce_ms = 0
+

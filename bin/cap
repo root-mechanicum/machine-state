@@ -1934,6 +1934,9 @@ def cmd_list(argv):
             out.append({
                 "action": name, "label": a.get("label"), "category": a.get("category"),
                 "args": a.get("args", {}), "mutating": a.get("mutating", True),
+                # Declared order, for callers whose maps do not keep it (Luau):
+                # the launcher fills bare values into the args in this order.
+                "arg_order": list(a.get("args", {})),
                 "consequence": a.get("consequence"),
                 "enforcement": ENFORCEMENT,
                 "unattended": UNATTENDED_AVAILABLE or bool(via),

@@ -1,15 +1,9 @@
 --!nonstrict
 -- /ask <question>: one row; Enter hands the question to cap and closes. The
 -- answer comes back later as a notification and a note (`cap inbox`).
+-- The question travels as one argv element, never through a shell.
 
-local function shellQuote(s)
-	return "'" .. s:gsub("'", "'\\''") .. "'"
-end
-
-local function capPath()
-	local p = noctalia.getConfig("cap_path")
-	return noctalia.expandPath((type(p) == "string" and p ~= "") and p or "~/src/machine-state/bin/cap")
-end
+local CAP = "~/src/machine-state/bin/cap"
 
 function onQuery(query)
 	local text = noctalia.string.trim(query or "")
@@ -29,8 +23,8 @@ function onActivate(id)
 		return
 	end
 	-- keypress: a refusal shows as a notification instead of vanishing.
-	local cmd = "env CAP_CALLER=keypress " .. shellQuote(capPath()) .. " act agent.ask prompt=" .. shellQuote(id)
-	if not noctalia.runAsync(cmd) then
+	local argv = { "env", "CAP_CALLER=keypress", noctalia.expandPath(CAP), "act", "agent.ask", "prompt=" .. id }
+	if not noctalia.runAsync(argv) then
 		noctalia.notifyError("Ask", "could not start cap")
 	end
 end
