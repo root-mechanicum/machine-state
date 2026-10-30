@@ -1,11 +1,33 @@
 # Interests: things the human wants to hear about (canonical/interests/).
-# interests.fetch declares the union of the channels its source kinds need;
-# `cap check` reports an interest whose sources need one it does not declare.
+#
+# Fetching is split by trust. Both fetch actions share one implementation and
+# each fetches only the sources whose channels it declares: interests.fetch holds
+# the net: channels, interests.mail holds mail:read, and cap refuses any action
+# that would hold both. `cap check` reports an interest whose sources need a
+# channel no fetch action declares.
 
 [action."interests.fetch"]
 implementation = "interests.fetch"
-label       = "Fetch every interest's sources; alert on anything new"
+label       = "Fetch network sources of every interest; alert on anything new"
 category    = "Interests"
 mutating    = false
 consequence = "report"
 channels    = ["net:huggingface.co", "notify", "inbox"]
+
+[action."interests.mail"]
+implementation = "interests.fetch"
+label       = "Fetch mail sources of every interest (read-only); alert on anything new"
+category    = "Interests"
+mutating    = false
+consequence = "report"
+channels    = ["mail:read", "notify", "inbox"]
+
+# Reads only the local stores the fetch actions filled; no net: channel, so
+# whatever a newsletter says, nothing leaves the machine.
+[action."interests.digest"]
+implementation = "interests.digest"
+label       = "Write one catch-up note per digest interest with the local model"
+category    = "Interests"
+mutating    = false
+consequence = "report"
+channels    = ["model:local", "inbox"]

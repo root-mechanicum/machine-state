@@ -1,0 +1,9 @@
+# AI news, as a morning catch-up. Sources the user chose, 2026-10-30; add a
+# newsletter by adding a mail source, a feed by adding an rss source (later).
+
+[interest.ai-news]
+label   = "AI news"
+urgency = "digest"
+sources = [
+  { mail = { from = "lspace@mail.beehiiv.com" } },   # Latent Space
+]

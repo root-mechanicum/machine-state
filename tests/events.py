@@ -25,10 +25,14 @@ Each mechanism carries a negative control: the copy is patched to disable it and
 the matching assertion must then fail. An assertion that cannot fail is not one.
 """
 
+import email.message
+import email.utils
 import http.server
 import json
 import pathlib
+import re
 import shutil
+import socketserver
 import subprocess
 import sys
 import tempfile
@@ -60,8 +64,66 @@ JOURNAL_FIXTURE = [
     {"SYSLOG_IDENTIFIER": "nm-dispatcher", "MESSAGE": "failed to activate"},
 ]
 
+def _mail(sender, subject, body, html=False, n=1):
+    m = email.message.EmailMessage()
+    m["From"], m["To"], m["Subject"] = sender, "me@example.com", subject
+    m["Date"] = email.utils.formatdate()
+    m["Message-ID"] = f"<{n}@fixture>"
+    m.set_content(body, subtype="html" if html else "plain")
+    return m.as_bytes()
+
+
+MAIL_FIXTURE = [
+    _mail("Latent Space <lspace@mail.beehiiv.com>", "GPT-6 is out",
+          "<p>GPT-6 news</p><script>evil()</script>", html=True, n=1),
+    _mail("Someone <other@example.com>", "Your invoice", "pay up", n=2),
+    _mail("Latent Space <lspace@mail.beehiiv.com>", "Agents roundup", "agents everywhere", n=3),
+]
+
+
+class Imap(socketserver.StreamRequestHandler):
+    """Just enough IMAP for imaplib, logging every command it is sent."""
+    log = []
+
+    def _out(self, line):
+        self.wfile.write(line if isinstance(line, bytes) else (line + "\r\n").encode())
+
+    def handle(self):
+        self._out("* OK fake bridge ready")
+        while True:
+            raw = self.rfile.readline()
+            if not raw:
+                return
+            tag, _, rest = raw.decode().strip().partition(" ")
+            cmd, _, args = rest.partition(" ")
+            cmd = cmd.upper()
+            Imap.log.append(f"{cmd} {args}")
+            if cmd == "CAPABILITY":
+                self._out("* CAPABILITY IMAP4rev1 AUTH=PLAIN")
+            elif cmd == "EXAMINE" or cmd == "SELECT":
+                self._out(f"* {len(MAIL_FIXTURE)} EXISTS")
+                tag_ok = "[READ-ONLY]" if cmd == "EXAMINE" else "[READ-WRITE]"
+                self._out(f"{tag} OK {tag_ok} done")
+                continue
+            elif cmd == "SEARCH":
+                who = re.search(r'FROM "([^"]+)"', args)
+                hits = [str(i + 1) for i, m in enumerate(MAIL_FIXTURE)
+                        if who and who.group(1).encode() in m.split(b"\n", 1)[0] + m]
+                self._out("* SEARCH " + " ".join(hits))
+            elif cmd == "FETCH":
+                n = int(args.split()[0])
+                body = MAIL_FIXTURE[n - 1]
+                self._out(f"* {n} FETCH (BODY[] {{{len(body)}}}".encode() + b"\r\n" + body + b")\r\n")
+            elif cmd == "LOGOUT":
+                self._out("* BYE")
+                self._out(f"{tag} OK bye")
+                return
+            self._out(f"{tag} OK done")
+
+
 def grant(trusted='"time.*"', untrusted="", channels=None, ceiling="report"):
-    chans = channels or ["journal", "model:local", "notify", "inbox", "net:huggingface.co"]
+    chans = channels or ["journal", "model:local", "notify", "inbox", "net:huggingface.co",
+                         "mail:read"]
     return (f'ceiling = "{ceiling}"\n\n[events]\ntrusted = [{trusted}]\n'
             f'untrusted = [{untrusted}]\n\n[channels]\n'
             f'granted = [{", ".join(json.dumps(c) for c in chans)}]\n')
@@ -147,20 +209,34 @@ class Box:
         (stubs / "notify-send").write_text(
             f'#!/bin/sh\n[ -e "{self.dir}/notify.fail" ] && exit 1\n'
             f'printf "%s\\n" "$*" >> "{self.dir}/notify.log"\n')
+        (stubs / "secret-tool").write_text(
+            "#!/bin/sh\nprintf '[/1]\\nlabel = Proton Bridge IMAP\\nsecret = fixture-pw\\n"
+            "attribute.service = protonmail-bridge\\nattribute.username = me@example.com\\n'\n")
         for f in stubs.iterdir():
             f.chmod(0o755)
         self.server = http.server.HTTPServer(("127.0.0.1", 0), Model)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        Imap.log = []
+        self.imap = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Imap)
+        self.imap.daemon_threads = True
+        threading.Thread(target=self.imap.serve_forever, daemon=True).start()
         self.env = {"HOME": str(self.dir), "PATH": f"{stubs}:/usr/bin:/bin",
                     "DBUS_SESSION_BUS_ADDRESS": "unix:path=/nonexistent",
                     "CAP_MODEL_URL": f"http://127.0.0.1:{self.server.server_port}/v1",
-                    "CAP_HF_URL": f"http://127.0.0.1:{self.server.server_port}"}
+                    "CAP_HF_URL": f"http://127.0.0.1:{self.server.server_port}",
+                    "CAP_IMAP_ADDR": f"127.0.0.1:{self.imap.server_address[1]}"}
         return self
 
     def __exit__(self, *_):
         self.server.shutdown()
+        self.imap.shutdown()
+        self.imap.server_close()
         Model.fail = False
         shutil.rmtree(self.dir, ignore_errors=True)
+
+    def store(self, name):
+        p = self.dir / ".local" / "state" / "agents" / "interests" / f"{name}.jsonl"
+        return [json.loads(l) for l in p.read_text().splitlines()] if p.exists() else []
 
     def cap(self, *args, **env):
         r = subprocess.run([str(self.cap_path), *args], capture_output=True, text=True,
@@ -403,6 +479,80 @@ def case_nochan(b):
     return ok, f"rc={rc}"
 
 
+MAIL_BINDINGS = ('[[event_binding]]\nevent = "time.daily"\naction = "interests.mail"\n\n'
+                 '[[event_binding]]\nevent = "time.daily"\naction = "interests.digest"\n')
+
+
+def _daily(b, bindings=MAIL_BINDINGS, **env):
+    b.bindings(bindings)
+    rc, out = b.cap("emit", "time.daily", "--source", "timer", **env)
+    return rc, out, {r["action"]: r for r in b.records() if r.get("action")}
+
+
+def case_mail_readonly(b):
+    rc, _, acts = _daily(b, '[[event_binding]]\nevent = "time.daily"\naction = "interests.mail"\n')
+    items = b.store("ai-news")
+    cmds = [c.split()[0] for c in Imap.log]
+    text = " ".join(i.get("text", "") for i in items)
+    ok = (rc == 0 and sorted(i["title"] for i in items) == ["Agents roundup", "GPT-6 is out"]
+          and "EXAMINE" in cmds and not {"SELECT", "STORE", "COPY", "MOVE", "EXPUNGE"} & set(cmds)
+          and "GPT-6 news" in text and "evil" not in text)
+    return ok, f"rc={rc}, items={len(items)}, imap={sorted(set(cmds))}"
+
+
+def case_digest(b):
+    rc1, _, _ = _daily(b)
+    notes = [n for n in b.notes() if "-ai-news" in n.name]
+    body = notes[0].read_text() if notes else ""
+    rc2, _, acts = _daily(b)
+    again = [n for n in b.notes() if "-ai-news" in n.name]
+    ok = (rc1 == 0 and rc2 == 0 and len(notes) == 1 and len(again) == 1
+          and "FAKE DIGEST BODY" in body and "GPT-6 is out" in body and "Agents roundup" in body
+          and all(i["delivered"] for i in b.store("ai-news"))
+          and acts["interests.digest"]["outcome"] == "skipped")
+    return ok, f"notes={len(again)}, second={acts.get('interests.digest', {}).get('outcome')}"
+
+
+def case_digest_failure(b):
+    Model.fail = True
+    rc1, _, acts = _daily(b)
+    pending = sum(not i["delivered"] for i in b.store("ai-news"))
+    Model.fail = False
+    rc2, _, _ = _daily(b)
+    ok = (rc1 == 1 and acts["interests.digest"]["outcome"] == "failed" and pending == 2
+          and rc2 == 0 and any("-ai-news" in n.name for n in b.notes()))
+    return ok, f"pending after failure={pending}"
+
+
+def case_mail_net_split(b):
+    patch(b.repo / "canonical" / "actions" / "interests.toml",
+          'channels    = ["mail:read", "notify", "inbox"]',
+          'channels    = ["mail:read", "net:huggingface.co", "notify", "inbox"]')
+    rc, out = b.cap("check")
+    return rc == 2 and "never share" in out, f"rc={rc}"
+
+
+def case_net_skips_mail(b):
+    # The network fetch must never open the mailbox.
+    rc, _, w = _hf(b)
+    ok = rc == 0 and not Imap.log and not b.store("ai-news") and w[0]["outcome"] != "failed"
+    return ok, f"imap commands={len(Imap.log)}, outcome={w[0].get('outcome') if w else None}"
+
+
+def case_imap_loopback(b):
+    rc, _, acts = _daily(b, '[[event_binding]]\nevent = "time.daily"\naction = "interests.mail"\n',
+                         CAP_IMAP_ADDR="example.invalid:1143")
+    why = " ".join((acts.get("interests.mail", {}).get("plan") or {}).get("failures", []))
+    return rc == 1 and "not loopback" in why, why[:70]
+
+
+def case_mail_address(b):
+    patch(b.repo / "canonical" / "interests" / "ai-news.toml",
+          'from = "lspace@mail.beehiiv.com"', 'from = "x\\" OR ALL \\""')
+    rc, out = b.cap("check")
+    return rc == 2 and "not a plain mail address" in out, f"rc={rc}"
+
+
 def case_loopback(b):
     rc, out = b.cap("act", "journal.digest", CAP_MODEL_URL="http://example.invalid:9/v1")
     ok = rc == 2 and "not loopback" in out
@@ -470,6 +620,22 @@ def main():
               *case_isolated_sources(b))
     with Box() as b:
         check("23 cap check flags an interest needing an undeclared channel", *case_nochan(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("24 mail: only the declared sender, mailbox opened read-only, HTML stripped",
+              *case_mail_readonly(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("25 digest: one note per interest; nothing twice", *case_digest(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("26 a failed digest leaves its items for the next run", *case_digest_failure(b))
+    with Box() as b:
+        check("27 an action reading mail may not also reach the network",
+              *case_mail_net_split(b))
+    with Box(grants=GRANT_HF) as b:
+        check("28 the network fetch never opens the mailbox", *case_net_skips_mail(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("29 mail is read only through a loopback bridge", *case_imap_loopback(b))
+    with Box() as b:
+        check("30 a sender that is not a plain address is rejected", *case_mail_address(b))
     with Box() as b:
         bad = [b.cap("emit", "Daily", "--source", "timer")[0],
                b.cap("emit", "time.daily")[0],
@@ -550,7 +716,8 @@ def main():
         ok, d = case_untrusted(b)
         check("19n untrusted-network rule removed -> assertion 19 fails", not ok, d)
     with Box(grants=GRANT_HF) as b:
-        patch(b.cap_path, "            except (OSError, ValueError, KeyError) as exc:\n"
+        patch(b.cap_path, "            except (OSError, ValueError, KeyError, RuntimeError, "
+                          "imaplib.IMAP4.error) as exc:\n"
                           "                failures.append(f\"{name}/{kind}",
               "            except ZeroDivisionError as exc:\n"
               "                failures.append(f\"{name}/{kind}")
@@ -561,6 +728,39 @@ def main():
               '        if False:\n            print(f"  NOCHAN')
         ok, d = case_nochan(b)
         check("23n channel coverage check removed -> assertion 23 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '        typ, _ = m.select("INBOX", readonly=True)',
+              '        typ, _ = m.select("INBOX")')
+        ok, d = case_mail_readonly(b)
+        check("24n read-only open removed -> assertion 24 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '            failures.append(f"{name}: {type(exc).__name__}: {exc}")\n'
+                          '            continue',
+              '            for i in pending:\n                i["delivered"] = True\n'
+              '            _save_items(name, items)\n            continue')
+        ok, d = case_digest_failure(b)
+        check("26n mark-before-noted restored -> assertion 26 fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '        if foreign and any(c.startswith("net:") for c in chans):',
+              '        if False:')
+        ok, d = case_mail_net_split(b)
+        check("27n untrusted-channel rule removed -> assertion 27 fails", not ok, d)
+    with Box(grants=GRANT_HF) as b:
+        patch(b.cap_path, '    return set(SOURCE_KINDS[next(iter(src))]["channels"]) <= ACTIVE_CHANNELS',
+              '    return True')
+        ok, d = case_net_skips_mail(b)
+        check("28n trust split removed -> assertion 28 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '    if host not in ("127.0.0.1", "localhost", "::1"):\n'
+                          '        raise PermissionError(f"IMAP host',
+              '    if False:\n        raise PermissionError(f"IMAP host')
+        ok, d = case_imap_loopback(b)
+        check("29n IMAP loopback check removed -> assertion 29 fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '        if kind == "mail" and not MAIL_ADDRESS.match(conf["from"]):',
+              '        if False:')
+        ok, d = case_mail_address(b)
+        check("30n address check removed -> assertion 30 fails", not ok, d)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
