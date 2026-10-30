@@ -13,9 +13,8 @@ action = "journal.errors.notify"
 event  = "time.daily"
 action = "journal.digest"
 
-# Asked for in a conversation ("keep me informed about Qwen 4"), 2026-10-29.
-# Replaces a timer an agent wrote by hand outside machine-state.
+# Every interest's sources, hourly. What to follow lives in canonical/interests/,
+# so a new interest needs no binding here.
 [[event_binding]]
 event  = "time.hourly"
-action = "huggingface.models.watch"
-args   = { author = "Qwen", match = "qwen-?4" }
+action = "interests.fetch"

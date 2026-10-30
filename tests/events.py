@@ -95,6 +95,8 @@ class Model(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/api/models"):    # stands in for huggingface.co
+            if "author=fail" in self.path:
+                return self._send(500, {"error": "down"})
             return self._send(200, HF_FIXTURE)
         self._send(200, {"data": [{"id": "fake-model"}]})
 
@@ -293,7 +295,7 @@ def case_inbox(b):
 
 def _hf(b, **env):
     rc, out = b.cap("emit", "time.hourly", "--source", "timer", **env)
-    w = [r for r in b.records() if r.get("action") == "huggingface.models.watch"]
+    w = [r for r in b.records() if r.get("action") == "interests.fetch"]
     return rc, out, w
 
 
@@ -301,7 +303,7 @@ def case_watch(b):
     rc1, _, _ = _hf(b)
     first = b.notified()
     rc2, _, w = _hf(b)
-    notes = [n for n in b.notes() if "-hf-" in n.name]
+    notes = [n for n in b.notes() if "-qwen4" in n.name]
     ok = (rc1 == 0 and rc2 == 0 and "Qwen/Qwen4-27B" in first
           and "Qwen3.8" not in first and b.notified() == first
           and [r.get("outcome") for r in w] == ["ok", "skipped"]
@@ -333,9 +335,10 @@ def case_host(b):
     # Granted for huggingface.co, pointed somewhere else: refused before connecting.
     rc, _, w = _hf(b, CAP_HF_URL="http://example.invalid")
     r = w[0] if w else {}
-    ok = (rc == 1 and r.get("state") == "failed"
-          and "not among the hosts" in r.get("reason", "") and not b.notified())
-    return ok, r.get("reason", "")[:70]
+    why = " ".join((r.get("plan") or {}).get("failures", []))
+    ok = (rc == 1 and r.get("outcome") == "failed"
+          and "not among the hosts" in why and not b.notified())
+    return ok, why[:70]
 
 
 def case_event_granted(b):
@@ -362,15 +365,42 @@ def case_untrusted(b):
     # Foreign text may reach local channels, never the network.
     (b.dir / "etc-machine-state" / "grants.toml").write_text(
         grant(untrusted='"mail.*"'))
-    b.bindings('[[event_binding]]\nevent = "mail.received"\naction = "huggingface.models.watch"\n'
-               'args = { author = "Qwen", match = "qwen-?4" }\n\n'
+    b.bindings('[[event_binding]]\nevent = "mail.received"\naction = "interests.fetch"\n\n'
                '[[event_binding]]\nevent = "mail.received"\naction = "journal.errors.notify"\n')
     rc, _ = b.cap("emit", "mail.received", "--source", "dbus", "subject=hello")
     acts = {r["action"]: r for r in b.records() if r.get("action")}
-    w, n = acts.get("huggingface.models.watch", {}), acts.get("journal.errors.notify", {})
+    w, n = acts.get("interests.fetch", {}), acts.get("journal.errors.notify", {})
     ok = (rc == 1 and w.get("state") == "ungranted" and "never reach" in w.get("reason", "")
           and n.get("outcome") == "ok" and "Qwen4" not in b.notified())
     return ok, f"watch={w.get('state')}, notify={n.get('outcome')}"
+
+
+FAILING_INTEREST = '''
+[interest.aaa-down]
+label   = "A source that is down"
+urgency = "alert"
+sources = [{ huggingface = { author = "fail", match = "." } }]
+'''
+
+
+def case_isolated_sources(b):
+    # Sorted first and failing: the qwen4 interest must still get its news.
+    (b.repo / "canonical" / "interests" / "aaa.toml").write_text(FAILING_INTEREST)
+    rc, _, w = _hf(b)
+    r = w[0] if w else {}
+    fails = (r.get("plan") or {}).get("failures", [])
+    ok = (rc == 1 and r.get("outcome") == "failed" and any("aaa-down" in f for f in fails)
+          and "Qwen/Qwen4-27B" in b.notified())
+    return ok, f"outcome={r.get('outcome')}, failures={len(fails)}"
+
+
+def case_nochan(b):
+    # An interest needs a channel interests.fetch does not declare: check says so.
+    patch(b.repo / "canonical" / "actions" / "interests.toml",
+          '["net:huggingface.co", "notify", "inbox"]', '["notify", "inbox"]')
+    rc, out = b.cap("check")
+    ok = rc == 1 and "NOCHAN" in out and "net:huggingface.co" in out
+    return ok, f"rc={rc}"
 
 
 def case_loopback(b):
@@ -429,6 +459,18 @@ def main():
               acts and all("malformed" in r.get("reason", "") for r in acts) and not b.notified(),
               acts[0].get("reason", "")[:60] if acts else "")
     with Box() as b:
+        (b.repo / "canonical" / "interests" / "x.toml").write_text(
+            '[interest.x]\nlabel = "X"\nurgency = "alert"\n'
+            'sources = [{ telepathy = { mind = "yours" } }]\n')
+        rc, out = b.cap("check")
+        check("21 an interest with an unimplemented source kind is rejected",
+              rc == 2 and "not implemented" in out, f"rc={rc}")
+    with Box(grants=GRANT_HF) as b:
+        check("22 a failing source does not cost another interest its news",
+              *case_isolated_sources(b))
+    with Box() as b:
+        check("23 cap check flags an interest needing an undeclared channel", *case_nochan(b))
+    with Box() as b:
         bad = [b.cap("emit", "Daily", "--source", "timer")[0],
                b.cap("emit", "time.daily")[0],
                b.cap("emit", "time.daily", "--source", "cron")[0],
@@ -479,7 +521,7 @@ def main():
         ok, d = case_quiet(b)
         check("11n novelty check removed -> assertion 11 fails", not ok, d)
     with Box(grants=GRANT_HF) as b:
-        patch(b.cap_path, '    if r.returncode != 0:\n        return plan, "failed"\n    use("inbox")',
+        patch(b.cap_path, '    if r.returncode != 0:\n        return None\n    use("inbox")',
               '    use("inbox")')
         ok, d = case_undelivered(b)
         check("14n seen-before-delivered restored -> assertion 14 fails", not ok, d)
@@ -507,6 +549,18 @@ def main():
               '    if False:')
         ok, d = case_untrusted(b)
         check("19n untrusted-network rule removed -> assertion 19 fails", not ok, d)
+    with Box(grants=GRANT_HF) as b:
+        patch(b.cap_path, "            except (OSError, ValueError, KeyError) as exc:\n"
+                          "                failures.append(f\"{name}/{kind}",
+              "            except ZeroDivisionError as exc:\n"
+              "                failures.append(f\"{name}/{kind}")
+        ok, d = case_isolated_sources(b)
+        check("22n source isolation removed -> assertion 22 fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '        if missing:\n            print(f"  NOCHAN',
+              '        if False:\n            print(f"  NOCHAN')
+        ok, d = case_nochan(b)
+        check("23n channel coverage check removed -> assertion 23 fails", not ok, d)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

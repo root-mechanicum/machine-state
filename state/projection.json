@@ -94,8 +94,8 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-10-29T15:53:00.318Z",
-      "region_sha": "e7d937071bd28ccd4b925548ad7540a1d4a5b28c3a3617922da8d0bb9afd9941",
+      "projected_at": "2026-10-30T14:45:29.760Z",
+      "region_sha": "dd456c2739221346eb05fb81cee28b14d43ef02e88659d7ea9c8e0d9c06cdf91",
       "sources": [
         "canonical/policy/00-generated.md",
         "canonical/policy/10-substrate.md",
@@ -146,8 +146,8 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-10-29T15:53:00.316Z",
-      "region_sha": "ffe8c7946cc74898c0667b43d45264d2bd56a31b3ebf7dc60f2f1f12d0e0ef1e",
+      "projected_at": "2026-10-30T14:45:29.759Z",
+      "region_sha": "adb1df25dc7e6ee24e8ab32f4bfd0ccbb11a60a4fe8545e56934f9af8443a027",
       "sources": [
         "canonical/policy/00-generated.md",
         "canonical/policy/10-substrate.md",
@@ -160,8 +160,8 @@
       "comment": "html",
       "kind": "splice",
       "marker": "MACHINE-STATE POLICY",
-      "projected_at": "2026-10-29T15:53:00.315Z",
-      "region_sha": "321e233455706b1b9830d1e53860976a2913c83ed2c201d9016bc01022d9d817",
+      "projected_at": "2026-10-30T14:45:29.758Z",
+      "region_sha": "7fdf18c1d30d2b74af5a8e66316cf536e0b06d9777870f3c047f516dd2fa9ee6",
       "sources": [
         "canonical/policy/00-generated.md",
         "canonical/policy/10-substrate.md",

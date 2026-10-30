@@ -914,73 +914,193 @@ def do_digest():
     return plan, "ok"
 
 
-# ---------------------------------------------------------------- watches
+# ---------------------------------------------------------------- interests
+
+# AN INTEREST is something the human wants to hear about, declared once: what it
+# is, where news of it comes from (sources), and how urgently (urgency). Sources
+# differ in kind — it arrives (mail), watch a place (Hugging Face, RSS), go and
+# look (search) — but all feed one store per interest, and delivery reads only
+# that store. Fetching never involves the model, and delivery never touches the
+# network, so foreign text and outbound channels do not meet.
+#
+# Adding an interest is a declaration in canonical/interests/: no binding and
+# no sudo, as long as its sources' channels are already granted. When an agent
+# is asked to "keep you informed", proposing an interest is the right answer.
+
+INTERESTS = REPO / "canonical" / "interests"
+INTEREST_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 # CAP_HF_URL lets tests stand in a loopback server. It cannot widen anything:
 # the host still has to be loopback or one the action declared and was granted.
 HF_URL = "https://huggingface.co"
 
 
-def _watch_state(kind, *key):
-    h = re.sub(r"[^a-z0-9]+", "-", "-".join((kind,) + key).lower()).strip("-")
-    return INBOX.parent / "watch" / f"{h}.json"
+def _pattern(match):
+    try:
+        return re.compile(match, re.I)
+    except re.error as exc:
+        raise ValueError(f"match {match!r} is not a valid pattern: {exc}")
 
 
-def _hf_matches(author, match):
+def fetch_huggingface(author, match):
     base = os.environ.get("CAP_HF_URL", HF_URL).rstrip("/")
     q = urllib.parse.urlencode({"author": author, "limit": 200, "sort": "createdAt"})
     models = _http_json(f"{base}/api/models?{q}", timeout=60)   # newest first, verified
-    try:
-        rx = re.compile(match, re.I)
-    except re.error as exc:
-        raise ValueError(f"match {match!r} is not a valid pattern: {exc}")
-    return [m["modelId"] for m in models if rx.search(m.get("modelId", ""))]
+    rx = _pattern(match)
+    return [{"id": f"huggingface:{m['modelId']}", "title": m["modelId"],
+             "url": f"https://huggingface.co/{m['modelId']}"}
+            for m in models if rx.search(m.get("modelId", ""))]
 
 
-def plan_hf_watch(author, match):
-    state = _watch_state("hf", author, match)
-    seen = set(json.loads(state.read_text())) if state.exists() else set()
-    hits = _hf_matches(author, match)
-    new = [m for m in hits if m not in seen]
-    return {"branch": "notify" if new else "quiet", "new": new, "state": str(state),
-            "detail": (f"{len(new)} new {author} model(s) matching /{match}/: {', '.join(new)}"
-                       if new else f"nothing new from {author} matching /{match}/ "
-                                   f"({len(hits)} known match(es))")}
+# Source kinds: the arguments each takes and the channels it needs. A kind not
+# listed here is rejected at load, so a declaration cannot run ahead of its code.
+SOURCE_KINDS = {
+    "huggingface": {"args": ("author", "match"), "channels": ["net:huggingface.co"],
+                    "fetch": fetch_huggingface},
+}
+
+# alert delivers as soon as something is fetched. digest — the morning catch-up
+# — arrives with the first source that needs the model (mail); until then it is
+# rejected rather than accepted and silently never delivered.
+URGENCIES = {"alert"}
 
 
-def do_hf_watch(author, match):
-    """Tell the human about new matching models, then — only then — remember them.
+def check_interest(name, it, where):
+    if not INTEREST_NAME.match(name):
+        die(f"{where}: interest {name!r} must be lowercase letters, digits and dashes")
+    _want(it, where, f"interest {name!r}", ("label", "urgency", "sources"))
+    _str(it["label"], where, f"interest {name!r} label")
+    if it["urgency"] not in URGENCIES:
+        die(f"{where}: interest {name!r} urgency {it['urgency']!r} is not supported; "
+            f"expected {', '.join(sorted(URGENCIES))}")
+    srcs = it["sources"]
+    if not isinstance(srcs, list) or not srcs:
+        die(f"{where}: interest {name!r} needs a non-empty list of sources")
+    for s in srcs:
+        if not isinstance(s, dict) or len(s) != 1:
+            die(f"{where}: interest {name!r}: each source is one {{ kind = {{ ... }} }}")
+        kind, conf = next(iter(s.items()))
+        if kind not in SOURCE_KINDS:
+            die(f"{where}: interest {name!r}: source kind {kind!r} is not implemented; "
+                f"expected {', '.join(sorted(SOURCE_KINDS))}")
+        if not isinstance(conf, dict):
+            die(f"{where}: interest {name!r}: {kind} source must be a table")
+        _want(conf, where, f"interest {name!r} {kind} source", SOURCE_KINDS[kind]["args"])
+        for k, v in conf.items():
+            _str(v, where, f"interest {name!r} {kind} {k}")
+        if "match" in conf:
+            try:
+                _pattern(conf["match"])
+            except ValueError as exc:
+                die(f"{where}: interest {name!r}: {exc}")
 
-    Marking a model seen before the notification is delivered loses it for good
-    when the desktop is not answering; that was the bug in the hand-written
-    watch this replaced.
+
+def interests():
+    out = _load(INTERESTS, "interest")
+    for name, it in out.items():
+        check_interest(name, it, it.get("_source", "?"))
+    return out
+
+
+def interest_channels(it):
+    return sorted({c for s in it["sources"] for c in SOURCE_KINDS[next(iter(s))]["channels"]})
+
+
+def _store(name):
+    return INBOX.parent / "interests" / f"{name}.jsonl"
+
+
+def _items(name):
+    p = _store(name)
+    return [json.loads(l) for l in p.read_text().splitlines() if l] if p.exists() else []
+
+
+def _save_items(name, items):
+    p = _store(name)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text("".join(json.dumps(i, sort_keys=True) + "\n" for i in items))
+    os.replace(tmp, p)
+
+
+def _deliver_alert(name, it, pending):
+    """Notify, then note, then — only then — mark delivered.
+
+    The order is the point. The hand-written watch this replaced marked a model
+    seen before notifying, so a desktop that was not answering lost the release
+    for good. Here an undelivered item simply waits for the next run.
     """
-    plan = plan_hf_watch(author, match)
-    if not plan["new"]:
-        return plan, "skipped"
-    new = plan["new"]
     use("notify")
+    titles = [i["title"] for i in pending]
     r = subprocess.run(["notify-send", "--app-name=cap", "--urgency=normal",
-                        f"New on Hugging Face: {author}", "\n".join(new)],
+                        it["label"], "\n".join(titles[:8])
+                        + (f"\n(+{len(titles) - 8} more)" if len(titles) > 8 else "")],
                        capture_output=True, timeout=10)
     if r.returncode != 0:
-        return plan, "failed"
+        return None
     use("inbox")
     INBOX.mkdir(parents=True, exist_ok=True)
-    note = INBOX / f"{now().replace(':', '')[:15]}-hf-{author.lower()}.md"
+    note = INBOX / f"{now().replace(':', '')[:15]}-{name}.md"
     note.write_text(
         "---\n"
-        f"action: huggingface.models.watch\nevent: {EVENT_ID or 'none'}\n"
-        f"author: {author}\nmatch: {match}\ngenerated: {now()}\n"
+        f"action: interests.fetch\ninterest: {name}\nevent: {EVENT_ID or 'none'}\n"
+        f"generated: {now()}\n"
         "---\n\n"
-        f"# New {author} models on Hugging Face\n\n"
-        + "".join(f"- [{m}](https://huggingface.co/{m})\n" for m in new))
-    state = pathlib.Path(plan["state"])
-    state.parent.mkdir(parents=True, exist_ok=True)
-    seen = set(json.loads(state.read_text())) if state.exists() else set()
-    state.write_text(json.dumps(sorted(seen | set(new))))
-    plan["outcome_detail"] = f"notified; wrote {note}"
-    return plan, "ok"
+        f"# {it['label']}\n\n"
+        + "".join(f"- [{i['title']}]({i['url']})  ({i['source']})\n" for i in pending))
+    return note
+
+
+def plan_interests_fetch():
+    its = interests()
+    n = sum(len(it["sources"]) for it in its.values())
+    return {"branch": "fetch", "interests": sorted(its),
+            "detail": f"fetch {n} source(s) for {len(its)} interest(s); "
+                      f"alert on anything new"}
+
+
+def do_interests_fetch():
+    """Fetch every source of every interest; deliver what is due.
+
+    Sources are independent: one host being down must not cost another
+    interest its news. Failures are collected and make the run fail as a whole,
+    so systemd shows it, after everything that could run has run.
+    """
+    plan = plan_interests_fetch()
+    failures, delivered, fetched = [], [], 0
+    for name, it in interests().items():
+        items = _items(name)
+        seen = {i["id"] for i in items}
+        for src in it["sources"]:
+            kind, conf = next(iter(src.items()))
+            try:
+                found = SOURCE_KINDS[kind]["fetch"](**conf)
+            except (OSError, ValueError, KeyError) as exc:
+                failures.append(f"{name}/{kind}: {type(exc).__name__}: {exc}")
+                continue
+            for i in found:
+                if i["id"] not in seen:
+                    seen.add(i["id"])
+                    items.append({**i, "source": kind, "fetched": now(), "delivered": False})
+                    fetched += 1
+        _save_items(name, items)
+        pending = [i for i in items if not i["delivered"]]
+        if it["urgency"] == "alert" and pending:
+            note = _deliver_alert(name, it, pending)
+            if note is None:
+                failures.append(f"{name}: notification not delivered; will retry")
+                continue
+            for i in pending:
+                i["delivered"] = True
+            _save_items(name, items)
+            delivered.append(f"{name} ({len(pending)}) -> {note.name}")
+    plan["failures"] = failures
+    plan["outcome_detail"] = "; ".join(
+        [f"{fetched} new item(s)"] + [f"delivered {d}" for d in delivered]
+        + [f"FAILED {f}" for f in failures])
+    if failures:
+        return plan, "failed"
+    return plan, "ok" if delivered else "skipped"
 
 
 # DECLARATIONS COMPOSE THE SYSTEM; IMPLEMENTATIONS EXTEND ITS ABILITIES.
@@ -998,7 +1118,7 @@ PROVIDERS = {
     "desktop.window.list": (plan_list, do_list, requires_hyprland),
     "journal.errors.notify": (plan_errors_notify, do_errors_notify, requires_journal_and_desktop),
     "journal.digest": (plan_digest, do_digest, requires_model),
-    "huggingface.models.watch": (plan_hf_watch, do_hf_watch, requires_desktop),
+    "interests.fetch": (plan_interests_fetch, do_interests_fetch, requires_desktop),
 }
 
 
@@ -1435,6 +1555,22 @@ def cmd_inbox(argv):
     die(f"inbox: unknown subcommand {sub!r}; expected list, show or read")
 
 
+def cmd_interests(_argv):
+    """What the human follows, where news comes from, and what has arrived."""
+    its = interests()
+    if not its:
+        print("  no interests declared (canonical/interests/)")
+    for name, it in sorted(its.items()):
+        items = _items(name)
+        pending = sum(not i["delivered"] for i in items)
+        print(f"  {name:<16} {it['label']}  [{it['urgency']}]")
+        for s in it["sources"]:
+            kind, conf = next(iter(s.items()))
+            print(f"      {kind}: " + ", ".join(f"{k}={v}" for k, v in conf.items()))
+        print(f"      {len(items)} item(s) seen, {pending} undelivered")
+    return 0
+
+
 def cmd_emit(argv):
     """An event happened. Record it, then run every response declared for it.
 
@@ -1629,6 +1765,19 @@ def cmd_check(_argv):
         ok, why = grant_for(b["event"], a, granted)
         print(f"  {'granted ' if ok else 'ungrant.'} {label}" + ("" if ok else f"  <- {why}"))
 
+    # Interests. A source whose channel interests.fetch does not declare would
+    # fail on every run with a PermissionError; say so here, before it is bound.
+    declared = set((acts.get("interests.fetch") or {}).get("channels", []))
+    for name, it in interests().items():
+        missing = [c for c in interest_channels(it) if c not in declared]
+        if missing:
+            print(f"  NOCHAN   interest {name}  <- interests.fetch does not declare "
+                  f"{', '.join(missing)}")
+            problems.append(f"interest {name} needs undeclared channel(s) {', '.join(missing)}")
+        else:
+            print(f"  ok       interest {name}  ({it['urgency']}, "
+                  f"{len(it['sources'])} source(s))")
+
     _, unreadable_v, unrecognised = vendor_bindings()
     total = len(vendor_chords()) + len(unreadable_v) + unrecognised
     state = "ok      " if not unrecognised else "UNKNOWN "
@@ -1730,7 +1879,7 @@ def cmd_render(_argv):
 
 
 COMMANDS = {"list": cmd_list, "propose": cmd_propose, "act": cmd_act, "emit": cmd_emit,
-            "inbox": cmd_inbox,
+            "inbox": cmd_inbox, "interests": cmd_interests,
             "preview": cmd_preview, "check": cmd_check, "render": cmd_render}
 
 

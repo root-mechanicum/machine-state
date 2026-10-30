@@ -113,10 +113,11 @@ into it, and let the copy be wrong instead of the machine.
 
 **Follow-ups go through `cap`, never through your own timers.** When asked to keep the user
 informed, check back later or repeat something, do not write a script, cron entry or systemd
-unit. Propose an event binding in `canonical/bindings/events.toml` for an existing `cap` action
-(`cap list`), plus the grant line the user must install in `/etc/machine-state/grants.toml`.
-If no action fits, say so and file a bead. That way the user knows it exists, the grant decides
-what it may do, and its results land in `cap inbox`.
+unit. To follow a topic, propose an interest in `canonical/interests/` (see `cap interests`); for
+anything else, an event binding in `canonical/bindings/events.toml` for an existing `cap` action
+(`cap list`). If it needs an event or channel the grants lack, say which; only the user can
+grant it. If no source kind or action fits, say so and file a bead. That way the user knows it
+exists, the grant decides what it may do, and its results land in `cap inbox`.
 
 **Never issue a command that can block on a prompt.** Use `pacman --noconfirm` and
 `ssh`/`scp -o BatchMode=yes`. This machine has no `-i` alias on `cp`, `mv` or `rm`, so `-f` is not

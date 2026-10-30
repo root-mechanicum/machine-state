@@ -1,0 +1,11 @@
+# Interests: things the human wants to hear about (canonical/interests/).
+# interests.fetch declares the union of the channels its source kinds need;
+# `cap check` reports an interest whose sources need one it does not declare.
+
+[action."interests.fetch"]
+implementation = "interests.fetch"
+label       = "Fetch every interest's sources; alert on anything new"
+category    = "Interests"
+mutating    = false
+consequence = "report"
+channels    = ["net:huggingface.co", "notify", "inbox"]

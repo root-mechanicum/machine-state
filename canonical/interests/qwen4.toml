@@ -1,0 +1,10 @@
+# Asked for in a conversation with Pi ("keep me informed about Qwen 4"),
+# 2026-10-29. The agent first wrote its own timer for this; this declaration is
+# the same request made through the system.
+
+[interest.qwen4]
+label   = "Qwen 4 release"
+urgency = "alert"
+sources = [
+  { huggingface = { author = "Qwen", match = "qwen-?4" } },
+]
