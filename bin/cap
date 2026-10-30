@@ -730,6 +730,117 @@ def requires_hyprland():
         return False, "hyprctl is not installed"
 
 
+# Acting on a window. Two more lessons from this compositor, learned by probing
+# a window that did not exist: a dispatcher answers `ok` to keys it does not
+# know, and with no `window` it acts on the focused one. So every action here
+# names its window by address, resolved even when the caller means "the focused
+# window", and reads the result back. Values reach the dispatcher inside a Lua
+# expression, so they are checked against a narrow pattern first, never quoted.
+ADDRESS = re.compile(r"^0x[0-9a-f]+$")
+WORKSPACE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+
+
+def _window(window=None):
+    """The client dict for an address, or the focused window when none is given."""
+    if window is None:
+        w = active_window()
+        if not w or not w.get("address"):
+            raise ValueError("no window is focused")
+        window = w["address"]
+    if not ADDRESS.match(window):
+        raise ValueError(f"{window!r} is not a window address (0x…)")
+    for c in clients():
+        if c["address"] == window:
+            return c
+    raise ValueError(f"no window {window}")
+
+
+def _dispatch(expr):
+    r = subprocess.run(["hyprctl", "dispatch", expr], capture_output=True,
+                       text=True, timeout=10)
+    out = (r.stdout or r.stderr or "").strip()
+    if r.returncode != 0 or out != "ok":
+        raise RuntimeError(f"hyprctl: {out[:120] or f'exit {r.returncode}'}")
+
+
+def _describe(w):
+    return f"{w['address']} [{w.get('class', '')}] {w.get('title', '')[:40]!r}"
+
+
+def plan_float(floating="yes", window=None):
+    if floating not in ("yes", "no"):
+        raise ValueError(f"floating must be yes or no, not {floating!r}")
+    w, want = _window(window), floating == "yes"
+    if w["floating"] == want:
+        return {"branch": "unchanged", "window": w["address"],
+                "detail": f"{_describe(w)} is already {'floating' if want else 'tiled'}"}
+    return {"branch": "float" if want else "tile", "window": w["address"],
+            "detail": f"make {_describe(w)} {'floating' if want else 'tiled'}"}
+
+
+def do_float(floating="yes", window=None):
+    plan = plan_float(floating, window)
+    if plan["branch"] == "unchanged":
+        return plan, "skipped"
+    # Toggle is the only form; the plan already established it is a change.
+    _dispatch(f'hl.dsp.window.float({{ action = "toggle", window = "address:{plan["window"]}" }})')
+    if _window(plan["window"])["floating"] != (floating == "yes"):
+        plan["outcome_detail"] = "dispatch accepted; the window did not change"
+        return plan, "unverified"
+    return plan, "ok"
+
+
+def plan_move(workspace="", window=None):
+    if not WORKSPACE.match(workspace):
+        raise ValueError(f"workspace must be a plain name or number, not {workspace!r}")
+    w = _window(window)
+    if w["workspace"]["name"] == workspace:
+        return {"branch": "unchanged", "window": w["address"],
+                "detail": f"{_describe(w)} is already on workspace {workspace}"}
+    return {"branch": "move", "window": w["address"], "workspace": workspace,
+            "detail": f"move {_describe(w)} from workspace {w['workspace']['name']} "
+                      f"to {workspace}"}
+
+
+def do_move(workspace="", window=None):
+    plan = plan_move(workspace, window)
+    if plan["branch"] == "unchanged":
+        return plan, "skipped"
+    _dispatch(f'hl.dsp.window.move({{ workspace = "{workspace}", '
+              f'window = "address:{plan["window"]}" }})')
+    if _window(plan["window"])["workspace"]["name"] != workspace:
+        plan["outcome_detail"] = "dispatch accepted; the window did not move"
+        return plan, "unverified"
+    return plan, "ok"
+
+
+def requires_wtype():
+    if not shutil.which("wtype"):
+        return False, "wtype is not installed"
+    return requires_hyprland()
+
+
+def plan_insert(text=""):
+    w = active_window() or {}
+    return {"branch": "type", "chars": len(text),
+            "window": w.get("address"),
+            "detail": f"type {len(text)} character(s) into "
+                      + (_describe(w) if w else "whatever has focus")}
+
+
+def do_insert(text=""):
+    """Typed as keystrokes into the focused window. Nothing can read it back, so
+    ok means wtype sent it, not that the window took it."""
+    plan = plan_insert(text)
+    if not text:
+        raise ValueError("nothing to type")
+    r = subprocess.run(["wtype", "--", text], capture_output=True, text=True, timeout=30)
+    if r.returncode != 0:
+        plan["outcome_detail"] = (r.stderr or "").strip()[:200]
+        return plan, "failed"
+    return plan, "ok"
+
+
 # ---------------------------------------------------------------- journal
 
 # The event currently being answered, so a response can say what caused it. Set
@@ -1509,6 +1620,9 @@ def do_summon():
 PROVIDERS = {
     "desktop.application.ensure": (plan_ensure, do_ensure, requires_hyprland),
     "desktop.window.list": (plan_list, do_list, requires_hyprland),
+    "desktop.window.float": (plan_float, do_float, requires_hyprland),
+    "desktop.window.move": (plan_move, do_move, requires_hyprland),
+    "desktop.text.insert": (plan_insert, do_insert, requires_wtype),
     "journal.errors.notify": (plan_errors_notify, do_errors_notify, requires_journal_and_desktop),
     "journal.digest": (plan_digest, do_digest, requires_model),
     "interests.fetch": (plan_interests_fetch, do_interests_fetch, requires_desktop),
@@ -1867,7 +1981,10 @@ def cmd_propose(argv):
     if not available:
         return refuse(name, args, "propose", reason, "agent",
                       "unavailable" if implemented else "unimplemented")
-    plan = run_provider(prov[0], a, args)
+    try:
+        plan = run_provider(prov[0], a, args)
+    except (OSError, ValueError, RuntimeError) as exc:
+        return refuse(name, args, "propose", f"{type(exc).__name__}: {exc}", "agent", "failed")
     print(f"  {name}")
     print(f"  branch : {plan['branch']}")
     print(f"  would  : {plan['detail']}")

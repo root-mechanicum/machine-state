@@ -30,3 +30,31 @@ label          = "Arrange a workspace"
 category       = "Desktop"
 mutating       = true
 consequence    = "adjust"
+
+# Window actions name their window by address; left out, it is the focused
+# window, resolved before anything is dispatched. Both read the result back.
+[action."desktop.window.float"]
+implementation = "desktop.window.float"
+label       = "Float or tile a window"
+category    = "Desktop"
+args        = { floating = "yes or no", window = "optional window address; default the focused window" }
+mutating    = true
+consequence = "adjust"
+
+[action."desktop.window.move"]
+implementation = "desktop.window.move"
+label       = "Move a window to a workspace"
+category    = "Desktop"
+args        = { workspace = "workspace name or number", window = "optional window address; default the focused window" }
+mutating    = true
+consequence = "adjust"
+
+# commit, not adjust: typed into a terminal, text is a command. From a person
+# it is what they asked for; from anything else it waits for approval.
+[action."desktop.text.insert"]
+implementation = "desktop.text.insert"
+label       = "Type text into the focused window"
+category    = "Desktop"
+args        = { text = "the text to type" }
+mutating    = true
+consequence = "commit"
