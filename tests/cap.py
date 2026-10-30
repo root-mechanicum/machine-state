@@ -126,14 +126,14 @@ def main():
         # rename the action out from under the bindings
         p = b.repo / "canonical/bindings/keys.toml"
         p.write_text(p.read_text().replace("desktop.application.ensure",
-                                           "desktop.application.summon"))
+                                           "desktop.application.renamed"))
         before = b.artifact()
         rc, out = b.cap("render")
         check("3  rename: render refuses and writes no stale identity",
-              rc != 0 and "summon" not in b.artifact(), f"exit={rc}")
+              rc != 0 and "renamed" not in b.artifact(), f"exit={rc}")
         check("4  invalid: the previous good artifact survives byte-for-byte",
               b.artifact() == before)
-        p.write_text(p.read_text().replace("desktop.application.summon",
+        p.write_text(p.read_text().replace("desktop.application.renamed",
                                            "desktop.application.ensure"))
 
         # hand-edit the artifact

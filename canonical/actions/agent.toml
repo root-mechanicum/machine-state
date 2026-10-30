@@ -11,3 +11,12 @@ args        = { prompt = "the question" }
 mutating    = false
 consequence = "report"
 channels    = ["desktop:read", "model:local", "notify", "inbox"]
+
+# The quick-ask box: the launcher, opened in /ask mode (canonical/noctalia/plugins/ask).
+# Opening it changes nothing but the screen; the question is a separate act.
+[action."agent.summon"]
+implementation = "agent.summon"
+label       = "Open the quick-ask box"
+category    = "Agent"
+mutating    = true
+consequence = "adjust"

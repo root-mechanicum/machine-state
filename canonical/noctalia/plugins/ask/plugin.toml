@@ -1,0 +1,22 @@
+# The quick ask: /ask in the launcher. Holds no agent logic — it hands the text
+# to `cap act agent.ask`, and whatever role.agent names answers, later, as a
+# notification and an inbox note. Registered as a noctalia `path` source.
+id = "machine-state/ask"
+name = "Ask"
+version = "0.1.0"
+plugin_api = 3
+author = "machine-state"
+license = "MIT"
+icon = "sparkles"
+description = "Ask the agent a quick question from the launcher via /ask; the answer arrives later."
+tags = ["launcher", "ai"]
+dependencies = []
+
+[[launcher_provider]]
+id = "ask"
+entry = "launcher.luau"
+prefix = "ask"
+glyph = "sparkles"
+include_in_global_search = false
+debounce_ms = 0
+
