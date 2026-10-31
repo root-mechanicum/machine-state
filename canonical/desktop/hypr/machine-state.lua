@@ -19,3 +19,11 @@ hl.monitor({
     position = "auto",
     scale    = "auto",
 })
+
+-- Session programs this repository added. The template's own list lives in
+-- config/autostart.lua and stays untouched; this handler runs alongside it.
+hl.on("hyprland.start", function ()
+    -- The firewall's prompt and tray (canonical/tooling/opensnitch.md). The
+    -- delay is the one its .desktop file asks for: the tray must be up first.
+    hl.exec_cmd("sh -c 'sleep 3; exec opensnitch-ui'")
+end)

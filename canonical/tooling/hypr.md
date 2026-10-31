@@ -34,6 +34,12 @@ stock: the live layout and mode are held by our module alone.
   is for.
 - A divergence is not automatically wrong. It is either a package improvement worth adopting or an
   unrecorded hand-edit worth reverting — but it should never be a surprise.
+- **Qt apps need their Wayland plugin, or they render at half size.** The session sets
+  `QT_QPA_PLATFORM=wayland;xcb`, and `xwayland:force_zero_scaling = true` on a scale-2 panel
+  (`eDP-1`, 3840×2400). A Qt app without `qt5-wayland` / `qt6-wayland` silently falls back to
+  `xcb`, runs under XWayland and draws at 1×. Neither plugin was installed until 2026-10-31, when
+  `opensnitch-ui` came up unreadably small (see `opensnitch.md`). The fix is the plugin, never a
+  per-app `QT_SCALE_FACTOR`.
 
 ## Dispatching, under the Lua config
 
