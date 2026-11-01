@@ -20,10 +20,13 @@ The model exposes a 98,304-token context (matching vLLM's `--max-model-len`, whi
 and output together) and a 65,536-token response ceiling, leaving about 32k tokens for the prompt.
 The ceiling is large so `xhigh` reasoning can reach tool execution and a final response.
 
-Pi defaults to `medium` thinking, and its `defaultThinkingLevel` lives in Pi-owned
-`~/.pi/agent/settings.json`, which is not projected. Launchers therefore pass `--thinking xhigh`
-(see `canonical/roles/roles.toml`). The model's `thinkingLevelMap` disables `high`, so a request
-for `high` clamps up to `xhigh`.
+Thinking runs at `xhigh` everywhere. Pi's built-in default is `medium`, so the intended state is
+`"defaultThinkingLevel": "xhigh"` in Pi-owned `~/.pi/agent/settings.json` (set 2026-11-01; Pi
+writes that file itself, so it is recorded here rather than projected). Launchers also pass
+`--thinking xhigh` (see `canonical/roles/roles.toml`), and `local-pi` hard-codes it, so they stay
+at `xhigh` even if the setting is lost. Qwen3.8's chat template accepts only `xhigh` (its own
+default), `medium` and `low`; the `thinkingLevelMap` disables `high`, so a request for `high`
+clamps up to `xhigh`. Check the resolved level with an RPC `get_state` on a fresh Pi.
 
 The current Pi-managed extensions are `pi-mono-context`, `pi-mono-context-guard`,
 `pi-mono-multi-edit`, and `pi-mono-web-search`. Pi owns their package manifest and install
