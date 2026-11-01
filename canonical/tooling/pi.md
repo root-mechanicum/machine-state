@@ -16,6 +16,14 @@ The managed Pi release is resolved from `https://pi.dev/api/installer/releases/l
 versioned `package.json` and `package-lock.json` are installed with `npm ci --ignore-scripts`.
 The canonical model configuration belongs at `~/.pi/agent/models.json`; it routes the `vllm`
 provider to `http://localhost:8000/v1` and selects `RedHatAI/Qwen3.8-27B-INT4`.
+The model exposes a 98,304-token context (matching vLLM's `--max-model-len`, which counts prompt
+and output together) and a 65,536-token response ceiling, leaving about 32k tokens for the prompt.
+The ceiling is large so `xhigh` reasoning can reach tool execution and a final response.
+
+Pi defaults to `medium` thinking, and its `defaultThinkingLevel` lives in Pi-owned
+`~/.pi/agent/settings.json`, which is not projected. Launchers therefore pass `--thinking xhigh`
+(see `canonical/roles/roles.toml`). The model's `thinkingLevelMap` disables `high`, so a request
+for `high` clamps up to `xhigh`.
 
 The current Pi-managed extensions are `pi-mono-context`, `pi-mono-context-guard`,
 `pi-mono-multi-edit`, and `pi-mono-web-search`. Pi owns their package manifest and install

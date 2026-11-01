@@ -10,9 +10,29 @@
           "id": "RedHatAI/Qwen3.8-27B-INT4",
           "name": "Qwen3.8 27B INT4",
           "reasoning": true,
+          "thinkingLevelMap": {
+            "low": "low",
+            "medium": "medium",
+            "high": null,
+            "xhigh": "xhigh"
+          },
           "input": ["text", "image"],
-          "contextWindow": 32768,
-          "maxTokens": 4096
+          "contextWindow": 98304,
+          "maxTokens": 65536,
+          "samplingParams": {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 20,
+            "presence_penalty": 0,
+            "repetition_penalty": 1.0
+          },
+          "samplingParamsByThinkingLevel": {
+            "off": {
+              "temperature": 0.7,
+              "top_p": 0.8,
+              "presence_penalty": 1.5
+            }
+          }
         }
       ]
     }

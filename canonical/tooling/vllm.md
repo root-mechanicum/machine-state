@@ -37,6 +37,12 @@ vllm serve RedHatAI/Qwen3.8-27B-INT4 \
   --tool-call-parser qwen3_xml
 ```
 
+The current unit (`canonical/vllm/vllm-qwen38.service`) serves a 98,304-token window so Pi can
+request a 65,536-token response. At `--gpu-memory-utilization 0.95` the KV cache held only about
+76k tokens, so the unit instead sets `--kv-cache-memory 3720343040` (3.46 GiB), the value vLLM's
+own startup log offers for using the full GPU. That leaves almost no VRAM free while the model is
+loaded.
+
 ## Lifecycle
 
 The service is enabled for `default.target` and starts at login, but only on AC power

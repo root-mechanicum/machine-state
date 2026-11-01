@@ -20,6 +20,6 @@ window_class = ["firefox", "Firefox"]
 # Pi by path: keys and the launcher do not get the shell's PATH.
 [role.agent]
 label        = "Agent"
-command      = "kitty --class pi-agent -e ~/.pi/agent/bin/pi --model vllm/RedHatAI/Qwen3.8-27B-INT4"
+command      = "kitty --class pi-agent -e ~/.pi/agent/bin/pi --model vllm/RedHatAI/Qwen3.8-27B-INT4 --thinking xhigh"
 window_class = ["pi-agent"]
-ask          = "~/.pi/agent/bin/pi -p --tools read,grep,find,ls --no-mcp --no-session --model vllm/RedHatAI/Qwen3.8-27B-INT4"
+ask          = "~/.pi/agent/bin/pi -p --tools read,grep,find,ls --no-mcp --no-session --model vllm/RedHatAI/Qwen3.8-27B-INT4 --thinking xhigh"
