@@ -1462,6 +1462,9 @@ CONTEXT = INBOX.parent / "context" / "current.json"
 AGENT_PROMPT = """You are the assistant on this Linux workstation (CachyOS, Hyprland). \
 Its owner asked a quick question from a launcher and will read your answer later, \
 in a notification and a note. Answer directly and briefly; Markdown, no preamble.
+For questions about this machine, use cap_list to find a relevant observation and
+cap_observe to obtain current facts. Never invent measurements. If the tools do
+not provide the answer, say so.
 
 It is {clock}.
 
@@ -1568,6 +1571,14 @@ def do_ask(prompt=""):
         f"# {prompt.strip()[:80]}\n\n{answer}\n")
     plan["note"] = str(note)
     use("notify")
+    # Keep the durable inbox and notification even if the shell is unavailable.
+    # IPC context is one argument, not a shell command; limit its size for IPC.
+    try:
+        subprocess.run(["noctalia", "msg", "panel-open", "machine-state/ask:answer",
+                        f"# {prompt.strip()[:200]}\n\n{answer[:24000]}"],
+                       capture_output=True, timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        pass
     short = answer if len(answer) <= 240 else answer[:237].rstrip() + "…"
     # Clicking the popup opens the note. notify-send waits for that click, so it
     # runs detached and act returns now. Everything reaches it as an argument,
@@ -1683,6 +1694,260 @@ def do_summon():
     return plan, "ok"
 
 
+# The machine, read only (machine-state-s4a). The agent answered "36 GB" for a
+# 24 GB card from memory; these let it answer from the machine instead. Every
+# one is observe: it opens files under /proc and /sys and runs query commands,
+# and writes nothing. A source that is missing is left out of the answer, never
+# guessed at, so a box without nvidia-smi still reports everything else.
+#
+# CAP_SYSROOT moves where /proc and /sys are read from, so tests can stand in a
+# fake tree. It can only change what is READ: nothing here writes, so the worst
+# an override does is make cap describe a machine that is not this one.
+SYSROOT = pathlib.Path(os.environ.get("CAP_SYSROOT", "/"))
+DISK_TYPES = {"btrfs", "ext4", "xfs", "f2fs", "vfat", "exfat", "ntfs3", "zfs"}
+
+
+def _sys(path):
+    """A file's stripped text, or None when the machine does not have it."""
+    try:
+        return (SYSROOT / path.lstrip("/")).read_text().strip()
+    except OSError:
+        return None
+
+
+def _num(path, scale=1):
+    v = _sys(path)
+    try:
+        return int(v) / scale if v is not None else None
+    except ValueError:
+        return None
+
+
+def _query(argv):
+    """A query command's stdout lines, or [] when it is absent or fails."""
+    if not shutil.which(argv[0]):
+        return []
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return r.stdout.splitlines() if r.returncode == 0 else []
+
+
+def _meminfo():
+    out = {}
+    for line in (_sys("/proc/meminfo") or "").splitlines():
+        k, _, v = line.partition(":")
+        if v.split():
+            out[k] = int(v.split()[0]) * 1024
+    return out
+
+
+def _hwmon(name):
+    base = SYSROOT / "sys/class/hwmon"
+    for d in sorted(base.glob("hwmon*")) if base.is_dir() else []:
+        if _sys(str(d.relative_to(SYSROOT) / "name")) == name:
+            return "/" + str(d.relative_to(SYSROOT))
+    return None
+
+
+def _nvidia():
+    rows = []
+    for line in _query(["nvidia-smi", "--format=csv,noheader,nounits", "--query-gpu="
+                        "name,memory.used,memory.total,utilization.gpu,temperature.gpu,power.draw"]):
+        f = [x.strip() for x in line.split(",")]
+        if len(f) == 6:
+            rows.append(dict(zip(("name", "used", "total", "util", "temp", "power"), f)))
+    return rows
+
+
+def _gib(n):
+    return f"{n / 2**30:.1f} GiB"
+
+
+def _show(lines):
+    for k, v in lines:
+        print(f"  {k:<10} {v}")
+
+
+def _hardware():
+    lines = []
+    vendor, product = _sys("/sys/class/dmi/id/sys_vendor"), _sys("/sys/class/dmi/id/product_name")
+    if product:
+        lines.append(("model", f"{vendor or ''} {product}".strip()))
+    osr = dict(l.split("=", 1) for l in (_sys("/etc/os-release") or "").splitlines() if "=" in l)
+    if osr.get("PRETTY_NAME"):
+        lines.append(("os", osr["PRETTY_NAME"].strip('"')))
+    if _sys("/proc/sys/kernel/osrelease"):
+        lines.append(("kernel", _sys("/proc/sys/kernel/osrelease")))
+    cpu, threads, cores = None, 0, set()
+    phys = None
+    for line in (_sys("/proc/cpuinfo") or "").splitlines():
+        k, _, v = (s.strip() for s in line.partition(":"))
+        if k == "processor":
+            threads += 1
+        elif k == "model name" and cpu is None:
+            cpu = v
+        elif k == "physical id":
+            phys = v
+        elif k == "core id":
+            cores.add((phys, v))
+    if cpu:
+        lines.append(("cpu", f"{cpu}, {len(cores) or '?'} cores, {threads} threads"))
+    mem = _meminfo().get("MemTotal")
+    if mem:
+        lines.append(("memory", _gib(mem)))
+    vram = {g["name"]: g["total"] for g in _nvidia()}
+    for line in _query(["lspci"]):
+        if re.search(r"VGA compatible|3D controller|Display controller", line):
+            name = line.split(": ", 1)[-1]
+            lines.append(("gpu", name))
+    for name, total in vram.items():
+        lines.append(("gpu memory", f"{name}: {int(total) / 1024:.1f} GiB"))
+    return lines
+
+
+def plan_hardware():
+    return {"branch": "read", "detail": "read what this machine is made of; changes nothing"}
+
+
+def do_hardware():
+    lines = _hardware()
+    _show(lines)
+    plan = plan_hardware()
+    plan["detail"] = "; ".join(f"{k} {v}" for k, v in lines if k in ("cpu", "memory", "gpu memory"))
+    return plan, "ok" if lines else "failed"
+
+
+def _status():
+    lines = []
+    up = _sys("/proc/uptime")
+    if up:
+        s = int(float(up.split()[0]))
+        lines.append(("uptime", f"{s // 86400}d {s % 86400 // 3600}h {s % 3600 // 60}m"))
+    load = _sys("/proc/loadavg")
+    if load:
+        lines.append(("load", " ".join(load.split()[:3]) + f" (of {os.cpu_count()} threads)"))
+    m = _meminfo()
+    if "MemTotal" in m and "MemAvailable" in m:
+        lines.append(("memory", f"{_gib(m['MemTotal'] - m['MemAvailable'])} used of "
+                                f"{_gib(m['MemTotal'])}"))
+    core = _hwmon("coretemp")
+    t = _num(f"{core}/temp1_input", 1000) if core else None
+    if t is not None:
+        lines.append(("cpu temp", f"{t:.0f} °C"))
+    fans = _hwmon("asus")
+    if fans:
+        for i in range(1, 9):
+            rpm = _num(f"{fans}/fan{i}_input")
+            if rpm is not None:
+                label = _sys(f"{fans}/fan{i}_label") or f"fan{i}"
+                lines.append(("fan", f"{label} {rpm:.0f} rpm"))
+    prof = _sys("/sys/firmware/acpi/platform_profile")
+    if prof:
+        lines.append(("profile", prof))
+    for g in _nvidia():
+        lines.append(("gpu", f"{g['name']}: {g['util']}% busy, {g['used']} of {g['total']} MiB, "
+                             f"{g['temp']} °C, {g['power']} W"))
+    return lines
+
+
+def plan_status():
+    return {"branch": "read", "detail": "read how this machine is doing now; changes nothing"}
+
+
+def do_status():
+    lines = _status()
+    _show(lines)
+    plan = plan_status()
+    plan["detail"] = "; ".join(f"{k} {v}" for k, v in lines if k in ("load", "memory", "gpu"))
+    return plan, "ok" if lines else "failed"
+
+
+def _battery_dir():
+    base = SYSROOT / "sys/class/power_supply"
+    for d in sorted(base.glob("BAT*")) if base.is_dir() else []:
+        return "/" + str(d.relative_to(SYSROOT))
+    return None
+
+
+def requires_battery():
+    return (True, None) if _battery_dir() else (False, "this machine has no battery")
+
+
+def _on_ac():
+    base = SYSROOT / "sys/class/power_supply"
+    for d in sorted(base.iterdir()) if base.is_dir() else []:
+        rel = "/" + str(d.relative_to(SYSROOT))
+        if _sys(f"{rel}/type") == "Mains":
+            return _sys(f"{rel}/online") == "1"
+    return None
+
+
+def plan_battery():
+    return {"branch": "read", "detail": "read the battery; changes nothing"}
+
+
+def do_battery():
+    b = _battery_dir()
+    cap_, status = _sys(f"{b}/capacity"), _sys(f"{b}/status")
+    lines = [("charge", f"{cap_}%" if cap_ else "?"), ("status", status or "?")]
+    ac = _on_ac()
+    if ac is not None:
+        lines.append(("power", "on AC" if ac else "on battery"))
+    limit = _sys(f"{b}/charge_control_end_threshold")
+    if limit:
+        lines.append(("limit", f"charges to {limit}%"))
+    watts = _num(f"{b}/power_now", 1e6)
+    if watts:
+        lines.append(("draw", f"{watts:.1f} W"))
+    full, design = _num(f"{b}/energy_full"), _num(f"{b}/energy_full_design")
+    if full and design:
+        lines.append(("health", f"{100 * full / design:.0f}% of design capacity"))
+    cycles = _sys(f"{b}/cycle_count")
+    if cycles:
+        lines.append(("cycles", cycles))
+    _show(lines)
+    plan = plan_battery()
+    plan["detail"] = f"battery {cap_}%, {(status or '?').lower()}" + (
+        "" if ac is None else (", on AC" if ac else ", on battery"))
+    return plan, "ok"
+
+
+def _disks():
+    """One line per filesystem. btrfs mounts a dozen subvolumes of ONE filesystem,
+    and listing each as a disk would report the same free space a dozen times."""
+    fs = {}
+    for line in _query(["df", "-B1", "--output=source,fstype,size,used,avail,target"])[1:]:
+        f = line.split()
+        if len(f) < 6 or f[1] not in DISK_TYPES:
+            continue
+        src, typ, size, used, avail, target = f[0], f[1], *map(int, f[2:5]), " ".join(f[5:])
+        fs.setdefault(src, {"type": typ, "size": size, "used": used, "avail": avail,
+                            "mounts": []})["mounts"].append(target)
+    return fs
+
+
+def plan_disks():
+    return {"branch": "read", "detail": "read the mounted filesystems; changes nothing"}
+
+
+def do_disks():
+    fs = _disks()
+    for src, d in fs.items():
+        pct = 100 * d["used"] / d["size"] if d["size"] else 0
+        mounts = ", ".join(d["mounts"][:4]) + (f" +{len(d['mounts']) - 4}" if len(d["mounts"]) > 4 else "")
+        print(f"  {src:<16} {d['type']:<6} {_gib(d['avail'])} free of {_gib(d['size'])} "
+              f"({pct:.0f}% used)  {mounts}")
+    plan = plan_disks()
+    plan["detail"] = "; ".join(f"{d['mounts'][0]} {_gib(d['avail'])} free" for d in fs.values())
+    return plan, "ok" if fs else "failed"
+
+
+def requires_nothing():
+    return True, None
+
+
 # DECLARATIONS COMPOSE THE SYSTEM; IMPLEMENTATIONS EXTEND ITS ABILITIES.
 #
 # Roles, bindings, labels, previews and catalogue entries are pure data and need
@@ -1706,6 +1971,10 @@ PROVIDERS = {
     "agent.ask": (plan_ask, do_ask, requires_agent),
     "agent.summon": (plan_summon, do_summon, requires_noctalia),
     "agent.resolve": (plan_resolve, do_resolve, requires_local_model),
+    "system.hardware": (plan_hardware, do_hardware, requires_nothing),
+    "system.status": (plan_status, do_status, requires_nothing),
+    "system.battery": (plan_battery, do_battery, requires_battery),
+    "system.disks": (plan_disks, do_disks, requires_nothing),
 }
 
 
@@ -2046,6 +2315,20 @@ def cmd_list(argv):
     if not acts:
         print("  (no actions declared)")
     return 0
+
+
+def cmd_observe(argv):
+    """Restricted entry point for an assistant answering a person's question."""
+    if not argv:
+        die("usage: cap observe <action> [name=value ...]")
+    name = argv[0]
+    a = actions().get(name)
+    # Report actions may notify, write inbox notes, or use the network.
+    if (not a or a.get("mutating", True) or a.get("consequence") != "observe"
+            or a.get("channels") or name.startswith("agent.")):
+        print(f"  refused: {name} is not an assistant observation", file=sys.stderr)
+        return 1
+    return cmd_act(argv)
 
 
 def cmd_propose(argv):
@@ -2498,7 +2781,7 @@ def cmd_render(_argv):
     return 0
 
 
-COMMANDS = {"list": cmd_list, "propose": cmd_propose, "act": cmd_act, "emit": cmd_emit,
+COMMANDS = {"list": cmd_list, "observe": cmd_observe, "propose": cmd_propose, "act": cmd_act, "emit": cmd_emit,
             "inbox": cmd_inbox, "interests": cmd_interests,
             "preview": cmd_preview, "check": cmd_check, "render": cmd_render}
 

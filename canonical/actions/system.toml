@@ -1,0 +1,31 @@
+# The machine, read only (machine-state-s4a). Facts an agent should look up
+# rather than remember: it once said 36 GB for a 24 GB GPU. All observe, no
+# channels: they read /proc, /sys and query commands, and change nothing.
+
+[action."system.hardware"]
+implementation = "system.hardware"
+label       = "What this machine is: CPU, memory, GPUs, model, OS"
+category    = "System"
+mutating    = false
+consequence = "observe"
+
+[action."system.status"]
+implementation = "system.status"
+label       = "How this machine is doing: load, memory, temperatures, fans, GPU"
+category    = "System"
+mutating    = false
+consequence = "observe"
+
+[action."system.battery"]
+implementation = "system.battery"
+label       = "Battery charge, power source, charge limit and health"
+category    = "System"
+mutating    = false
+consequence = "observe"
+
+[action."system.disks"]
+implementation = "system.disks"
+label       = "Free space on each filesystem"
+category    = "System"
+mutating    = false
+consequence = "observe"
