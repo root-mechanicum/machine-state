@@ -560,6 +560,9 @@ def _agent(b, answer="It is a test.", rc=0):
     pi.write_text(
         f'#!/bin/sh\nfor a in "$@"; do printf "%s\\n---\\n" "$a"; done > "{b.dir}/pi.args"\n'
         f'pwd > "{b.dir}/pi.cwd"\nprintf "%s" "$MACHINE_CONTEXT" > "{b.dir}/pi.ctx"\n'
+        'p=""; for a in "$@"; do [ "$p" = --session-dir ] && sd="$a"; '
+        '[ "$p" = --session-id ] && sid="$a"; p="$a"; done\n'
+        '[ -n "$sid" ] && echo turn >> "$sd/stamp_$sid.jsonl"\n'
         f'printf "%s" "{answer}"\nexit {rc}\n')
     active = {"address": "0x1", "class": "firefox", "title": HOSTILE_TITLE,
               "workspace": {"name": "3"}}
@@ -766,6 +769,69 @@ def _reader(b, values, script=None):
     patch(b.repo / "canonical" / "roles" / "roles.toml",
           'read         = "~/.local/share/pi-node/current/bin/node ~/src/rerule/scripts/rerule.mjs page"',
           f'read         = "{stub}"')
+
+
+def _thread(b, note):
+    m = re.search(r"^thread: (\S+)$", note.read_text(), re.M)
+    return m.group(1) if m else ""
+
+
+def case_ask_thread(b):
+    # Each ask is a thread: Pi keeps a session in the owner-only threads dir, the
+    # panel is told the thread and note, and a follow-up continues the same
+    # session, unfenced, into the same note, with no second popup.
+    _agent(b, answer="It is a test.")
+    rc1, _ = b.cap("act", "agent.ask", "prompt=what is this page?")
+    notes = b.notes()
+    tid = _thread(b, notes[0]) if notes else ""
+    args1 = (b.dir / "pi.args").read_text()
+    threads = b.dir / ".local" / "state" / "agents" / "threads"
+    panel = _panels(b, want=1)
+    _eventually(b.dir / "notify.log")
+    rc2, _ = b.cap("act", "agent.ask", "prompt=and why?", f"thread={tid}")
+    args2 = (b.dir / "pi.args").read_text()
+    text = notes[0].read_text() if notes else ""
+    session = list(threads.glob(f"*_{tid}.jsonl")) if tid else []
+    popups = (b.dir / "notify.log").read_text() if (b.dir / "notify.log").exists() else ""
+    ok = bool(rc1 == 0 and rc2 == 0 and len(notes) == 1 and re.fullmatch(r"[0-9a-f-]{36}", tid)
+          and f"--session-id\n---\n{tid}\n" in args1 and f"--session-id\n---\n{tid}\n" in args2
+          and "--no-session" not in args1 + args2
+          and (threads.stat().st_mode & 0o777) == 0o700
+          and len(session) == 1 and session[0].read_text().count("turn") == 2
+          and panel and panel[0].lstrip().startswith(f"@thread {tid} {notes[0].name}\n")
+          and "Follow-up: and why?" in args2 and "<screen>" not in args2
+          and text.index("# what is this page?") < text.index("## and why?")
+          and text.count("It is a test.") == 2
+          and popups.count("what is this page?") == 1 and "and why?" not in popups)
+    return ok, f"rc={rc1},{rc2} tid={tid[:8]} sessions={len(session)}"
+
+
+def case_ask_thread_rejects(b):
+    # Only an existing thread continues: a malformed id, a glob, an id with no
+    # note, or a note whose session is gone never reaches the agent.
+    _agent(b)
+    rc, _ = b.cap("act", "agent.ask", "prompt=one")
+    tid = _thread(b, b.notes()[0])
+    for f in (b.dir / ".local" / "state" / "agents" / "threads").glob("*.jsonl"):
+        f.unlink()
+    (b.dir / "pi.args").unlink()
+    rcs = [b.cap("act", "agent.ask", "prompt=two", f"thread={t}")[0]
+           for t in ("not-a-thread", "*", "0b5e1d2a-1111-4222-8333-444455556666", tid)]
+    ok = rc == 0 and all(r != 0 for r in rcs) and not (b.dir / "pi.args").exists()
+    return ok, f"rc={rc} refused={rcs} agent ran={(b.dir / 'pi.args').exists()}"
+
+
+def case_inbox_body(b):
+    # The panel rereads a note after a follow-up: body only, nothing marked read,
+    # and a name, never a path.
+    _agent(b, answer="It is a test.")
+    b.cap("act", "agent.ask", "prompt=what is this page?")
+    name = b.notes()[0].name
+    rc, out = b.cap("inbox", "body", name)
+    rc2, _ = b.cap("inbox", "body", "../context/current.json")
+    ok = (rc == 0 and out.strip().startswith("# what is this page?") and "It is a test." in out
+          and "generated:" not in out and len(b.notes()) == 1 and rc2 == 2)
+    return ok, f"rc={rc},{rc2}"
 
 
 def _reads(b):
@@ -1022,6 +1088,15 @@ def main():
         check("31g ask: without a panel, the click opens the note in a terminal",
               *case_ask_click_no_panel(b))
     with Box() as b:
+        check("31h ask: a thread keeps one session, and a follow-up continues it into the note",
+              *case_ask_thread(b))
+    with Box() as b:
+        check("31i ask: a follow-up needs an existing thread; anything else never reaches "
+              "the agent", *case_ask_thread_rejects(b))
+    with Box() as b:
+        check("31j inbox body prints a note without front matter and marks nothing",
+              *case_inbox_body(b))
+    with Box() as b:
         check("31c inbox open and panel take a note name, never a path",
               *case_open_name_only(b))
     with Box() as b:
@@ -1210,6 +1285,20 @@ def main():
         patch(b.cap_path, 'if not re.fullmatch(r"[\\w.-]+\\.md", name):', 'if False:')
         ok, d = case_open_name_only(b)
         check("31cn name check removed -> assertion 31c fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '    return ["--session-dir", str(THREADS), "--session-id", thread]',
+              '    return ["--no-session"]')
+        ok, d = case_ask_thread(b)
+        check("31hn session flags dropped -> assertion 31h fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '    if note is None or not any(THREADS.glob(f"*_{thread}.jsonl")):',
+              '    if note is None and False:')
+        ok, d = case_ask_thread_rejects(b)
+        check("31in existing-thread check removed -> assertion 31i fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '    THREADS.chmod(0o700)\n', '    THREADS.chmod(0o755)\n')
+        ok, d = case_ask_thread(b)
+        check("31hm threads dir not owner-only -> assertion 31h fails", not ok, d)
     with Box() as b:
         patch(b.cap_path, '    if name not in cands or bad:', '    if False:')
         ok, d = case_resolve_rejects(b)

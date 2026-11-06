@@ -1463,6 +1463,12 @@ def do_interests_digest():
 
 CONTEXT = INBOX.parent / "context" / "current.json"
 
+# A thread is one inbox note plus the agent's session for it, so a follow-up in
+# the answer panel continues the same conversation. The session holds what the
+# agent was given, page text included, so the directory is the owner's alone.
+THREADS = INBOX.parent / "threads"
+THREAD_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
 AGENT_PROMPT = """You are the assistant on this Linux workstation (CachyOS, Hyprland). \
 Its owner asked a quick question from a launcher and will read your answer later, \
 in a notification and a note. Answer directly and briefly; Markdown, no preamble.
@@ -1656,19 +1662,63 @@ def requires_agent():
     return requires_desktop()
 
 
-def plan_ask(prompt=""):
+def plan_ask(prompt="", thread=""):
     cmd = os.path.basename(argv_of(roles()["agent"]["ask"])[0])
+    if thread:
+        return {"branch": "follow-up", "agent": cmd, "thread": thread,
+                "detail": f"ask {cmd} a follow-up of {len(prompt)} character(s) in thread "
+                          f"{thread}; add the answer to its note"}
     return {"branch": "ask", "agent": cmd,
             "detail": f"ask {cmd} about {len(prompt)} character(s) with the screen, and "
                       f"the focused browser page (role.browser.read), as context; notify and "
                       f"write a note to {INBOX}"}
 
 
-def do_ask(prompt=""):
-    """One question, answered later: a notification now-ish, a note to keep."""
-    plan = plan_ask(prompt)
+def _thread_note(thread):
+    """The note a thread belongs to, read or unread; None when there is none."""
+    for d in (INBOX, INBOX / "read"):
+        for p in sorted(d.glob("*.md")) if d.is_dir() else []:
+            if _front(p).get("thread") == thread:
+                return p
+    return None
+
+
+def _session(thread):
+    """Pi's flags to keep this thread's session, in the owner-only directory."""
+    THREADS.mkdir(parents=True, exist_ok=True)
+    THREADS.chmod(0o700)
+    return ["--session-dir", str(THREADS), "--session-id", thread]
+
+
+def _run_agent(plan, text, extra):
+    """The ask command with its session flags and one prompt; the answer or None."""
+    use("model:local")
+    try:
+        r = subprocess.run(
+            argv_of(roles()["agent"]["ask"]) + extra + [text],
+            capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=900,
+            # Home, not the caller's directory: a launcher and a terminal in some
+            # repository must get the same agent, not one carrying that repo's AGENTS.md.
+            cwd=pathlib.Path.home(), env={**os.environ, "MACHINE_CONTEXT": str(CONTEXT)})
+    except subprocess.TimeoutExpired:
+        plan["outcome_detail"] = f"{plan['agent']} gave no answer within 15 minutes"
+        return None
+    answer = r.stdout.strip()
+    if r.returncode != 0 or not answer:
+        plan["outcome_detail"] = (f"{plan['agent']} exited {r.returncode}: "
+                                  f"{(r.stderr or 'no answer').strip()[-200:]}")
+        return None
+    return answer
+
+
+def do_ask(prompt="", thread=""):
+    """One question, answered later: a notification now-ish, a note to keep.
+    With thread, a follow-up in that conversation, added to its note."""
+    plan = plan_ask(prompt, thread)
     if not prompt.strip():
         raise ValueError("the question is empty")
+    if thread:
+        return _follow_up(plan, prompt.strip(), thread)
     ctx = context_now()
     page = browser_context(ctx)
     CONTEXT.parent.mkdir(parents=True, exist_ok=True)
@@ -1676,23 +1726,11 @@ def do_ask(prompt=""):
     CONTEXT.write_text(json.dumps(
         {**ctx, "page": {k: page[k] for k in ("url", "title", "kind", "truncated")}
                         if page else None}, indent=2))
-    use("model:local")
-    try:
-        r = subprocess.run(
-            argv_of(roles()["agent"]["ask"])
-            + [AGENT_PROMPT.format(question=prompt.strip(), screen=_screen(ctx),
-                                 page=_page(page), clock=_clock())],
-            capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=900,
-            # Home, not the caller's directory: a launcher and a terminal in some
-            # repository must get the same agent, not one carrying that repo's AGENTS.md.
-            cwd=pathlib.Path.home(), env={**os.environ, "MACHINE_CONTEXT": str(CONTEXT)})
-    except subprocess.TimeoutExpired:
-        plan["outcome_detail"] = f"{plan['agent']} gave no answer within 15 minutes"
-        return plan, "failed"
-    answer = r.stdout.strip()
-    if r.returncode != 0 or not answer:
-        plan["outcome_detail"] = (f"{plan['agent']} exited {r.returncode}: "
-                                  f"{(r.stderr or 'no answer').strip()[-200:]}")
+    thread = str(uuid.uuid4())
+    answer = _run_agent(plan, AGENT_PROMPT.format(question=prompt.strip(), screen=_screen(ctx),
+                                                  page=_page(page), clock=_clock()),
+                        _session(thread))
+    if answer is None:
         return plan, "failed"
     use("inbox")
     INBOX.mkdir(parents=True, exist_ok=True)
@@ -1700,14 +1738,14 @@ def do_ask(prompt=""):
     note.write_text(
         "---\n"
         f"action: agent.ask\nagent: {plan['agent']}\ngenerated: {now()}\n"
-        f"workspace: {ctx['workspace'] or 'unknown'}\n"
+        f"workspace: {ctx['workspace'] or 'unknown'}\nthread: {thread}\n"
         "---\n\n"
         f"# {prompt.strip()[:80]}\n\n{answer}\n")
-    plan["note"] = str(note)
+    plan["note"], plan["thread"] = str(note), thread
     use("notify")
     # Keep the durable inbox and notification even if the shell is unavailable.
     # IPC context is one argument, not a shell command; limit its size for IPC.
-    _answer_panel(f"# {prompt.strip()[:200]}\n\n{answer[:24000]}")
+    _answer_panel(f"# {prompt.strip()[:200]}\n\n{answer[:24000]}", note.name, thread)
     short = answer if len(answer) <= 240 else answer[:237].rstrip() + "…"
     # Clicking the popup opens the note in the answer panel again (the panel
     # closes; the notification stays). notify-send waits for that click, so it
@@ -1723,6 +1761,29 @@ def do_ask(prompt=""):
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # The note is the answer; the popup is a pointer to it, so not awaited.
     plan["outcome_detail"] = f"wrote {note}; popup waiting for a click"
+    return plan, "ok"
+
+
+def _follow_up(plan, question, thread):
+    """A question typed in the answer panel. The panel is waiting for it, so no
+    popup; the note keeps the conversation. Only an existing thread continues:
+    an id that names no note and no session starts nothing."""
+    if not THREAD_ID.fullmatch(thread):
+        raise ValueError(f"{thread!r} is not a thread id")
+    note = _thread_note(thread)
+    if note is None or not any(THREADS.glob(f"*_{thread}.jsonl")):
+        raise ValueError(f"no thread {thread}")
+    # The person typing in the panel, so no fence: the first turn's context is
+    # already in the session, and cap_observe context.now shows what is on
+    # screen now.
+    answer = _run_agent(plan, f"It is {_clock()}.\n\nFollow-up: {question}", _session(thread))
+    if answer is None:
+        return plan, "failed"
+    use("inbox")
+    with note.open("a") as f:
+        f.write(f"\n## {question[:200]}\n\n{answer}\n")
+    plan["note"] = str(note)
+    plan["outcome_detail"] = f"added the answer to {note}"
     return plan, "ok"
 
 
@@ -2578,12 +2639,24 @@ def _note_body(p):
     return text.strip()
 
 
-def _answer_panel(markdown):
+def _front(p):
+    """A note's front matter as a dict of its `key: value` lines."""
+    text = p.read_text()
+    if not text.startswith("---\n"):
+        return {}
+    head = text[4:].partition("\n---\n")[0]
+    return dict(l.split(": ", 1) for l in head.splitlines() if ": " in l)
+
+
+def _answer_panel(markdown, note=None, thread=None):
     """Show markdown in the ask answer panel; False when the shell is not there.
-    One argument, never shell text, and bounded for IPC."""
+    One argument, never shell text, and bounded for IPC. A thread's note goes
+    with a first line naming both, so the panel can take a follow-up."""
+    head = f"@thread {thread} {note}\n" if thread and note else ""
     try:
         r = subprocess.run(["noctalia", "msg", "panel-open", "machine-state/ask:answer",
-                            markdown[:24400]], capture_output=True, timeout=5, check=False)
+                            head + markdown[:24400]], capture_output=True, timeout=5,
+                           check=False)
     except (OSError, subprocess.SubprocessError):
         return False
     return r.returncode == 0
@@ -2598,6 +2671,8 @@ def cmd_inbox(argv):
         cap inbox open NAME  open note NAME in a terminal window, mark it read
         cap inbox panel NAME open note NAME in the answer panel, mark it read (a
                              popup click); the terminal window when no panel opens
+        cap inbox body NAME  print note NAME without its front matter (the panel,
+                             after a follow-up); marks nothing
 
     Read means moved into inbox/read/ — visible, and undone by moving it back.
     """
@@ -2633,12 +2708,18 @@ def cmd_inbox(argv):
         done.mkdir(parents=True, exist_ok=True)
         p.rename(done / p.name)
         return 0
-    if sub in ("open", "panel"):
+    if sub in ("open", "panel", "body"):
         name = argv[1] if len(argv) > 1 else ""
         # A file name, never a path: the name arrives from a popup click.
         if not re.fullmatch(r"[\w.-]+\.md", name):
             die(f"inbox {sub}: {name!r} is not a note name")
         p = INBOX / name
+        if sub == "body":
+            p = p if p.exists() else done / name
+            if not p.exists():
+                die(f"inbox body: no note {name!r}")
+            print(_note_body(p))
+            return 0
         if p.exists():
             done.mkdir(parents=True, exist_ok=True)
             p = p.rename(done / name)
@@ -2646,7 +2727,9 @@ def cmd_inbox(argv):
             p = done / name
         if not p.exists():
             die(f"inbox {sub}: no note {name!r}")
-        if sub == "panel" and _answer_panel(_note_body(p)):
+        thread = _front(p).get("thread", "")
+        if sub == "panel" and _answer_panel(_note_body(p), p.name,
+                                            thread if THREAD_ID.fullmatch(thread) else None):
             return 0
         subprocess.Popen(["kitty", "--class", "cap-answer", "--title", title(p),
                           "-e", "bat", "--paging=always", "--style=plain",
@@ -2654,7 +2737,7 @@ def cmd_inbox(argv):
                          start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return 0
-    die(f"inbox: unknown subcommand {sub!r}; expected list, show, read or open")
+    die(f"inbox: unknown subcommand {sub!r}; expected list, show, read, open, panel or body")
 
 
 def cmd_interests(_argv):
