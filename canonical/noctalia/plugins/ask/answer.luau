@@ -14,6 +14,18 @@ local CAP = "~/src/machine-state/bin/cap"
 -- cap gives the agent 15 minutes; wait a little longer than that.
 local TIMEOUT_MS = 960000
 local YOU = "<!-- you -->"
+-- ui.markdown wraps only at a width it is given; the panel is 620 wide.
+local TEXT_WIDTH = 460
+
+-- Markdown that wraps inside its bubble. A question is sized to its length,
+-- roughly, so a short one gets a small bubble; an answer takes the full width.
+local function wrapped(who, md)
+	local width = TEXT_WIDTH
+	if who == "you" then
+		width = math.max(40, math.min(TEXT_WIDTH, #md * 8))
+	end
+	return ui.markdown({ text = md, width = width })
+end
 
 local text, thread, note = "", nil, nil
 local pending, problem, open, rev = nil, nil, false, 0
@@ -51,8 +63,8 @@ end
 local function bubble(who, content)
 	local mine = who == "you"
 	local box = ui.column(mine
-		and { paddingH = 12, paddingV = 8, radius = 12, maxWidth = 500, fill = "primary/0.16" }
-		or { paddingH = 12, paddingV = 8, radius = 12, maxWidth = 500,
+		and { paddingH = 12, paddingV = 8, radius = 12, fill = "primary/0.16" }
+		or { paddingH = 12, paddingV = 8, radius = 12,
 			border = "outline_variant", borderWidth = 1 },
 		{ content })
 	if mine then
@@ -97,10 +109,10 @@ render = function()
 	local items, title = {}, nil
 	for _, t in ipairs(turns(text)) do
 		title = title or (t.who == "you" and t.text) or nil
-		items[#items + 1] = bubble(t.who, ui.markdown({ text = t.text }))
+		items[#items + 1] = bubble(t.who, wrapped(t.who, t.text))
 	end
 	if pending then
-		items[#items + 1] = bubble("you", ui.markdown({ text = pending }))
+		items[#items + 1] = bubble("you", wrapped("you", pending))
 		items[#items + 1] = bubble("agent", ui.label({ text = "Thinking…", color = "secondary" }))
 	end
 	if problem then
