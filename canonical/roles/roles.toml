@@ -22,4 +22,4 @@ window_class = ["firefox", "Firefox"]
 label        = "Agent"
 command      = "kitty --class pi-agent -e ~/.pi/agent/bin/pi --model vllm/RedHatAI/Qwen3.8-27B-INT4 --thinking xhigh"
 window_class = ["pi-agent"]
-ask          = "~/.pi/agent/bin/pi -p --tools read,grep,find,ls --no-mcp --no-session --model vllm/RedHatAI/Qwen3.8-27B-INT4 --thinking xhigh"
+ask          = "~/.pi/agent/bin/pi -p -e ~/src/machine-state/canonical/pi/extensions/cap.ts --tools cap_list,cap_observe --no-mcp --no-session --model vllm/RedHatAI/Qwen3.8-27B-INT4 --thinking xhigh"
