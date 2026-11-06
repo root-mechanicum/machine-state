@@ -1,7 +1,8 @@
 # The agent as a capability: whatever role.agent names answers. A key, a launcher
 # and another agent all reach it by this name, never by the agent's executable.
 
-# Asked by a person, answered later. Reads the screen (untrusted titles), so no
+# Asked by a person, answered later. Reads the screen (untrusted titles) and,
+# when the browser has focus, its page through Rerule (untrusted text), so no
 # net: channel; the answer goes to a notification and an inbox note.
 [action."agent.ask"]
 implementation = "agent.ask"
@@ -10,7 +11,7 @@ category    = "Agent"
 args        = { prompt = "the question" }
 mutating    = false
 consequence = "report"
-channels    = ["desktop:read", "model:local", "notify", "inbox"]
+channels    = ["desktop:read", "browser:read", "model:local", "notify", "inbox"]
 
 # The quick-ask box: the launcher, opened in /ask mode (canonical/noctalia/plugins/ask).
 # Opening it changes nothing but the screen; the question is a separate act.
