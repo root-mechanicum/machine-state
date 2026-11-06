@@ -136,9 +136,12 @@ def _str(v, where, what):
 
 
 def check_role(name, r, where):
-    _want(r, where, f"role {name!r}", ("label", "command", "window_class"), ("ask",))
-    if "ask" in r:
-        _str(r["ask"], where, f"role {name!r} ask")
+    _want(r, where, f"role {name!r}", ("label", "command", "window_class"), ("ask", "read"))
+    for key in ("ask", "read"):
+        if key in r:
+            _str(r[key], where, f"role {name!r} {key}")
+            if not shlex.split(r[key]):
+                die(f"{where}: role {name!r} {key} {r[key]!r} contains no executable")
     _str(r["label"], where, f"role {name!r} label")
     _str(r["command"], where, f"role {name!r} command")
     if not shlex.split(r["command"]):
@@ -1453,7 +1456,7 @@ def do_interests_digest():
 # (ask). agent.ask uses only `ask`, so replacing Pi is one line in roles.toml.
 #
 # The context is what was on screen: window classes and titles, and the focused
-# browser page (browser_context, below). Both are text other people wrote, so
+# browser page (browser_context, below; role.browser.read). Both are text other people wrote, so
 # desktop:read and browser:read are untrusted channels and agent.ask holds no
 # net: channel. cap cannot see inside the ask command, so the role pins it to
 # the local model and to read-only tools; a declaration, not something cap checks.
@@ -1502,61 +1505,45 @@ def desktop_context():
                         and w.get("address") != active.get("address")]}
 
 
-# THE BROWSER is read through Rerule (~/src/rerule), the Firefox extension whose
-# companion serves read capabilities on a socket only this user can open: JSON
-# lines, {"id", "cap", "args"} in, {"id", "result"} out. It is read only when the
-# browser is the focused window, because the question is about what the person
-# is looking at. Page text is written by strangers, so browser:read is untrusted
-# like desktop:read. Empty, not fatal, when Rerule is not running.
+# THE BROWSER is read through role.browser's `read` command, whatever tool that
+# is (Rerule, an adapter for another extension): cap appends "selection" or
+# "text" and expects one JSON object {url, title, text, truncated} on stdout.
+# It is read only when the browser is the focused window, because the question
+# is about what the person is looking at. Page text is written by strangers, so
+# browser:read is untrusted like desktop:read. cap cannot see inside the read
+# command; the role declares what it trusts, as role.agent.ask does. Empty, not
+# fatal, when there is no read command or it does not answer.
 
 PAGE_CHARS = 16000
-RERULE_TIMEOUT = 3
+BROWSER_READ_TIMEOUT = 5
 
 
-def rerule_call(sock, cap, args=None):
-    """One Rerule capability call; its value on success, None on anything else."""
-    import socket
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.settimeout(RERULE_TIMEOUT)
+def browser_read(command, kind):
+    """One read through the role's command; the page on success, None otherwise."""
     try:
-        s.connect(str(sock))
-        req = {"id": "1", "cap": cap, **({"args": args} if args else {})}
-        s.sendall((json.dumps(req) + "\n").encode())
-        buf = b""
-        while b"\n" not in buf and len(buf) < 2 * 1024 * 1024:
-            chunk = s.recv(65536)
-            if not chunk:
-                break
-            buf += chunk
-    finally:
-        s.close()
-    resp = json.loads(buf.split(b"\n", 1)[0] or b"null")
-    result = resp.get("result") if isinstance(resp, dict) else None
-    if isinstance(result, dict) and result.get("ok") is True and isinstance(result.get("value"), dict):
-        return result["value"]
-    return None
+        r = subprocess.run(argv_of(command) + [kind], capture_output=True, text=True,
+                           stdin=subprocess.DEVNULL, timeout=BROWSER_READ_TIMEOUT,
+                           cwd=pathlib.Path.home())
+        value = json.loads(r.stdout) if r.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    if not isinstance(value, dict) or not isinstance(value.get("text"), str):
+        return None
+    return value
 
 
 def browser_context(screen):
     """The selection in the focused browser tab, else its visible text, capped.
-    None when the browser is not focused or Rerule does not answer."""
+    None when the browser is not focused or its read command does not answer."""
     use("browser:read")
+    role = roles().get("browser") or {}
     focused = screen.get("focused") or {}
-    if focused.get("class") not in (roles().get("browser") or {}).get("window_class", []):
+    if "read" not in role or focused.get("class") not in role.get("window_class", []):
         return None
-    run = os.environ.get("XDG_RUNTIME_DIR", "")
-    if not os.path.isabs(run):
-        return None
-    sock = pathlib.Path(run) / "rerule" / "companion.sock"
-    try:
-        value, kind = rerule_call(sock, "page.selection"), "selection"
-        if not value or not str(value.get("text", "")).strip():
-            tab = value.get("tabId") if value else None
-            value, kind = rerule_call(sock, "page.text",
-                                      {"tabId": tab} if isinstance(tab, int) else None), "page"
-    except (OSError, ValueError):
-        return None
-    if not value or not isinstance(value.get("text"), str) or not value["text"].strip():
+    value, kind = browser_read(role["read"], "selection"), "selection"
+    if not value or not value["text"].strip():
+        value, kind = browser_read(role["read"], "text"), "page"
+    if not value or not value["text"].strip():
         return None
     text = value["text"]
     return {"url": str(value.get("url", ""))[:2000], "title": str(value.get("title", ""))[:200],
@@ -1609,7 +1596,7 @@ def plan_ask(prompt=""):
     cmd = os.path.basename(argv_of(roles()["agent"]["ask"])[0])
     return {"branch": "ask", "agent": cmd,
             "detail": f"ask {cmd} about {len(prompt)} character(s) with the screen, and "
-                      f"the focused browser page through Rerule, as context; notify and "
+                      f"the focused browser page (role.browser.read), as context; notify and "
                       f"write a note to {INBOX}"}
 
 

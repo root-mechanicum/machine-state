@@ -2,7 +2,7 @@
 # and another agent all reach it by this name, never by the agent's executable.
 
 # Asked by a person, answered later. Reads the screen (untrusted titles) and,
-# when the browser has focus, its page through Rerule (untrusted text), so no
+# when the browser has focus, its page via role.browser.read (untrusted text), so no
 # net: channel; the answer goes to a notification and an inbox note.
 [action."agent.ask"]
 implementation = "agent.ask"

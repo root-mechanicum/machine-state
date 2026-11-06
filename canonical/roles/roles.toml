@@ -12,6 +12,13 @@ window_class = ["Proton Mail", "proton-mail"]
 label        = "Browser"
 command      = "firefox"
 window_class = ["firefox", "Firefox"]
+# Reads the focused tab for browser:read. cap appends "selection" or "text" and
+# expects one JSON object {url, title, text, truncated} on stdout, exit 0. Any
+# tool that keeps that contract fits; this is Rerule's CLI (~/src/rerule), which
+# answers from the Firefox extension through its companion socket. The output is
+# untrusted page text; trusting the tool is this declaration, not a cap check.
+# Node by path: keys and the launcher do not get the shell's PATH.
+read         = "~/.local/share/pi-node/current/bin/node ~/src/rerule/scripts/rerule.mjs page"
 
 # The agent. `command` opens a conversation; `ask` answers one question headless,
 # the question appended as the last argument. Pinned to the local model and to
