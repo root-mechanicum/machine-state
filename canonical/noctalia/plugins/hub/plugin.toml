@@ -1,0 +1,29 @@
+# The hub: one place in the bar for what wants a reply. An icon always; for a
+# minute after a notification, its app and summary. Click opens the hub panel:
+# recent notifications (Noctalia's history, read through cap), each with Chat,
+# and recent conversations. Holds no logic of its own: cap reads, cap starts a
+# discussion, cap's answer panel holds the conversation.
+id = "machine-state/hub"
+name = "Hub"
+version = "0.1.0"
+plugin_api = 21
+author = "machine-state"
+license = "MIT"
+icon = "message-circle"
+description = "Notifications you can talk about, and your recent conversations, from the bar."
+tags = ["bar", "panel", "service", "ai"]
+dependencies = []
+
+[[service]]
+id = "watch"
+entry = "service.luau"
+
+[[widget]]
+id = "widget"
+entry = "widget.luau"
+
+[[panel]]
+id = "hub"
+entry = "hub.luau"
+width = 560
+height = 600
