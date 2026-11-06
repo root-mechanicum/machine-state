@@ -105,8 +105,8 @@ local function rows(catalogue, filter, category)
 			if filter == "" or score then
 				local takesArgs = next(a.args or {}) ~= nil
 				table.insert(out, {
-					id = takesArgs and "" or noctalia.json.encode({ argv = { cap(), "act", a.action }, label = a.label }),
-					query = takesArgs and (a.action .. " ") or nil,
+					id = "",
+					query = a.action .. " ",
 					title = a.label,
 					subtitle = a.action .. (takesArgs and ("  ·  " .. table.concat(argNames(a), " ")) or ""),
 					glyph = category and "app-window" or "bolt",
@@ -125,9 +125,6 @@ local function withArgs(catalogue, text, category)
 	end
 	for _, a in catalogue do
 		if a.action == name and a.available and (not category or a.category == category) then
-			if rest == nil and next(a.args or {}) == nil then
-				return nil
-			end
 			local argv, err = invocation(a, rest or "")
 			if not argv then
 				return { { id = "", title = a.label, subtitle = err, glyph = "alert-triangle" } }
@@ -159,8 +156,24 @@ function M.provider(category)
 					subtitle = (res.stderr or ""):match("[^\n]*") or "", glyph = "alert-triangle" } })
 				return
 			end
-			local out = withArgs(catalogue, text, category) or rows(catalogue, text, category)
-			if text ~= "" and not withArgs(catalogue, text, category) then
+			local exact = withArgs(catalogue, text, category)
+			if exact and exact[1] and exact[1].id ~= "" then
+				local job = noctalia.json.decode(exact[1].id)
+				local proposal = table.clone(job.argv)
+				proposal[2] = "propose"
+				noctalia.runAsync(proposal, function(preview)
+					if preview.exitCode ~= 0 then
+						exact[1].id = ""
+						exact[1].subtitle = "Cannot propose: " .. ((preview.stderr ~= "" and preview.stderr or preview.stdout):gsub("%s+", " "))
+					else
+						exact[1].subtitle = "Enter to approve: " .. preview.stdout:gsub("%s+", " ")
+					end
+					launcher.setResults(query, exact)
+				end, 10000)
+				return
+			end
+			local out = exact or rows(catalogue, text, category)
+			if text ~= "" and not exact then
 				table.insert(out, {
 					id = noctalia.json.encode({ resolve = text }),
 					title = "Work it out: " .. text,
