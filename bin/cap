@@ -1468,10 +1468,21 @@ CONTEXT = INBOX.parent / "context" / "current.json"
 # agent was given, page text included, so the directory is the owner's alone.
 THREADS = INBOX.parent / "threads"
 THREAD_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+# The line before each follow-up question in a note, so the panel can tell the
+# person's turns from the agent's: answers may hold headings of their own. Only
+# cap writes it; the same text in an answer or a question is defused.
+YOU = "<!-- you -->"
+
+
+def _turn(text):
+    """Text for a note, unable to start a turn of its own."""
+    return re.sub(r"<!--\s*you\s*-->", "<!-- you? -->", text, flags=re.I)
 
 AGENT_PROMPT = """You are the assistant on this Linux workstation (CachyOS, Hyprland). \
 Its owner asked a quick question from a launcher and will read your answer later, \
-in a notification and a note. Answer directly and briefly; Markdown, no preamble.
+in a notification and a note, and may reply to continue the conversation. Answer \
+directly and briefly, as in a conversation: short paragraphs and lists, no headings, \
+no preamble.
 For questions about this machine, use cap_list to find a relevant observation and
 cap_observe to obtain current facts. Never invent measurements. If the tools do
 not provide the answer, say so.
@@ -1740,12 +1751,13 @@ def do_ask(prompt="", thread=""):
         f"action: agent.ask\nagent: {plan['agent']}\ngenerated: {now()}\n"
         f"workspace: {ctx['workspace'] or 'unknown'}\nthread: {thread}\n"
         "---\n\n"
-        f"# {prompt.strip()[:80]}\n\n{answer}\n")
+        f"# {_turn(prompt.strip()[:80])}\n\n{_turn(answer)}\n")
     plan["note"], plan["thread"] = str(note), thread
     use("notify")
     # Keep the durable inbox and notification even if the shell is unavailable.
     # IPC context is one argument, not a shell command; limit its size for IPC.
-    _answer_panel(f"# {prompt.strip()[:200]}\n\n{answer[:24000]}", note.name, thread)
+    _answer_panel(f"# {_turn(prompt.strip()[:200])}\n\n{_turn(answer[:24000])}",
+                  note.name, thread)
     short = answer if len(answer) <= 240 else answer[:237].rstrip() + "…"
     # Clicking the popup opens the note in the answer panel again (the panel
     # closes; the notification stays). notify-send waits for that click, so it
@@ -1781,7 +1793,7 @@ def _follow_up(plan, question, thread):
         return plan, "failed"
     use("inbox")
     with note.open("a") as f:
-        f.write(f"\n## {question[:200]}\n\n{answer}\n")
+        f.write(f"\n{YOU}\n## {_turn(question[:200])}\n\n{_turn(answer)}\n")
     plan["note"] = str(note)
     plan["outcome_detail"] = f"added the answer to {note}"
     return plan, "ok"
