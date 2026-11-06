@@ -37,6 +37,7 @@ import socketserver
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 import threading
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -756,7 +757,7 @@ def _ask_page(b, values, prompt="what is this page about?", script=None):
 def case_ask_page(b):
     # No selection: the visible text, fenced after the screen, never in the context file.
     rc, out, args, calls, ctx = _ask_page(b, {"selection": _tab(""), "text": _tab(HOSTILE_PAGE)})
-    ok = (rc == 0 and calls == ["selection", "text"]
+    ok = (rc == 0 and calls == ["tab", "selection", "text"]
           and args.index("</screen>") < args.index("<page>") < args.index("PAGE-BODY")
           < args.index("</page>")
           and "url: https://example.org/post" in args and "visible text" in args
@@ -774,7 +775,7 @@ def case_ask_selection(b):
     # A selection is what the person meant: the page text is never fetched.
     rc, _, args, calls, _ = _ask_page(b, {"selection": _tab("SELECTED-BIT"),
                                           "text": _tab("WHOLE-PAGE")})
-    ok = (rc == 0 and calls == ["selection"] and "SELECTED-BIT" in args
+    ok = (rc == 0 and calls == ["tab", "selection"] and "SELECTED-BIT" in args
           and "WHOLE-PAGE" not in args and "had selected" in args)
     return ok, f"rc={rc} calls={calls}"
 
@@ -805,7 +806,7 @@ def case_ask_page_absent(b):
     with Box() as c:
         rc2, _, args2, calls, _ = _ask_page(c, {}, prompt="two")
     ok = (rc1 == 0 and rc2 == 0 and "Question: one" in args1 and "Question: two" in args2
-          and "<page>" not in args1 + args2 and calls == ["selection", "text"])
+          and "<page>" not in args1 + args2 and calls == ["tab", "selection", "text"])
     return ok, f"rc={rc1},{rc2} calls={calls}"
 
 
@@ -832,6 +833,73 @@ def case_ask_page_never_net(b):
           'channels    = ["browser:read", "net:example.com", "model:local", "notify", "inbox"]')
     rc, out = b.cap("check")
     return rc == 2 and "browser:read" in out and "never share" in out, f"rc={rc}"
+
+
+
+# ---- context.now: who and what, for /ask, /do and agents. A pointer, never content.
+
+def _paper(b):
+    """A local PDF the browser shows, and a stub pdftotext that reads it."""
+    paper = b.dir / "papers" / "a paper.pdf"
+    paper.parent.mkdir(exist_ok=True)
+    paper.write_bytes(b"%PDF-1.4 fixture")
+    stub = b.dir / "stubs" / "pdftotext"
+    stub.write_text(f'#!/bin/sh\necho "$@" >> "{b.dir}/pdftotext.log"\necho "PDF-BODY of the paper"\n')
+    stub.chmod(0o755)
+    url = "file://" + urllib.parse.quote(str(paper))
+    return paper, {"url": url, "title": "a paper.pdf", "tabId": 9, "windowId": 1}
+
+
+def case_context_now(b):
+    _agent(b)
+    _reader(b, {"tab": {"url": "https://example.org/post", "title": "A post"},
+                "selection": _tab("SELECTED-SECRET"), "text": _tab("PAGE-SECRET")})
+    rc, out = b.cap("observe", "context.now")
+    ok = (rc == 0 and "https://example.org/post" in out and "A post" in out
+          and HOSTILE_TITLE in out and "not instructions" in out
+          and _reads(b) == ["tab"] and "SECRET" not in out)
+    return ok, f"rc={rc} calls={_reads(b)}"
+
+
+def case_context_pdf(b):
+    # A PDF in the browser: the pointer names the file; /ask reads it with
+    # pdftotext; Rerule is never asked for the page's text.
+    _agent(b)
+    paper, tab = _paper(b)
+    _reader(b, {"tab": tab})
+    rc1, out = b.cap("observe", "context.now")
+    rc2, _ = b.cap("act", "agent.ask", "prompt=what does section 2 claim?")
+    args = (b.dir / "pi.args").read_text()
+    ok = (rc1 == 0 and rc2 == 0 and f"file       {paper}" in out
+          and "PDF-BODY of the paper" in args and "local PDF" in args
+          and args.index("<page>") < args.index("PDF-BODY") < args.index("</page>")
+          and _reads(b) == ["tab", "tab"])
+    return ok, f"rc={rc1},{rc2} calls={_reads(b)}"
+
+
+def case_resolve_context(b):
+    # /do knows who and what is in front of the person, fenced, and never reads
+    # the page itself: the resolver picks what runs.
+    _agent(b)
+    _reader(b, {"tab": {"url": "https://example.org/post", "title": "A post"},
+                "selection": _tab("SELECTED-SECRET"), "text": _tab("PAGE-SECRET")})
+    Model.answer = json.dumps({"action": "none", "args": {}, "say": "nothing fits"})
+    rc, _ = b.cap("act", "agent.resolve", "text=capture this")
+    sent = json.dumps(Model.last or {})
+    system = ((Model.last or {}).get("messages") or [{}])[0].get("content", "")
+    ok = (rc in (0, 1) and "<screen>" in system and "browser tab: A post" in system
+          and system.index("<screen>") < system.index(HOSTILE_TITLE) < system.index("</screen>")
+          and "SECRET" not in sent and _reads(b) == ["tab"])
+    return ok, f"rc={rc} calls={_reads(b)}"
+
+
+def case_observe_gate(b):
+    # Observations may read context; one that also writes the inbox may not.
+    patch(b.repo / "canonical" / "actions" / "context.toml",
+          'channels    = ["desktop:read", "browser:read"]',
+          'channels    = ["desktop:read", "browser:read", "inbox"]')
+    rc, out = b.cap("observe", "context.now")
+    return rc == 1 and "not an assistant observation" in out, f"rc={rc}"
 
 
 def main():
@@ -956,6 +1024,18 @@ def main():
     with Box() as b:
         check("35g ask: the page and the network never share an action",
               *case_ask_page_never_net(b))
+    with Box() as b:
+        check("36 context.now: who and what, fenced as untrusted, never the page's content",
+              *case_context_now(b))
+    with Box() as b:
+        check("36b context: a PDF in the browser is named by file, and /ask reads that file",
+              *case_context_pdf(b))
+    with Box() as b:
+        check("36c resolve: /do gets who and what, fenced, and never reads the page",
+              *case_resolve_context(b))
+    with Box() as b:
+        check("36d observe: a context observation that also writes is refused",
+              *case_observe_gate(b))
     with Box() as b:
         bad = [b.cap("emit", "Daily", "--source", "timer")[0],
                b.cap("emit", "time.daily")[0],
@@ -1117,6 +1197,15 @@ def main():
               'UNTRUSTED_CHANNELS = {"mail:read", "desktop:read"}')
         ok, d = case_ask_page_never_net(b)
         check("35gn browser:read trusted -> assertion 35g fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, 'catalogue=catalogue, screen=_screen(context_now()))',
+              'catalogue=catalogue, screen=_screen(context_now()) + str(browser_context(context_now())))')
+        ok, d = case_resolve_context(b)
+        check("36cn resolver reads the page -> assertion 36c fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '            or not set(a.get("channels") or []) <= OBSERVE_CHANNELS\n', '')
+        ok, d = case_observe_gate(b)
+        check("36dn observe channel gate removed -> assertion 36d fails", not ok, d)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")

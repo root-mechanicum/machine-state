@@ -31,4 +31,6 @@ category    = "Agent"
 args        = { text = "the request, in words" }
 mutating    = false
 consequence = "observe"
-channels    = ["model:local"]
+# Who and what is in front of the person (window, browser tab), so "this" means
+# something; never page content, because the resolver picks what runs.
+channels    = ["desktop:read", "browser:read", "model:local"]

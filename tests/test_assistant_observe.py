@@ -12,9 +12,14 @@ cap = importlib.machinery.SourceFileLoader(
 
 
 class ObserveGate(unittest.TestCase):
-    def test_only_channel_free_observations_reach_act(self):
+    def test_only_channel_free_or_context_read_observations_reach_act(self):
         actions = {
             "system.battery": {"mutating": False, "consequence": "observe"},
+            "context.now": {"mutating": False, "consequence": "observe",
+                            "channels": ["desktop:read", "browser:read"]},
+            "context.noisy": {"mutating": False, "consequence": "observe",
+                              "channels": ["desktop:read", "inbox"]},
+            "mail.peek": {"mutating": False, "consequence": "observe", "channels": ["mail:read"]},
             "desktop.move": {"mutating": True, "consequence": "adjust"},
             "interests.fetch": {"mutating": False, "consequence": "report", "channels": ["net:example.com"]},
             "agent.resolve": {"mutating": False, "consequence": "observe"},
@@ -23,10 +28,13 @@ class ObserveGate(unittest.TestCase):
         }
         with patch.object(cap, "actions", return_value=actions), patch.object(cap, "cmd_act", return_value=0) as act:
             self.assertEqual(cap.cmd_observe(["system.battery"]), 0)
-            for name in ("desktop.move", "interests.fetch", "agent.resolve", "network.read", "missing.metadata", "unknown"):
+            self.assertEqual(cap.cmd_observe(["context.now"]), 0)
+            for name in ("desktop.move", "interests.fetch", "agent.resolve", "network.read",
+                         "context.noisy", "mail.peek", "missing.metadata", "unknown"):
                 with self.subTest(name=name), contextlib.redirect_stderr(io.StringIO()):
                     self.assertEqual(cap.cmd_observe([name]), 1)
-            act.assert_called_once_with(["system.battery"])
+            self.assertEqual([c.args[0] for c in act.call_args_list],
+                             [["system.battery"], ["context.now"]])
 
 
 if __name__ == "__main__":

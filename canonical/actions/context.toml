@@ -1,0 +1,13 @@
+# Who and what is in front of the person (machine-state-qs6): the focused window,
+# its workspace and, when that is the browser, which tab or which local PDF. A
+# pointer, never content, so /do, /ask and any agent can know what "this" is;
+# reading what it points at is a separate, gated step. Titles and URLs are
+# written by others, so both channels are untrusted reads.
+
+[action."context.now"]
+implementation = "context.now"
+label       = "What the person is looking at: focused window, browser tab or PDF"
+category    = "Context"
+mutating    = false
+consequence = "observe"
+channels    = ["desktop:read", "browser:read"]

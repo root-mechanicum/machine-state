@@ -12,8 +12,9 @@ window_class = ["Proton Mail", "proton-mail"]
 label        = "Browser"
 command      = "firefox"
 window_class = ["firefox", "Firefox"]
-# Reads the focused tab for browser:read. cap appends "selection" or "text" and
-# expects one JSON object {url, title, text, truncated} on stdout, exit 0. Any
+# Reads the focused tab for browser:read. cap appends "tab", "selection" or
+# "text" and expects one JSON object on stdout, exit 0: {url, title} for tab,
+# plus {text, truncated} for the others. Any
 # tool that keeps that contract fits; this is Rerule's CLI (~/src/rerule), which
 # answers from the Firefox extension through its companion socket. The output is
 # untrusted page text; trusting the tool is this declaration, not a cap check.

@@ -17,7 +17,9 @@ export default function (pi: ExtensionAPI) {
       if (r.code !== 0) throw new Error(r.stderr || "cap list failed");
       const entries = JSON.parse(r.stdout).filter((a: any) =>
         a.available && !a.mutating && a.consequence === "observe" &&
-        !a.action.startsWith("agent.") && !(a.channels || []).length,
+        !a.action.startsWith("agent.") &&
+        // Only context reads; the broker (cap observe) checks the same again.
+        (a.channels || []).every((c: string) => c === "desktop:read" || c === "browser:read"),
       ).map((a: any) => ({ action: a.action, label: a.label, args: a.args }));
       return { content: [{ type: "text", text: JSON.stringify(entries) }], details: {} };
     },
