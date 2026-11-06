@@ -2752,6 +2752,84 @@ def cmd_inbox(argv):
     die(f"inbox: unknown subcommand {sub!r}; expected list, show, read, open, panel or body")
 
 
+# Noctalia's own record of every notification (the bell's history). Noctalia
+# writes it; cap only reads it. Other applications wrote the text in it.
+NOCTALIA_HISTORY = pathlib.Path(os.environ.get("XDG_STATE_HOME")
+                                or pathlib.Path.home() / ".local" / "state") \
+    / "noctalia" / "notification_history.json"
+HISTORY_MAX_BYTES = 8 << 20
+
+
+def notification_history(limit=20):
+    """Notifications Noctalia recorded, newest first. Empty, never an error,
+    when the file is missing, too big or not what Noctalia writes."""
+    try:
+        if NOCTALIA_HISTORY.stat().st_size > HISTORY_MAX_BYTES:
+            return []
+        data = json.loads(NOCTALIA_HISTORY.read_text())
+    except (OSError, ValueError):
+        return []
+    entries = data.get("entries") if isinstance(data, dict) else None
+    out = []
+    for e in entries if isinstance(entries, list) else []:
+        n = e.get("notification") if isinstance(e, dict) else None
+        if not isinstance(n, dict) or not isinstance(n.get("id"), int):
+            continue
+        ms = n.get("received_wall_ms")
+        ms = ms if isinstance(ms, (int, float)) else 0
+        acts = n.get("actions") if isinstance(n.get("actions"), list) else []
+        out.append({
+            "id": n["id"],
+            "app": str(n.get("app_name") or "")[:100],
+            "summary": str(n.get("summary") or "")[:500],
+            "body": str(n.get("body") or "")[:4000],
+            "received": (datetime.datetime.fromtimestamp(ms / 1000).astimezone()
+                         .isoformat(timespec="seconds") if ms else ""),
+            "active": e.get("active") is True,
+            "actions": [str(a)[:100] for a in acts[1::2]],
+            "_ms": ms,
+        })
+    out.sort(key=lambda x: (x["_ms"], x["id"]), reverse=True)
+    for x in out:
+        del x["_ms"]
+    return out[:max(0, limit)]
+
+
+def _plain(text):
+    """One line of someone else's text, safe for a terminal."""
+    return " ".join(re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", text).split())
+
+
+def cmd_notifications(argv):
+    """What Noctalia's bell holds, newest first. Read-only.
+
+        cap notifications [--json] [--limit N]   N defaults to 20
+
+    The text is other applications', so the plain listing is one sanitised line
+    per notification; --json is for the hub plugin.
+    """
+    as_json, limit, rest = False, 20, list(argv)
+    while rest:
+        a = rest.pop(0)
+        if a == "--json":
+            as_json = True
+        elif a == "--limit" and rest and rest[0].isdigit():
+            limit = min(int(rest.pop(0)), 100)
+        else:
+            die(f"notifications: unexpected argument {a!r}; usage: cap notifications "
+                f"[--json] [--limit N]")
+    items = notification_history(limit)
+    if as_json:
+        print(json.dumps(items, ensure_ascii=False))
+        return 0
+    if not items:
+        print("  no notifications")
+    for n in items:
+        print(f"  {n['id']:>5}  {n['received'][11:16] or '--:--'}  {_plain(n['app'])[:20]:<20}  "
+              f"{_plain(n['summary'] + ' - ' + n['body'] if n['body'] else n['summary'])[:90]}")
+    return 0
+
+
 def cmd_interests(_argv):
     """What the human follows, where news comes from, and what has arrived."""
     its = interests()
@@ -3077,7 +3155,7 @@ def cmd_render(_argv):
 
 
 COMMANDS = {"list": cmd_list, "observe": cmd_observe, "propose": cmd_propose, "act": cmd_act, "emit": cmd_emit,
-            "inbox": cmd_inbox, "interests": cmd_interests,
+            "inbox": cmd_inbox, "interests": cmd_interests, "notifications": cmd_notifications,
             "preview": cmd_preview, "check": cmd_check, "render": cmd_render}
 
 

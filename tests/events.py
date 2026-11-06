@@ -850,6 +850,42 @@ def case_inbox_body(b):
     return ok, f"rc={rc},{rc2}"
 
 
+def _history(b, entries):
+    p = b.dir / ".local" / "state" / "noctalia" / "notification_history.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"version": 1, "next_id": 9, "change_serial": 3, "entries": entries}))
+    return p
+
+
+def _note_entry(i, app, summary, body="", ms=1793981701477, active=False):
+    return {"active": active, "seen": False, "event_serial": i, "notification": {
+        "id": i, "app_name": app, "summary": summary, "body": body,
+        "actions": ["default", "Show"], "received_wall_ms": ms}}
+
+
+def case_notifications(b):
+    # Noctalia's history, newest first, read-only; hostile text cannot reach the
+    # terminal as control codes; junk entries are skipped, a missing file is empty.
+    hist = _history(b, [
+        _note_entry(5, "Proton Mail", "New email received", "From: Steam - First Light", ms=2000),
+        _note_entry(7, "cap", "what is this page?", "It is a test.", ms=3000, active=True),
+        {"notification": {"id": "x"}}, "junk",
+        _note_entry(6, "Evil", "Hi\x1b[2J\x07there", "body\nline", ms=2500)])
+    before = hist.read_bytes()
+    rc, out = b.cap("notifications", "--json")
+    items = json.loads(out) if rc == 0 else []
+    rc2, plain = b.cap("notifications", "--limit", "2")
+    after = hist.read_bytes()
+    hist.unlink()
+    rc3, empty = b.cap("notifications", "--json")
+    ok = (rc == 0 and [i["id"] for i in items] == [7, 6, 5] and items[0]["active"] is True
+          and items[2]["actions"] == ["Show"] and items[2]["body"] == "From: Steam - First Light"
+          and rc2 == 0 and len(plain.strip().splitlines()) == 2 and "\x1b" not in plain
+          and "\x07" not in plain and "Hi [2J there" in plain
+          and after == before and rc3 == 0 and json.loads(empty) == [])
+    return ok, f"rc={rc},{rc2},{rc3} ids={[i['id'] for i in items]}"
+
+
 def _reads(b):
     log = b.dir / "read.log"
     return log.read_text().split() if log.exists() else []
@@ -1115,6 +1151,9 @@ def main():
         check("31j inbox body prints a note without front matter and marks nothing",
               *case_inbox_body(b))
     with Box() as b:
+        check("37 notifications: Noctalia's history, newest first, terminal-safe",
+              *case_notifications(b))
+    with Box() as b:
         check("31c inbox open and panel take a note name, never a path",
               *case_open_name_only(b))
     with Box() as b:
@@ -1322,6 +1361,11 @@ def main():
         patch(b.cap_path, '    THREADS.chmod(0o700)\n', '    THREADS.chmod(0o755)\n')
         ok, d = case_ask_thread(b)
         check("31hm threads dir not owner-only -> assertion 31h fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '    return " ".join(re.sub(r"[\\x00-\\x1f\\x7f-\\x9f]", " ", text).split())',
+              '    return text')
+        ok, d = case_notifications(b)
+        check("37n terminal sanitising removed -> assertion 37 fails", not ok, d)
     with Box() as b:
         patch(b.cap_path, '    if name not in cands or bad:', '    if False:')
         ok, d = case_resolve_rejects(b)
