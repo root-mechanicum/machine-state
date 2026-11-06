@@ -5,7 +5,9 @@
 -- cap opens this panel with the note as markdown. A thread's starts with one
 -- line, "@thread <id> <note>", which cap writes; without it (an old note) the
 -- panel shows the answer and no box. In the note, "# question" opens the first
--- turn and a "<!-- you -->" line, written only by cap, opens each later one.
+-- turn and a "<!-- you -->" line, written only by cap, opens each later one. A
+-- "<!-- from: App -->" line opens a turn someone else wrote, such as the
+-- notification a discussion is about; cap has already made its text literal.
 -- A follow-up runs `cap act agent.ask prompt=… thread=<id>`, the same agent
 -- with the same limits; the answer lands in the note, and the panel rereads it.
 -- Everything travels as argv elements, never through a shell.
@@ -34,11 +36,17 @@ local function cap(...)
 	return { "env", "CAP_CALLER=keypress", noctalia.expandPath(CAP), ... }
 end
 
--- The note as turns: { who = "you" | "agent", text = markdown }.
+-- The note as turns: { who = "you" | "agent" | "from", name, text = markdown }.
 local function turns(body)
 	local out = {}
-	local function add(chunk)
+	local function add(kind, name, chunk)
 		chunk = noctalia.string.trim(chunk)
+		if kind == "from" then
+			if chunk ~= "" then
+				out[#out + 1] = { who = "from", name = name, text = chunk }
+			end
+			return
+		end
 		local q, rest = chunk:match("^#+ ([^\n]*)\n?(.*)$")
 		if q then
 			out[#out + 1] = { who = "you", text = q }
@@ -48,25 +56,38 @@ local function turns(body)
 			out[#out + 1] = { who = "agent", text = chunk }
 		end
 	end
-	local start = 1
+	-- A marker is a whole line; the leading newline lets the first line be one.
+	local s = "\n" .. body .. "\n"
+	local kind, name, start, pos = "start", nil, 1, 1
 	while true do
-		local i, j = body:find("\n" .. YOU .. "\n", start, true)
+		local i, j, line = s:find("\n(<!%-%- [^\n]- %-%->)\n", pos)
 		if not i then break end
-		add(body:sub(start, i - 1))
-		start = j + 1
+		local from = line:match("^<!%-%- from: (.-) %-%->$")
+		if line == YOU or from then
+			add(kind, name, s:sub(start, i - 1))
+			kind, name, start = from and "from" or "you", from, j + 1
+		end
+		-- The closing newline may open the next marker.
+		pos = j
 	end
-	add(body:sub(start))
+	add(kind, name, s:sub(start))
 	return out
 end
 
--- Questions tinted, answers outlined; both markdown, neither a heading.
-local function bubble(who, content)
+-- Questions tinted, answers outlined; both markdown, neither a heading. What
+-- someone else wrote is tinted differently and carries its sender's name.
+local function bubble(who, content, name)
 	local mine = who == "you"
-	local box = ui.column(mine
-		and { paddingH = 12, paddingV = 8, radius = 12, fill = "primary/0.16" }
-		or { paddingH = 12, paddingV = 8, radius = 12,
-			border = "outline_variant", borderWidth = 1 },
-		{ content })
+	local style = mine and { paddingH = 12, paddingV = 8, radius = 12, gap = 4, fill = "primary/0.16" }
+		or who == "from" and { paddingH = 12, paddingV = 8, radius = 12, gap = 4, fill = "tertiary/0.14" }
+		or { paddingH = 12, paddingV = 8, radius = 12, gap = 4,
+			border = "outline_variant", borderWidth = 1 }
+	local children = { content }
+	if who == "from" then
+		children = { ui.label({ text = name or "", fontSize = 11, fontWeight = "bold",
+			color = "tertiary", maxLines = 1 }), content }
+	end
+	local box = ui.column(style, children)
 	if mine then
 		return ui.row({}, { ui.spacer({ flexGrow = 1 }), box })
 	end
@@ -108,8 +129,15 @@ end
 render = function()
 	local items, title = {}, nil
 	for _, t in ipairs(turns(text)) do
-		title = title or (t.who == "you" and t.text) or nil
-		items[#items + 1] = bubble(t.who, wrapped(t.who, t.text))
+		if not title then
+			if t.who == "you" then
+				title = t.text
+			elseif t.who == "from" then
+				-- cap escaped the text for markdown; the title is a plain label.
+				title = t.name .. ": " .. ((t.text:match("^[^\n]*") or ""):gsub("\\(.)", "%1"))
+			end
+		end
+		items[#items + 1] = bubble(t.who, wrapped(t.who, t.text), t.name)
 	end
 	if pending then
 		items[#items + 1] = bubble("you", wrapped("you", pending))
@@ -132,7 +160,8 @@ render = function()
 		rows[#rows + 1] = ui.input({
 			key = "followup-" .. tostring(rev),
 			value = "",
-			placeholder = pending and "Waiting for the answer…" or "Ask a follow-up",
+			placeholder = pending and "Waiting for the answer…"
+				or (#items == 1 and "Say what you want to know or do" or "Ask a follow-up"),
 			focus = true,
 			enabled = not pending,
 			onSubmit = send,

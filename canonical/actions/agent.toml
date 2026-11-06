@@ -14,6 +14,19 @@ mutating    = false
 consequence = "report"
 channels    = ["desktop:read", "browser:read", "model:local", "notify", "inbox"]
 
+# A conversation about a notification, from the hub: the notification is the
+# first turn, found by its id in Noctalia's history (untrusted text), and the
+# agent is asked nothing until the person writes. Then it is agent.ask's thread,
+# same agent, same limits.
+[action."agent.discuss"]
+implementation = "agent.discuss"
+label       = "Talk about a notification"
+category    = "Agent"
+args        = { notification = "its id in Noctalia's history (cap notifications)" }
+mutating    = false
+consequence = "report"
+channels    = ["notifications:read", "inbox", "notify"]
+
 # The quick-ask box: the launcher, opened in /ask mode (canonical/noctalia/plugins/ask).
 # Opening it changes nothing but the screen; the question is a separate act.
 [action."agent.summon"]
