@@ -604,15 +604,44 @@ def case_ask(b):
     return ok, f"rc={rc} notes={len(notes)} {out.strip()[-120:]}"
 
 
+def _panels(b, want=2, seconds=5):
+    """The answer-panel openings the stub noctalia logged, waiting for the click's."""
+    import time
+    log, deadline = b.dir / "noctalia.log", time.time() + seconds
+    mark = "panel-open machine-state/ask:answer"
+    while time.time() < deadline:
+        if log.exists() and log.read_text().count(mark) >= want:
+            break
+        time.sleep(0.05)
+    # Each opening is everything up to the next one: answers span lines.
+    return (log.read_text().split(mark)[1:] if log.exists() else [])
+
+
 def case_ask_click(b):
+    # Clicking the popup opens the answer panel again, not a terminal, and
+    # marks the note read; the panel shows the answer without front matter.
+    _agent(b, answer="It is a test.")
+    (b.dir / "click").touch()
+    rc, _ = b.cap("act", "agent.ask", "prompt=and now?")
+    panels = _panels(b)
+    read = b.dir / ".local" / "state" / "agents" / "inbox" / "read"
+    moved = sorted(read.glob("*-ask.md")) if read.is_dir() else []
+    ok = (rc == 0 and not b.notes() and len(moved) == 1 and len(panels) == 2
+          and "It is a test." in panels[1] and "generated:" not in panels[1]
+          and not (b.dir / "kitty.log").exists())
+    return ok, f"rc={rc} read={len(moved)} panels={len(panels)}"
+
+
+def case_ask_click_no_panel(b):
+    # No shell to show a panel in: the click still opens the note, in a terminal.
     _agent(b)
+    (b.dir / "stubs" / "noctalia").write_text("#!/bin/sh\nexit 1\n")
     (b.dir / "click").touch()
     rc, _ = b.cap("act", "agent.ask", "prompt=and now?")
     opened = _eventually(b.dir / "kitty.log").splitlines()
     read = b.dir / ".local" / "state" / "agents" / "inbox" / "read"
     moved = sorted(read.glob("*-ask.md")) if read.is_dir() else []
-    ok = (rc == 0 and not b.notes() and len(moved) == 1
-          and "bat" in opened and str(moved[0]) in opened)
+    ok = rc == 0 and len(moved) == 1 and "bat" in opened and str(moved[0]) in opened
     return ok, f"rc={rc} read={len(moved)} kitty={opened[:3]}"
 
 
@@ -623,7 +652,11 @@ def case_open_name_only(b):
     bait.parent.mkdir(parents=True, exist_ok=True)
     bait.write_text("# secret\n")
     rc, _ = b.cap("inbox", "open", "../secret.md")
-    return rc == 2 and not (b.dir / "kitty.log").exists(), f"rc={rc}"
+    rc2, _ = b.cap("inbox", "panel", "../secret.md")
+    log = b.dir / "noctalia.log"
+    ok = (rc == 2 and rc2 == 2 and not (b.dir / "kitty.log").exists()
+          and "secret" not in (log.read_text() if log.exists() else ""))
+    return ok, f"rc={rc},{rc2}"
 
 
 def _resolve(b, answer, text="explain today's errors"):
@@ -983,10 +1016,14 @@ def main():
         check("31 ask: the screen goes in fenced, the answer to a note and a popup",
               *case_ask(b))
     with Box() as b:
-        check("31b ask: clicking the popup opens the note and marks it read",
+        check("31b ask: clicking the popup opens the answer panel and marks the note read",
               *case_ask_click(b))
     with Box() as b:
-        check("31c inbox open takes a note name, never a path", *case_open_name_only(b))
+        check("31g ask: without a panel, the click opens the note in a terminal",
+              *case_ask_click_no_panel(b))
+    with Box() as b:
+        check("31c inbox open and panel take a note name, never a path",
+              *case_open_name_only(b))
     with Box() as b:
         check("31d resolve: words to one invocation, printed, not run", *case_resolve(b))
     with Box() as b:
@@ -1165,6 +1202,10 @@ def main():
         patch(b.cap_path, '            cwd=pathlib.Path.home(), env=', '            env=')
         ok, d = case_ask(b)
         check("31n agent cwd unpinned -> assertion 31 fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '&& exec "$CAP" inbox panel "$NOTE"', '&& exec "$CAP" inbox open "$NOTE"')
+        ok, d = case_ask_click(b)
+        check("31bn click opens a terminal again -> assertion 31b fails", not ok, d)
     with Box() as b:
         patch(b.cap_path, 'if not re.fullmatch(r"[\\w.-]+\\.md", name):', 'if False:')
         ok, d = case_open_name_only(b)

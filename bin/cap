@@ -1707,19 +1707,15 @@ def do_ask(prompt=""):
     use("notify")
     # Keep the durable inbox and notification even if the shell is unavailable.
     # IPC context is one argument, not a shell command; limit its size for IPC.
-    try:
-        subprocess.run(["noctalia", "msg", "panel-open", "machine-state/ask:answer",
-                        f"# {prompt.strip()[:200]}\n\n{answer[:24000]}"],
-                       capture_output=True, timeout=5, check=False)
-    except (OSError, subprocess.SubprocessError):
-        pass
+    _answer_panel(f"# {prompt.strip()[:200]}\n\n{answer[:24000]}")
     short = answer if len(answer) <= 240 else answer[:237].rstrip() + "…"
-    # Clicking the popup opens the note. notify-send waits for that click, so it
+    # Clicking the popup opens the note in the answer panel again (the panel
+    # closes; the notification stays). notify-send waits for that click, so it
     # runs detached and act returns now. Everything reaches it as an argument,
     # never inside the shell text: the answer is the model's, and the model read
     # the screen.
     subprocess.Popen(
-        ["sh", "-c", '[ "$(notify-send "$@")" = default ] && exec "$CAP" inbox open "$NOTE"',
+        ["sh", "-c", '[ "$(notify-send "$@")" = default ] && exec "$CAP" inbox panel "$NOTE"',
          "notify-send", "--app-name=cap", "--urgency=normal", "--action=default=Open",
          prompt.strip()[:60], short + "\n\nClick to read the full answer."],
         env={**os.environ, "CAP": str(pathlib.Path(__file__).resolve()), "NOTE": note.name},
@@ -2572,13 +2568,36 @@ def cmd_act(argv):
     return 0 if outcome in ("ok", "skipped") else 1
 
 
+def _note_body(p):
+    """A note without its front matter: the question heading and the answer."""
+    text = p.read_text()
+    if text.startswith("---\n"):
+        head, sep, rest = text[4:].partition("\n---\n")
+        if sep:
+            text = rest
+    return text.strip()
+
+
+def _answer_panel(markdown):
+    """Show markdown in the ask answer panel; False when the shell is not there.
+    One argument, never shell text, and bounded for IPC."""
+    try:
+        r = subprocess.run(["noctalia", "msg", "panel-open", "machine-state/ask:answer",
+                            markdown[:24400]], capture_output=True, timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return r.returncode == 0
+
+
 def cmd_inbox(argv):
     """Catch-up: what responses left for a human to read.
 
         cap inbox            list unread notes, oldest first
         cap inbox show [N]   print note N (default: the oldest unread), mark it read
         cap inbox read       list notes already read
-        cap inbox open NAME  open note NAME in a window, mark it read (a popup click)
+        cap inbox open NAME  open note NAME in a terminal window, mark it read
+        cap inbox panel NAME open note NAME in the answer panel, mark it read (a
+                             popup click); the terminal window when no panel opens
 
     Read means moved into inbox/read/ — visible, and undone by moving it back.
     """
@@ -2614,11 +2633,11 @@ def cmd_inbox(argv):
         done.mkdir(parents=True, exist_ok=True)
         p.rename(done / p.name)
         return 0
-    if sub == "open":
+    if sub in ("open", "panel"):
         name = argv[1] if len(argv) > 1 else ""
         # A file name, never a path: the name arrives from a popup click.
         if not re.fullmatch(r"[\w.-]+\.md", name):
-            die(f"inbox open: {name!r} is not a note name")
+            die(f"inbox {sub}: {name!r} is not a note name")
         p = INBOX / name
         if p.exists():
             done.mkdir(parents=True, exist_ok=True)
@@ -2626,7 +2645,9 @@ def cmd_inbox(argv):
         else:
             p = done / name
         if not p.exists():
-            die(f"inbox open: no note {name!r}")
+            die(f"inbox {sub}: no note {name!r}")
+        if sub == "panel" and _answer_panel(_note_body(p)):
+            return 0
         subprocess.Popen(["kitty", "--class", "cap-answer", "--title", title(p),
                           "-e", "bat", "--paging=always", "--style=plain",
                           "--language=md", str(p)],
