@@ -100,8 +100,9 @@ than pretending. `Platform` carries `ChargeControlEndThreshold` and `ThrottlePol
 **One Aura device, not two.** `/xyz/ljones/aura/19b6_2_4` is the N-KEY HID (`0b05:19b6`). The other
 ASUS HID on this machine, `0b05:193b` (ITE 8295), is **not claimed by asusd at all**.
 
-**The model is one colour, many surfaces, independent power** — which is not what the property names
-suggest and had to be established by testing.
+**Through named effects, the model is one colour, many surfaces, independent power** — which is not
+what the property names suggest and had to be established by testing. *That qualifier matters: it is
+a limit of the named-effect path, not of the hardware. See the correction below.*
 
 - `SupportedBasicModes` lists twelve effects; `SupportedBasicZones` is `0`. So a named effect paints
   the whole keyboard at once.
@@ -111,12 +112,52 @@ suggest and had to be established by testing.
   Powering zone 2 off **darkened the front edge while the keyboard stayed lit**, and powering it back
   on restored it. Confirmed by eye.
 
-So surfaces share a colour and differ only in whether they are lit. For anything that wants to *say*
-something with light, that is the constraint that matters.
+So *through named effects* surfaces share a colour and differ only in whether they are lit.
 
-**Per-key is not missing from the hardware; named effects are the wrong abstraction.** The Aura
-interface also exposes `DirectAddressingRaw (aay)` — raw per-LED frames. Untested here, deliberately:
-it needs a key layout and its own careful pass. `machine-state-bru.11` is the reason to do it.
+**Correction, 2026-10-22: the surfaces do not share a colour in hardware.** The earlier conclusion
+generalised from `asusd`'s effect API to the device, and the user, who had seen far richer lighting
+than that model allows, challenged it. `asusd`'s own data contradicts it:
+
+- `/usr/share/asusd/aura_support.ron` lists `G835L` with `advanced_type: PerKey` and
+  `layout_name: "g814ji-per-key"`. `basic_zones: []` only means that *named effects* have no zones.
+- `/usr/share/rog-gui/layouts/g814ji-per-key_US.ron` (from `rog-control-center`) addresses the rim as
+  **six separate LEDs**: `LightbarLeft`, `LightbarLeftCorner`, `LightbarLeftBottom`,
+  `LightbarRightBottom`, `LightbarRightCorner`, `LightbarRight`. **No logo LED** appears in that layout.
+- The Aura interface exposes `DirectAddressingRaw (aay)`, which sends raw per-LED frames.
+
+So per-LED colour, including a rim coloured differently from the keys, is a hardware capability that
+is reached through direct addressing, not through `asusctl aura effect`. Global brightness
+(`Brightness`, 0–3) is still a single value, but a rim LED given a darker colour *is* a dimmer rim.
+
+**The frame format, read from upstream source** (`rog-aura/src/keyboard/advanced.rs` on asusctl's
+GitLab `main`, 2026-06-02; there is no `6.4.0` tag there, because the project moved to
+`github.com/opengamingcollective/asusctl`). Each HID packet is 64 bytes:
+
+```
+5d bc 00 01 01 01 <start LED> <count> 00 | r g b × count
+```
+
+There are 16 LEDs per packet, and `<start LED>` is the group number × 16. In upstream's per-key map,
+LED **176 is `LidLogo`**, **178–183 are the rim** (`LightbarRight`, `…RightCorner`, `…RightBottom`,
+`…LeftBottom`, `…LeftCorner`, `LightbarLeft`), and 185/186 are `LidLeft`/`LidRight`. They sit in a
+twelfth packet (start `0xb0`), which upstream's own `new_per_key()` never allocates (it builds 11),
+so its per-key path cannot actually reach the rim. On the first packet `asusd` sends an init message
+(`5d bc` and zeros) that clears the board, so **per-key mode owns every LED**, and dimming one surface
+means sending the whole board.
+
+**Driven once, 2026-10-22.** The frame sent was 12 packets, all with count `0x10`, every LED
+`#002040` except 178–183 at `#000810`. It went through `busctl call … DirectAddressingRaw aay`, and
+`asusd` accepted it. The user reported the keyboard unchanged and the rim effectively **gone**: a
+quarter of `#002040` is below what the eye registers on that diffuser. Because the init clears every
+LED, a dark rim does *not* prove that 178–183 are the right indices; an unaddressed rim would also go
+dark. A brighter rim colour, such as `#001020`, would settle it. Logo at 176 was not separately checked.
+
+**Not persistent.** `asusd` does not save per-key frames, and on resume it reloads the stored
+`Static` effect. So the dim rim lasts until the next sleep or reboot unless something resends it.
+`machine-state-bru.11` is the larger reason to drive this properly.
+
+**The second ASUS HID, `0b05:193b` (ITE 8295), is still unexplained.** `asusd` does not claim it, and
+nothing here shows whether it drives any lighting.
 
 **AniMe Vision is a genuinely separate device**, `/xyz/ljones/aura/anime`, with its own `Write`
 method and power rules: `OffWhenLidClosed`, `OffWhenSuspended`, `OffWhenUnplugged`, all `true`. Found
@@ -144,6 +185,34 @@ person reading it, from a channel that means something.
 
 **Configuration lives in `/etc/asusd/`**, root-owned: `asusd.ron`, `aura_19b6.ron`, `anime.ron`,
 `fan_curves.ron`. Per-device files, so removing a device's config does not disturb the others.
+
+## Current settings
+
+Chosen by the user on 2026-10-22. `asusd` persists each of these to `/etc/asusd/` as it is set; the
+files were read back after every change. Not yet confirmed across a reboot.
+
+| Surface | Setting | Why |
+| --- | --- | --- |
+| Colour / effect | `Static`, `#002040` (deep blue) | the user likes it; left as found |
+| Keyboard power | on at boot, awake, sleep, shutdown | unchanged — with the lid closed it cannot be seen, so its sleep state was left alone |
+| Lightbar (rim) power | **awake only** | the rim was wanted subtler, and power state is the only rim-specific setting `asusctl`'s CLI offers |
+| Lightbar (rim) colour | `#000810` through a per-key frame, so effectively dark. **Lost on sleep or reboot**, when it returns to `#002040` | the rim was wanted subtler. The user accepted "gone" for now; making it stick is open work |
+| Logo power | **awake only** | it pulsed **red** during sleep (see below) |
+| AniMe display | **off** (`display_enabled false`, `display_brightness Off`) | not wanted for now |
+| AniMe builtins | **off** (`builtin_anims_enabled false`) | the firmware plays its own boot/shutdown animations outside `asusd`'s control; disabling the display alone would not stop them |
+
+Set with `asusctl anime --brightness off`, `asusctl anime --enable-powersave-anim false`,
+`asusctl aura power lightbar --awake`, `asusctl aura power logo --awake`. For `aura power`, the flags
+given are the states that are **on**; any state left out is off.
+
+**The sleep effect is the firmware's, not ours.** With the logo powered during sleep it pulsed red
+while the configured colour was static blue — the same red as the builtins' default `colour1`
+(`166,0,0`). Whatever is set for awake does not carry into sleep, so a surface powered during sleep
+should be assumed to show the firmware's choice, not the user's.
+
+**Saved and live brightness disagree.** `aura_19b6.ron` says `brightness: Low`; `asusctl leds get`
+says `High`. Something — the keyboard's brightness keys are the likely candidate — raised it at
+runtime without the file following. Unresolved: which one wins at boot.
 
 ## Verification
 

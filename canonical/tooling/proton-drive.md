@@ -10,8 +10,9 @@ mobile clients.
 Every transfer is a command someone runs. Third-party projects wrap it to add sync; none are
 Proton's and none are in scope here.
 
-Installed 2026-09-06. The record was drafted before the install and completed after it, which is the
-order `machine-state-t0u.4` used and the order that found `machine-state-q4r`.
+Installed 2026-09-06 and updated to 0.9.0 on 2026-10-26. The record was drafted before the original
+install and completed after it, which is the order `machine-state-t0u.4` used and the order that
+found `machine-state-q4r`.
 
 ## Role
 
@@ -29,23 +30,21 @@ Proton-published standalone executable, fetched over HTTPS and placed by hand at
 
 | | |
 | --- | --- |
-| Version | `0.8.0`, released `2026-08-13` (`cli-drive@0.8.0+06e8c605`, SDK `js@0.21.0+06e8c605`) |
-| Artifact | `https://proton.me/download/drive/cli/0.8.0/linux-x64/proton-drive` |
-| SHA-512 | `cf61c2688c45e1055d8add6221d9471a5a5b64bf3bcdb86460f5cb18414596cc4df3cdb6627c9097c94bec32a3c9915ada3211ef2ae5be33c46ebbc996ccaa28` |
-| Size | 117 946 496 bytes (112.48 MiB) — it embeds the Bun runtime |
+| Version | `0.9.0`, released `2026-10-05` (`cli-drive@0.9.0+75612299`, SDK `js@0.22.2+75612299`) |
+| Artifact | `https://proton.me/download/drive/cli/0.9.0/linux-x64/proton-drive` |
+| SHA-512 | `3533025ba69ae112b64e3e01fbcc1ad0688136a4043f6cf6a72886967d85fdcd9ec235479c2e113171614be5225bfba93427509a05ca5aa6071d924fa7e91ca8` |
+| Size | 96 683 488 bytes (92.20 MiB) — it embeds the Bun runtime |
 | Source | `https://github.com/ProtonDriveApps/sdk`, directory `cli/` |
 
-Verified twice on 2026-09-06: once on the downloaded file and again at `~/.local/bin/proton-drive`
+Verified twice on 2026-10-26: once on the downloaded file and again at `~/.local/bin/proton-drive`
 after installation, so the recorded hash describes the file that is actually on the machine rather
 than the one that was fetched.
 
-**Nine artifacts are published; this is the one for this machine, chosen rather than assumed.**
-Counted from the index rather than eyeballed: `macos/{arm64,x64}`, `linux/{arm64,x64,x64-baseline,
-arm64-musl,x64-musl}`, `windows/{arm64,x64}`.
+**Ten artifacts are published; this is the one for this machine, chosen rather than assumed.**
+Counted from the 0.9.0 index rather than eyeballed: `macos/{arm64,x64}`, `linux/{arm64,x64,
+arm64-musl,x64-musl}`, `freebsd/{arm64,x64}`, `windows/{arm64,x64}`.
 
 - `x86_64`, so neither `arm64`.
-- `avx2` present in `/proc/cpuinfo` (Intel Core Ultra 9 290HX Plus), so **not** `x64-baseline` —
-  that build exists for CPUs without AVX2, where the ordinary one dies with `Illegal instruction`.
 - glibc 2.44, so not `x64-musl`.
 
 **The provenance is the weakest of any record here, and it is not going to be dressed up.** Proton
@@ -165,12 +164,12 @@ and is not withdrawn when that caller dies (`machine-state-jw9`).
 is not used here: `create-new-revision` keeps a revision, and `replace` throws the remote version
 away on the strength of a local file whose freshness nothing has established.
 
-**An allowlist, not a denylist, and it is empty today.** Nothing is pulled unless it is named here.
-`/my-files` contains a folder called `ssh` and a file called `Tesla Backup Passcodes`; a blanket
-mirror would put those on this disk in the clear, and secrets management is a recorded non-goal
-(`SUBSTRATE.md` §9). A denylist would include each new sensitive folder by default until somebody
-remembered to exclude it. **Excluded even if the allowlist grows:** `/my-files/ssh`, and any file
-whose contents are a credential.
+**The full `/my-files` tree is the allowlist, explicitly chosen on 2026-10-26.** The user confirmed
+that the convenient local working copy should include everything under that root, after being shown
+that this includes `ssh` and credential-bearing files. That knowingly places those files in the
+ordinary plaintext mirror for now. `machine-state-oqs` tracks replacing this temporary arrangement
+with encrypted-at-rest storage and a sync boundary that treats keys and recovery credentials
+separately. Other Drive roots such as `/photos` remain outside this mirror.
 
 The repository records the convention and nothing about the contents: no projection, no backup, no
 index, no file list.
