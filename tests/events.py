@@ -213,6 +213,9 @@ class Box:
             f'printf "%s\\n" "$*" >> "{self.dir}/notify.log"\n'
             # While click exists: a person clicked the popup, which picks "default".
             f'if [ -e "{self.dir}/click" ]; then echo default; fi\n')
+        # The real one would open panels on the person's desktop mid-test.
+        (stubs / "noctalia").write_text(
+            f'#!/bin/sh\nprintf "%s\\n" "$*" >> "{self.dir}/noctalia.log"\n')
         (stubs / "secret-tool").write_text(
             "#!/bin/sh\nprintf '[/1]\\nlabel = Proton Bridge IMAP\\nsecret = fixture-pw\\n"
             "attribute.service = protonmail-bridge\\nattribute.username = me@example.com\\n'\n")
