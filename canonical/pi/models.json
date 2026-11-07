@@ -51,8 +51,8 @@
             "high": null,
             "xhigh": "xhigh"
           },
-          "input": ["text"],
-          "contextWindow": 163840,
+          "input": ["text", "image"],
+          "contextWindow": 147456,
           "maxTokens": 65536,
           "samplingParams": {
             "temperature": 1.0,

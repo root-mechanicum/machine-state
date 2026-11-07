@@ -25,6 +25,12 @@ application-layer experiment, not a substrate dependency. Tracked in bead `machi
   Base model DavidAU/Qwen3.8-27B-TWIN-TURBO-Fable-Cold-Fusion-709-L-Uncensored, Apache-2.0 per its
   card. It is an **uncensored community fine-tune**, not stock Qwen: it refuses less, so agent use
   leans on `dcg` and on `/do`'s approval step.
+* **Image reader:** `~/.local/share/llama.cpp/models/ggml-org/Qwen3.8-27B-GGUF/mmproj-Qwen3.8-27B-Q8_0.gguf`,
+  629,247,008 bytes, SHA-256 `2e968a6af97ce35d8971890b257b9b7edabf20ad91450501fa53162a19ee33eb`
+  (matches Hugging Face). The stock Qwen3.8-27B projector from llama.cpp's own organisation; the
+  fine-tune changed only the language model. lifeidle quantized the same thing to Q8_0 by hand.
+* **Context:** 144K (147,456), lifeidle's fallback. At 160K with the image reader loaded, one image
+  left 36 MiB of VRAM, and on Linux an allocation past the end fails instead of spilling to RAM.
 
 ## Lifecycle
 
@@ -38,18 +44,22 @@ agents talk to whatever answers on `127.0.0.1:8000`; `cap` reads the model name 
 `llama-server` serves its single model whatever name a request carries, so launchers in
 `canonical/roles/roles.toml` that pin `vllm/RedHatAI/Qwen3.8-27B-INT4` keep working on either
 server, with vLLM's more conservative 98K window. Pi can also name this model directly as
-`llamacpp/qwen3.8-27b-twin-turbo` (160K window).
+`llamacpp/qwen3.8-27b-twin-turbo` (144K window, text and images).
 
 ## Measured (2026-11-07, b12189, warm page cache)
 
 | | vLLM INT4 | llama.cpp TWIN-TURBO |
 |---|---|---|
-| Load to healthy | ~2 min | 2.7 s (cold load from NVMe not measured) |
+| Load to healthy | ~2 min | 2.7 s warm; **7.0 s cold** (file evicted from the page cache, restart included) |
+| Image (600×300, shapes) | — | 1.7 s, correct |
 | Decode, short question | ~35 tok/s | 77-92 tok/s, MTP acceptance 56-72% |
 | Prompt reading | — | 2,800-2,900 tok/s; repeated prefix reused (66 → 4 tokens) |
 | `pi -p` "pong" | — | 2.7 s |
 | `/ask`-style run with a cap tool call | — | 4.9 s, tool call round trip confirmed |
-| VRAM at 160K | ~22 GB | 22.9 GB used, 1.1 GB free |
+| VRAM, 144K + image reader | ~22 GB | 23.1 GB used, 976 MiB free; 740 MiB free after an image |
+
+A 7-second cold start makes an on-demand server (socket activation, idle exit) realistic for this
+engine, unlike vLLM's two minutes. Not built: the always-warm vLLM unit is still the login default.
 
 ## Verification
 

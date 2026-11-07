@@ -83,8 +83,8 @@
     "/home/klaas/.config/systemd/user/llama-twin-turbo.service": {
       "adapter": "llama-cpp",
       "kind": "render",
-      "projected_at": "2026-11-07T15:56:06.248Z",
-      "sha": "c3bd801e2ad4eaae5f0e5bbaf0b8f9fd59371b5b39bcf7104ee43cc9940a43ab",
+      "projected_at": "2026-11-07T16:07:50.985Z",
+      "sha": "03f1b0f2c19c8da4b39db9f3cabfc8dd1b04ba6d8b3710563fd306e23c01c85f",
       "sources": [
         "canonical/llama-cpp/llama-twin-turbo.service"
       ]
@@ -121,8 +121,8 @@
     "/home/klaas/.pi/agent/models.json": {
       "adapter": "pi",
       "kind": "render",
-      "projected_at": "2026-11-07T15:56:06.248Z",
-      "sha": "8127ba07b399cce20d2a14dd5ed150e95f02bf112b504a112930ed556d4eb880",
+      "projected_at": "2026-11-07T16:07:50.985Z",
+      "sha": "c3935af132520105571ab3ec4dd80237928fd700acb713655b9c3ae049b04fb9",
       "sources": [
         "canonical/pi/models.json"
       ]
