@@ -45,8 +45,13 @@ loaded.
 
 ## Lifecycle
 
-The service is enabled for `default.target` and starts at login, but only on AC power
-(`ConditionACPower=true`). It is the always-warm backend for the OS agent layer: scheduled agents
+**Since 2026-11-07 this is the fallback, not the default.** `llama-twin-turbo`
+(`canonical/tooling/llama-cpp.md`) starts at login instead; the unit here has no `[Install]` and
+conflicts with it, so `systemctl --user start vllm-qwen38` switches back (and stops llama.cpp).
+Both serve on port 8000. What follows describes vLLM when it was the default.
+
+The service was enabled for `default.target` and started at login, but only on AC power
+(`ConditionACPower=true`). It was the always-warm backend for the OS agent layer: scheduled agents
 and the per-window assistant need it available without a cold start, which takes roughly two
 minutes. The cost is about 22 GB of pinned VRAM and a dGPU that never suspends (about 8 W idle at
 P8); stop the unit by hand to free the GPU for other work, and start it by hand on battery.

@@ -1,5 +1,5 @@
-# A user service that autostarts at login on AC power. Projection does not start or enable it;
-# enabling it is a separate, explicit step.
+# A user service started by hand (no [Install]); llama-twin-turbo is the login default and the two
+# conflict. Projection does not start or enable it.
 [[target]]
 kind = "render"
 path = "~/.config/systemd/user/vllm-qwen38.service"

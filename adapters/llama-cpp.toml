@@ -1,5 +1,6 @@
-# A user service started by hand; it conflicts with vllm-qwen38, so starting one stops the other.
-# Projection does not start or enable it.
+# The local model's user service, autostarted at login on AC power; it conflicts with vllm-qwen38,
+# so starting one stops the other. Projection does not start or enable it; enabling it is a separate,
+# explicit step.
 [[target]]
 kind = "render"
 path = "~/.config/systemd/user/llama-twin-turbo.service"

@@ -1,9 +1,9 @@
 [Unit]
 Description=Emit the time.daily event (cap)
 # Ordering only: if the model is down or still loading, journal.digest is refused
-# as unavailable and the other responses still run. Never Wants= it — vLLM
-# decides for itself whether to start (AC power only).
-After=vllm-qwen38.service
+# as unavailable and the other responses still run. Never Wants= it — the model
+# server decides for itself whether to start (AC power only). Either server.
+After=llama-twin-turbo.service vllm-qwen38.service
 
 [Service]
 Type=oneshot

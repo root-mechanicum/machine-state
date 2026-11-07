@@ -36,8 +36,9 @@ application-layer experiment, not a substrate dependency. Tracked in bead `machi
 
 `canonical/llama-cpp/llama-twin-turbo.service`, projected to `~/.config/systemd/user/`. It has
 `Conflicts=vllm-qwen38.service`, so starting either server stops the other; the GPU holds one.
-It has no `[Install]` section: vLLM stays the login default and this one is started by hand.
-`ConditionACPower=true`, as for vLLM.
+**The login default since 2026-11-07:** `WantedBy=default.target`, `ConditionACPower=true`. vLLM's
+unit lost its `[Install]` and is the fallback, started by hand. `/ask`, the agent role
+(`canonical/roles/roles.toml`) and `local-pi` name `llamacpp/qwen3.8-27b-twin-turbo`.
 
 **Port 8000 is the contract, not the engine.** `cap`'s `model:local` channel, `/ask`, `/do` and the
 agents talk to whatever answers on `127.0.0.1:8000`; `cap` reads the model name from `/v1/models`.

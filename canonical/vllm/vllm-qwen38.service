@@ -14,5 +14,5 @@ TimeoutStopSec=30
 Restart=on-failure
 RestartSec=30
 
-[Install]
-WantedBy=default.target
+# No [Install] since 2026-11-07: llama-twin-turbo (canonical/llama-cpp/) is the login default and
+# conflicts with this unit. Start this one by hand to switch back; that stops llama-twin-turbo.

@@ -19,6 +19,9 @@ TimeoutStopSec=30
 Restart=on-failure
 RestartSec=30
 
-# No [Install]: vLLM stays the login default. Switch by hand:
-#   systemctl --user start llama-twin-turbo   (stops vLLM)
+# The login default since 2026-11-07 (vLLM before it). Switch by hand:
 #   systemctl --user start vllm-qwen38        (stops this)
+#   systemctl --user start llama-twin-turbo   (stops vLLM)
+
+[Install]
+WantedBy=default.target
