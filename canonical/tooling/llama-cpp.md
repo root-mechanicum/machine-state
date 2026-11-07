@@ -58,6 +58,10 @@ server, with vLLM's more conservative 98K window. Pi can also name this model di
 | `/ask`-style run with a cap tool call | — | 4.9 s, tool call round trip confirmed |
 | VRAM, 144K + image reader | ~22 GB | 23.1 GB used, 976 MiB free; 740 MiB free after an image |
 
+Per-request thinking levels apply: `--reasoning-effort xhigh` is only the server default. A top-level
+`reasoning_effort` (what Pi sends) and `chat_template_kwargs.reasoning_effort` both shortened the
+thinking at `low` (one arithmetic question: 554 vs 1,146 and 149 vs 717 reasoning characters).
+
 A 7-second cold start makes an on-demand server (socket activation, idle exit) realistic for this
 engine, unlike vLLM's two minutes. Not built: the always-warm vLLM unit is still the login default.
 
