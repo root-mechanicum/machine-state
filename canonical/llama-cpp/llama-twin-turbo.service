@@ -1,0 +1,22 @@
+[Unit]
+Description=Local Qwen3.8 27B TWIN-TURBO NVFP4 inference (llama.cpp)
+After=network.target
+# One GPU, two ~22 GB servers: starting either one stops the other (Conflicts= works both ways).
+Conflicts=vllm-qwen38.service
+ConditionACPower=true
+
+[Service]
+Type=simple
+# lifeidle's route T launch (qwen3.8-27b-5090-laptop-24gb-coder390-ninfer), ported to Linux.
+# --load-mode none reads the GGUF once instead of keeping 17 GB mapped in the page cache.
+# --ctx-checkpoints lets the hybrid (GDN) model reuse an earlier prompt prefix.
+# Port 8000 on purpose: "the local model" (cap's model:local, /ask, /do, Pi) is whatever answers
+# there. llama-server serves its one model whatever name a request uses.
+ExecStart=%h/.local/share/llama.cpp/bin/llama-server -m %h/.local/share/llama.cpp/models/esatapedico/Qwen3.8-27B-TWIN-TURBO-NVFP4-GGUF/Qwen3.8-27B-TWIN-TURBO-Fable-Cold-Fusion-709-L-Uncensored-NVFP4-MID-HIGH.gguf --alias qwen3.8-27b-twin-turbo -ngl 99 -fa on -fit off -c 163840 -np 1 --ctx-checkpoints 4 --load-mode none --jinja --cache-type-k q8_0 --cache-type-v q8_0 --spec-type draft-mtp --spec-draft-n-max 3 --reasoning-effort xhigh --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --host 127.0.0.1 --port 8000
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=30
+
+# No [Install]: vLLM stays the login default. Switch by hand:
+#   systemctl --user start llama-twin-turbo   (stops vLLM)
+#   systemctl --user start vllm-qwen38        (stops this)

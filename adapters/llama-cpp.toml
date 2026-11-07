@@ -1,0 +1,6 @@
+# A user service started by hand; it conflicts with vllm-qwen38, so starting one stops the other.
+# Projection does not start or enable it.
+[[target]]
+kind = "render"
+path = "~/.config/systemd/user/llama-twin-turbo.service"
+sources = ["canonical/llama-cpp/llama-twin-turbo.service"]

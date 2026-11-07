@@ -35,6 +35,34 @@
           }
         }
       ]
+    },
+    "llamacpp": {
+      "baseUrl": "http://localhost:8000/v1",
+      "api": "openai-completions",
+      "apiKey": "llamacpp",
+      "models": [
+        {
+          "id": "qwen3.8-27b-twin-turbo",
+          "name": "Qwen3.8 27B TWIN-TURBO NVFP4 (llama.cpp)",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "low": "low",
+            "medium": "medium",
+            "high": null,
+            "xhigh": "xhigh"
+          },
+          "input": ["text"],
+          "contextWindow": 163840,
+          "maxTokens": 65536,
+          "samplingParams": {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 20,
+            "presence_penalty": 0,
+            "repetition_penalty": 1.0
+          }
+        }
+      ]
     }
   }
 }

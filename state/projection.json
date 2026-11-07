@@ -80,6 +80,15 @@
         "canonical/events/cap-time-hourly.timer"
       ]
     },
+    "/home/klaas/.config/systemd/user/llama-twin-turbo.service": {
+      "adapter": "llama-cpp",
+      "kind": "render",
+      "projected_at": "2026-11-07T15:56:06.248Z",
+      "sha": "c3bd801e2ad4eaae5f0e5bbaf0b8f9fd59371b5b39bcf7104ee43cc9940a43ab",
+      "sources": [
+        "canonical/llama-cpp/llama-twin-turbo.service"
+      ]
+    },
     "/home/klaas/.config/systemd/user/vllm-qwen38.service": {
       "adapter": "vllm",
       "kind": "render",
@@ -112,8 +121,8 @@
     "/home/klaas/.pi/agent/models.json": {
       "adapter": "pi",
       "kind": "render",
-      "projected_at": "2026-11-01T16:18:04.960Z",
-      "sha": "977cf0c92b261e86d03e04e002e4bf1ea652a42841dcfdbe819c5e6c865c28ee",
+      "projected_at": "2026-11-07T15:56:06.248Z",
+      "sha": "8127ba07b399cce20d2a14dd5ed150e95f02bf112b504a112930ed556d4eb880",
       "sources": [
         "canonical/pi/models.json"
       ]
