@@ -1,0 +1,7 @@
+# Strata (Qwen3.8-Flash-Next) as a user service. No [Install] section: it is a mode, never
+# started at login. It conflicts with llama-twin-turbo and vllm-qwen38, so starting it stops the
+# 27B server, and starting that stops this. Projection does not start it.
+[[target]]
+kind = "render"
+path = "~/.config/systemd/user/strata-flash-next.service"
+sources = ["canonical/strata/strata-flash-next.service"]

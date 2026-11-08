@@ -63,6 +63,34 @@
           }
         }
       ]
+    },
+    "strata": {
+      "baseUrl": "http://localhost:8000/v1",
+      "api": "openai-completions",
+      "apiKey": "strata",
+      "models": [
+        {
+          "id": "qwen3.8-flash-next-iq3_s",
+          "name": "Qwen3.8-Flash-Next 177B IQ3_S (Strata)",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "low": "low",
+            "medium": "medium",
+            "high": null,
+            "xhigh": "xhigh"
+          },
+          "input": ["text", "image"],
+          "contextWindow": 262144,
+          "maxTokens": 65536,
+          "samplingParams": {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 20,
+            "presence_penalty": 0,
+            "repetition_penalty": 1.0
+          }
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,29 @@
+[Unit]
+Description=Local Qwen3.8-Flash-Next 177B MoE, ISTA-DASLab GSQ-RCO IQ3_S (Strata)
+After=network.target
+# One GPU: starting this stops the 27B servers, and starting either of them stops this
+# (Conflicts= works both ways).
+Conflicts=llama-twin-turbo.service vllm-qwen38.service
+ConditionACPower=true
+
+[Service]
+Type=simple
+# Strata's own launcher (setup.sh writes it; run-iq3_s.sh runs the same thing on port 8080).
+# The engine flags live in strata-iq3_s.json, owned by Strata's setup; two values there are
+# changed from setup's defaults after lifeidle's measurements on the same laptop:
+#   --spec 2 (setup: 4)            97.7 tok/s at 71.1% draft acceptance, vs 94.3 / 55.8%
+#   --max-context 262144 (setup: 131072)   256K holds with --kv-resident 32768 (KV in RAM)
+# setup's original is kept beside it as strata-iq3_s.json.setup-default.
+# Port 8000 on purpose: "the local model" (cap's model:local, /ask, /do, Pi) is whatever
+# answers there.
+ExecStart=%h/.local/share/strata/app/.venv/bin/python %h/.local/share/strata/app/serve/server.py --engine strata --config %h/.local/share/strata/app/strata-iq3_s.json --port 8000
+WorkingDirectory=%h/.local/share/strata/app
+# Loading locks ~47 GB of RAM; give it time to load and to let go.
+TimeoutStartSec=600
+TimeoutStopSec=120
+Restart=on-failure
+# lifeidle: back-to-back restarts fail while the old engine's pinned memory is still being
+# released; wait at least 70 s.
+RestartSec=90
+
+# No [Install]: never started at login. A mode, started by hand (or a cap action).
