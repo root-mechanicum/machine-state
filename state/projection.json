@@ -89,11 +89,20 @@
         "canonical/llama-cpp/llama-twin-turbo.service"
       ]
     },
+    "/home/klaas/.config/systemd/user/strata-flash-next-xxs.service": {
+      "adapter": "strata",
+      "kind": "render",
+      "projected_at": "2026-11-09T13:58:22.354Z",
+      "sha": "65056460bbe72db3d11d0e0b95a9eaf7d47f36863f2fd4197c176d6d168692ba",
+      "sources": [
+        "canonical/strata/strata-flash-next-xxs.service"
+      ]
+    },
     "/home/klaas/.config/systemd/user/strata-flash-next.service": {
       "adapter": "strata",
       "kind": "render",
-      "projected_at": "2026-11-08T15:11:20.249Z",
-      "sha": "1d20b6ee310c0be0afa5d63109ebbae3bfad574ef1d815e2e4baa7c85bbc1abe",
+      "projected_at": "2026-11-09T17:04:11.371Z",
+      "sha": "d232d2f88f255470d8ec435c2a4e2fd1cc607998723634b41eccfc00a8ac45fe",
       "sources": [
         "canonical/strata/strata-flash-next.service"
       ]
@@ -130,8 +139,8 @@
     "/home/klaas/.pi/agent/models.json": {
       "adapter": "pi",
       "kind": "render",
-      "projected_at": "2026-11-08T15:22:57.242Z",
-      "sha": "1885fb0103de7f32609f34d05c919cc1acbd7b648b01be096867e79261b03bda",
+      "projected_at": "2026-11-09T13:58:22.354Z",
+      "sha": "112bc095835c9c9003e0ce7d79392ab82dae8eb412119d5b4cc4d0f0d18b7381",
       "sources": [
         "canonical/pi/models.json"
       ]
