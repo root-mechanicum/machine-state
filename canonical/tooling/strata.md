@@ -43,7 +43,17 @@ it never starts at login. `Conflicts=llama-twin-turbo.service vllm-qwen38.servic
 stops the 27B server and starting that stops this. `RestartSec=90`: the engine releases its pinned
 memory slowly and a restart within ~70 s fails, so wait that long before starting it again.
 
-* Start: `systemctl --user start strata-flash-next` (ready in about 35 s).
+* Start: `systemctl --user start strata-flash-next` (ready in about 35 s). Since 2026-11-09 it runs
+  `strata-iq3_s-resident.json` (`--resident-experts`: RAM holds only the experts the GPU does not):
+  ~8 GB available instead of ~1, 106 tok/s instead of 136 on three long answers. The faster
+  `strata-iq3_s.json` is unchanged beside it; the unit's `--config` picks one.
+* The smaller quant: `systemctl --user start strata-flash-next-xxs`
+  (`canonical/strata/strata-flash-next-xxs.service`, Pi `strata/qwen3.8-flash-next-iq3_xxs`).
+  IQ3_XXS's shard 1 (47,039,860,096 bytes, `219ea929…6d15`) in `IQ3_XXS/`, shard 2 the same file
+  as IQ3_S's; its own pack `packs/iq3_xxs` and config `strata-iq3_xxs.json` (setup run with
+  `--gguf-dir` on that folder, `--context 262144`; `--spec` changed 4 → 2 to match IQ3_S; original
+  kept as `.setup-default`). Same engine, MTP draft and image reader. The two modes conflict with
+  each other and with the 27B servers, so starting one flips to it.
 * Back to the default: `systemctl --user start llama-twin-turbo`.
 
 Clients: Pi names it `strata/qwen3.8-flash-next-iq3_s` (`canonical/pi/models.json`: 262K window,

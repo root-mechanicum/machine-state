@@ -5,3 +5,9 @@
 kind = "render"
 path = "~/.config/systemd/user/strata-flash-next.service"
 sources = ["canonical/strata/strata-flash-next.service"]
+
+# The same model in the smaller IQ3_XXS quant; a separate mode so the two can be flipped.
+[[target]]
+kind = "render"
+path = "~/.config/systemd/user/strata-flash-next-xxs.service"
+sources = ["canonical/strata/strata-flash-next-xxs.service"]

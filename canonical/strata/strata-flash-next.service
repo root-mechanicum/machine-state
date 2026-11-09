@@ -1,9 +1,9 @@
 [Unit]
 Description=Local Qwen3.8-Flash-Next 177B MoE, ISTA-DASLab GSQ-RCO IQ3_S (Strata)
 After=network.target
-# One GPU: starting this stops the 27B servers, and starting either of them stops this
+# One GPU: starting this stops IQ3_XXS and the 27B servers, and starting any of them stops this
 # (Conflicts= works both ways).
-Conflicts=llama-twin-turbo.service vllm-qwen38.service
+Conflicts=strata-flash-next-xxs.service llama-twin-turbo.service vllm-qwen38.service
 ConditionACPower=true
 
 [Service]
@@ -16,7 +16,11 @@ Type=simple
 # setup's original is kept beside it as strata-iq3_s.json.setup-default.
 # Port 8000 on purpose: "the local model" (cap's model:local, /ask, /do, Pi) is whatever
 # answers there.
-ExecStart=%h/.local/share/strata/app/.venv/bin/python %h/.local/share/strata/app/serve/server.py --engine strata --config %h/.local/share/strata/app/strata-iq3_s.json --port 8000
+# Resident mode (2026-11-09, "for now"): strata-iq3_s-resident.json is strata-iq3_s.json plus
+# --resident-experts, so RAM holds only the experts the GPU does not: ~8 GB left for the desktop
+# instead of ~1, at 106 tok/s instead of 136 (model-bench results/2026-11-09/tps). Same weights,
+# same answers. Back to the faster mode: point --config at strata-iq3_s.json.
+ExecStart=%h/.local/share/strata/app/.venv/bin/python %h/.local/share/strata/app/serve/server.py --engine strata --config %h/.local/share/strata/app/strata-iq3_s-resident.json --port 8000
 WorkingDirectory=%h/.local/share/strata/app
 # Loading locks ~47 GB of RAM; give it time to load and to let go.
 TimeoutStartSec=600
