@@ -33,6 +33,28 @@ contents are not our policy and are never copied into `canonical/`.
 - bd stays the sole task system; no parallel TODO files.
 - Its blocks stay bd's to regenerate. We co-exist by marker, never by rewriting its region.
 - No automatic Dolt remote sync; pushing is an explicit human action.
+- **Usage metrics stay off.** See below.
+
+## Usage metrics
+
+bd ships **opt-out** anonymous usage metrics (seen in 1.2.2): one `cli_command` event per command
+run, carrying the command name, bd version, platform and a stable machine-derived ID. Batches queue
+in `~/.beads/eventsData/*.evtq` and are flushed to `https://gastownhall-eventsapi.com/mp/collect`.
+The one-time notice was shown to an agent session, not the user, so it went unnoticed until
+opensnitch blocked the flush on 2026-11-10. The queue directory dates from 2026-08-30, before
+opensnitch was installed (2026-10-31), so earlier batches most likely did go out.
+
+Turned off on 2026-11-10 with `bd metrics off`, which sets `metrics.disabled: true` in
+`~/.config/bd/config.yaml` (user-global, not per workspace). The queued batches were deleted, and an
+opensnitch rule denies `bd` that host as a second layer. Check after any bd upgrade:
+
+```sh
+bd metrics | head -1          # expect: Anonymous usage metrics: OFF
+ls ~/.beads/eventsData        # expect: only eventkit.lock
+```
+
+The binary also contains a `BD_DISABLE_METRICS` environment switch (untested); it is not set here,
+since the config key suffices.
 
 ## Verification
 
