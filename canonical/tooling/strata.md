@@ -8,8 +8,9 @@ Strata splits the experts across VRAM (hot cache), locked RAM and the CPU, which
 177B model on a 24 GB laptop GPU. It follows lifeidle's Flash-Next setup
 (`github.com/lifeidle/qwen3.8-flash-next-5090-laptop-24gb-strata`, same RTX 5090 Laptop).
 
-A **mode, not the default**: while it runs it holds about 47 of the 62 GB of RAM, so the desktop
-keeps a terminal and Pi, not a browser. TWIN-TURBO 27B (`llama-cpp.md`) stays the login default.
+**The login default since 2026-11-10**, in resident mode (IQ3_S, `--resident-experts`): ~8 GB of the
+62 GB stays available for the desktop. TWIN-TURBO 27B (`llama-cpp.md`), the default before it, is
+started by hand. Suspend with it loaded is a known hang (`machine-state-8zm`, fix `machine-state-5nt`).
 Uses: deep sessions (reading, planning, review) and unattended batches of delegated beads.
 Kept as a hedge against restricted or expensive hosted models. Tracked in bead `machine-state-cnh`.
 
@@ -38,8 +39,9 @@ Kept as a hedge against restricted or expensive hosted models. Tracked in bead `
 
 ## Lifecycle
 
-`canonical/strata/strata-flash-next.service`, projected to `~/.config/systemd/user/`. No `[Install]`:
-it never starts at login. `Conflicts=llama-twin-turbo.service vllm-qwen38.service`, so starting it
+`canonical/strata/strata-flash-next.service`, projected to `~/.config/systemd/user/`.
+`WantedBy=default.target`, `ConditionACPower=true`: it starts at login on AC power (enabling it is a
+separate step from projection). `Conflicts=llama-twin-turbo.service vllm-qwen38.service`, so starting it
 stops the 27B server and starting that stops this. `RestartSec=90`: the engine releases its pinned
 memory slowly and a restart within ~70 s fails, so wait that long before starting it again.
 
@@ -54,7 +56,7 @@ memory slowly and a restart within ~70 s fails, so wait that long before startin
   `--gguf-dir` on that folder, `--context 262144`; `--spec` changed 4 → 2 to match IQ3_S; original
   kept as `.setup-default`). Same engine, MTP draft and image reader. The two modes conflict with
   each other and with the 27B servers, so starting one flips to it.
-* Back to the default: `systemctl --user start llama-twin-turbo`.
+* The 27B instead: `systemctl --user start llama-twin-turbo`; back: `systemctl --user start strata-flash-next`.
 
 Clients: Pi names it `strata/qwen3.8-flash-next-iq3_s` (`canonical/pi/models.json`: 262K window,
 text and images, thinking levels low/medium/xhigh; "high" silently becomes xhigh). Strata accepts any

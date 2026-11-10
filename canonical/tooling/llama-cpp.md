@@ -36,9 +36,11 @@ application-layer experiment, not a substrate dependency. Tracked in bead `machi
 
 `canonical/llama-cpp/llama-twin-turbo.service`, projected to `~/.config/systemd/user/`. It has
 `Conflicts=vllm-qwen38.service`, so starting either server stops the other; the GPU holds one.
-**The login default since 2026-11-07:** `WantedBy=default.target`, `ConditionACPower=true`. vLLM's
-unit lost its `[Install]` and is the fallback, started by hand. `/ask`, the agent role
-(`canonical/roles/roles.toml`) and `local-pi` name `llamacpp/qwen3.8-27b-twin-turbo`.
+**The login default from 2026-11-07 to 2026-11-10**; since then Strata IQ3_S resident (`strata.md`)
+is, and this unit has no `[Install]`: started by hand, and starting it stops Strata. vLLM is the older
+fallback, also by hand. `/ask` and the agent role (`canonical/roles/roles.toml`) now name
+`strata/qwen3.8-flash-next-iq3_s`, and so does `local-pi`'s default. Both servers ignore the
+requested model name, so either works whatever answers on :8000; the name only picks Pi's settings.
 
 **Port 8000 is the contract, not the engine.** `cap`'s `model:local` channel, `/ask`, `/do` and the
 agents talk to whatever answers on `127.0.0.1:8000`; `cap` reads the model name from `/v1/models`.

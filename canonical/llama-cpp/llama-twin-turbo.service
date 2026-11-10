@@ -19,9 +19,7 @@ TimeoutStopSec=30
 Restart=on-failure
 RestartSec=30
 
-# The login default since 2026-11-07 (vLLM before it). Switch by hand:
+# No [Install]: the login default was this from 2026-11-07 to 2026-11-10; Strata IQ3_S resident
+# (strata-flash-next) is now. Started by hand; it conflicts with both, so starting one switches:
+#   systemctl --user start llama-twin-turbo   (stops Strata or vLLM)
 #   systemctl --user start vllm-qwen38        (stops this)
-#   systemctl --user start llama-twin-turbo   (stops vLLM)
-
-[Install]
-WantedBy=default.target

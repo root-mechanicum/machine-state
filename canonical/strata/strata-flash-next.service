@@ -30,4 +30,10 @@ Restart=on-failure
 # released; wait at least 70 s.
 RestartSec=90
 
-# No [Install]: never started at login. A mode, started by hand (or a cap action).
+# The login default since 2026-11-10 (TWIN-TURBO 27B before it), on AC power. Switch by hand:
+#   systemctl --user start llama-twin-turbo       (the 27B; stops this)
+#   systemctl --user start strata-flash-next-xxs  (IQ3_XXS; stops this)
+#   systemctl --user start strata-flash-next      (back; stops either)
+
+[Install]
+WantedBy=default.target

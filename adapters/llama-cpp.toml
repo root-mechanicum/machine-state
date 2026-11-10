@@ -1,6 +1,6 @@
-# The local model's user service, autostarted at login on AC power; it conflicts with vllm-qwen38,
-# so starting one stops the other. Projection does not start or enable it; enabling it is a separate,
-# explicit step.
+# The 27B's user service, started by hand (no [Install]); Strata IQ3_S is the login default since
+# 2026-11-10. It conflicts with vllm-qwen38 and the Strata units, so starting one stops the other.
+# Projection does not start or enable it.
 [[target]]
 kind = "render"
 path = "~/.config/systemd/user/llama-twin-turbo.service"

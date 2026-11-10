@@ -30,6 +30,6 @@ read         = "~/.local/share/pi-node/current/bin/node ~/src/rerule/scripts/rer
 # Pi by path: keys and the launcher do not get the shell's PATH.
 [role.agent]
 label        = "Agent"
-command      = "kitty --class pi-agent -e ~/.pi/agent/bin/pi --model llamacpp/qwen3.8-27b-twin-turbo --thinking xhigh"
+command      = "kitty --class pi-agent -e ~/.pi/agent/bin/pi --model strata/qwen3.8-flash-next-iq3_s --thinking xhigh"
 window_class = ["pi-agent"]
-ask          = "~/.pi/agent/bin/pi -p -e ~/src/machine-state/canonical/pi/extensions/cap.ts --tools cap_list,cap_observe --no-mcp --model llamacpp/qwen3.8-27b-twin-turbo --thinking xhigh"
+ask          = "~/.pi/agent/bin/pi -p -e ~/src/machine-state/canonical/pi/extensions/cap.ts --tools cap_list,cap_observe --no-mcp --model strata/qwen3.8-flash-next-iq3_s --thinking xhigh"
