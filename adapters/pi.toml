@@ -24,6 +24,12 @@ kind    = "link"
 path    = "~/.pi/agent/skills/local-pi"
 sources = ["canonical/skills/local-pi"]
 
+# Facts from outside the machine come back with source, publisher's stake and conditions.
+[[target]]
+kind    = "link"
+path    = "~/.pi/agent/skills/research"
+sources = ["canonical/skills/research"]
+
 [[target]]
 kind    = "link"
 path    = "~/.pi/agent/extensions/machine-state"

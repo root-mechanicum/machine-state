@@ -157,6 +157,12 @@
       "projected_at": "2026-10-21T12:53:40.329Z",
       "source": "/home/klaas/src/machine-state/canonical/skills/machine-state"
     },
+    "/home/klaas/.pi/agent/skills/research": {
+      "adapter": "pi",
+      "kind": "link",
+      "projected_at": "2026-11-10T16:42:11.233Z",
+      "source": "/home/klaas/src/machine-state/canonical/skills/research"
+    },
     "/home/klaas/src/machine-state/.beads/hooks/pre-push": {
       "adapter": "git",
       "comment": "hash",
