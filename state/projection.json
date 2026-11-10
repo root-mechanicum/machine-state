@@ -47,8 +47,8 @@
     "/home/klaas/.config/systemd/user/cap-time-daily.service": {
       "adapter": "events",
       "kind": "render",
-      "projected_at": "2026-11-07T16:23:42.014Z",
-      "sha": "7a0a41317c3d2a66b51f0fd5a2447add802a8bb3b57854ca773631f917a8924f",
+      "projected_at": "2026-11-10T15:26:06.053Z",
+      "sha": "5b092fb1a22486bc5302cabce7d93f292730adb9504b759724937e077510ab02",
       "sources": [
         "canonical/events/cap-time-daily.service"
       ]
@@ -83,8 +83,8 @@
     "/home/klaas/.config/systemd/user/llama-twin-turbo.service": {
       "adapter": "llama-cpp",
       "kind": "render",
-      "projected_at": "2026-11-07T16:23:42.014Z",
-      "sha": "2ad85d352fe26e285c5b6f58d1e4146866b85d9c75bd527ac728aa62533c46c5",
+      "projected_at": "2026-11-10T15:26:06.056Z",
+      "sha": "ab37f44f7d207e9ae350a9fc4ce79020a4cd88c0b2a1a49c68c1b286df08aa4b",
       "sources": [
         "canonical/llama-cpp/llama-twin-turbo.service"
       ]
@@ -101,8 +101,8 @@
     "/home/klaas/.config/systemd/user/strata-flash-next.service": {
       "adapter": "strata",
       "kind": "render",
-      "projected_at": "2026-11-09T17:04:11.371Z",
-      "sha": "d232d2f88f255470d8ec435c2a4e2fd1cc607998723634b41eccfc00a8ac45fe",
+      "projected_at": "2026-11-10T15:26:06.056Z",
+      "sha": "d6d925865dab57a45173e5522a78508d24f8610126c33685e52c6e5715ac5127",
       "sources": [
         "canonical/strata/strata-flash-next.service"
       ]
