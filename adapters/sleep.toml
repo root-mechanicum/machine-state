@@ -1,0 +1,7 @@
+# Sleep guard: stops the model server before suspend and restarts it after resume
+# (machine-state-5nt). Projection does not enable it; enabling it is a separate, explicit step.
+# Its logind drop-in (canonical/system/logind.conf.d/) is system config and installed by hand.
+[[target]]
+kind = "render"
+path = "~/.config/systemd/user/model-sleep-guard.service"
+sources = ["canonical/sleep/model-sleep-guard.service"]

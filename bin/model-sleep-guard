@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""Stop the model server before sleep, start it again after resume.
+
+With a model filling VRAM the NVIDIA driver cannot save it (PreserveVideoMemoryAllocations=2 with
+no TemporaryFilePath), so suspend aborts in a loop and the laptop hangs (machine-state-8zm). This
+holds a logind *delay* inhibitor. On PrepareForSleep(true) it stops whichever model unit is
+running, waits until that unit's processes have left the GPU, and only then releases the lock.
+On PrepareForSleep(false) it takes a new lock and starts the same unit again.
+
+logind waits at most InhibitDelayMaxSec (default 5 s) for us; Strata may need up to its
+TimeoutStopSec=120, so that limit is raised by canonical/system/logind.conf.d/50-model-sleep.conf.
+"""
+import os
+import subprocess
+import sys
+import time
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+# They Conflict with each other, so at most one runs.
+MODEL_UNITS = [
+    "strata-flash-next.service",
+    "strata-flash-next-xxs.service",
+    "llama-twin-turbo.service",
+    "vllm-qwen38.service",
+]
+STOP_TIMEOUT_S = 130  # Strata's TimeoutStopSec=120, plus margin
+GPU_WAIT_S = 30
+STATE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "model-sleep-guard.unit")
+
+LOGIN1 = ("org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager")
+
+
+def log(msg):
+    print(msg, file=sys.stderr, flush=True)
+
+
+def systemctl(*args, timeout=None):
+    return subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True,
+                          timeout=timeout)
+
+
+def active_unit():
+    for unit in MODEL_UNITS:
+        state = systemctl("is-active", unit).stdout.strip()
+        if state in ("active", "activating", "reloading"):
+            return unit
+    return None
+
+
+def unit_pids(unit):
+    cg = systemctl("show", "-p", "ControlGroup", "--value", unit).stdout.strip()
+    if not cg:
+        return set()
+    try:
+        with open(f"/sys/fs/cgroup{cg}/cgroup.procs") as f:
+            return {int(p) for p in f.read().split()}
+    except OSError:
+        return set()
+
+
+def gpu_pids():
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-compute-apps=pid", "--format=csv,noheader"],
+                             capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    return {int(p) for p in out.split() if p.strip().isdigit()}
+
+
+class Guard:
+    def __init__(self):
+        self.bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        self.fd = None
+
+    def take_lock(self):
+        if self.fd is not None:
+            return
+        res, fds = self.bus.call_with_unix_fd_list_sync(
+            LOGIN1[0], LOGIN1[1], LOGIN1[2], "Inhibit",
+            GLib.Variant("(ssss)", ("sleep", "model-sleep-guard",
+                                    "Stopping the model server to free VRAM", "delay")),
+            GLib.VariantType("(h)"), Gio.DBusCallFlags.NONE, -1, None, None)
+        self.fd = fds.get(res.unpack()[0])
+
+    def release_lock(self):
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+    def before_sleep(self):
+        t0 = time.monotonic()
+        unit = active_unit()
+        if unit is None:
+            log("sleep: no model unit running")
+            self.release_lock()
+            return
+        with open(STATE, "w") as f:
+            f.write(unit)
+        pids = unit_pids(unit)
+        log(f"sleep: stopping {unit} (pids {sorted(pids)})")
+        try:
+            r = systemctl("stop", unit, timeout=STOP_TIMEOUT_S)
+            if r.returncode:
+                log(f"sleep: stop {unit} failed: {r.stderr.strip()}")
+        except subprocess.TimeoutExpired:
+            log(f"sleep: stop {unit} still running after {STOP_TIMEOUT_S} s")
+        deadline = time.monotonic() + GPU_WAIT_S
+        while (left := pids & gpu_pids()) and time.monotonic() < deadline:
+            time.sleep(0.5)
+        if left:
+            log(f"sleep: pids {sorted(left)} still on the GPU; releasing anyway")
+        log(f"sleep: {unit} down after {time.monotonic() - t0:.1f} s; releasing the lock")
+        self.release_lock()
+
+    def after_resume(self):
+        self.take_lock()
+        try:
+            with open(STATE) as f:
+                unit = f.read().strip()
+            os.unlink(STATE)
+        except OSError:
+            unit = None
+        if unit:
+            # --no-block: the unit's own conditions (AC power) decide whether it actually starts.
+            r = systemctl("start", "--no-block", unit)
+            log(f"resume: start {unit}: {'queued' if r.returncode == 0 else r.stderr.strip()}")
+        else:
+            log("resume: nothing to restart")
+
+    def on_signal(self, _conn, _sender, _path, _iface, _signal, params):
+        (going_down,) = params.unpack()
+        if going_down:
+            self.before_sleep()
+        else:
+            self.after_resume()
+
+
+def main():
+    g = Guard()
+    g.bus.signal_subscribe(LOGIN1[0], LOGIN1[2], "PrepareForSleep", LOGIN1[1], None,
+                           Gio.DBusSignalFlags.NONE, g.on_signal)
+    g.take_lock()
+    max_us = g.bus.call_sync(
+        LOGIN1[0], LOGIN1[1], "org.freedesktop.DBus.Properties", "Get",
+        GLib.Variant("(ss)", (LOGIN1[2], "InhibitDelayMaxUSec")), GLib.VariantType("(v)"),
+        Gio.DBusCallFlags.NONE, -1, None).unpack()[0]
+    note = "" if max_us >= STOP_TIMEOUT_S * 1_000_000 else \
+        f" — too short for Strata ({STOP_TIMEOUT_S} s); see 50-model-sleep.conf"
+    log(f"holding a sleep delay lock; logind waits up to {max_us / 1e6:.0f} s{note}")
+    GLib.MainLoop().run()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,14 @@
+[Unit]
+Description=Stop the model server before sleep and start it again after resume
+# With a model filling VRAM, suspend aborts in a loop and the laptop hangs (machine-state-8zm).
+# The user manager has no sleep.target, so this holds a logind delay inhibitor instead and
+# releases it once the model unit is down and off the GPU. Needs logind's InhibitDelayMaxSec
+# raised: canonical/system/logind.conf.d/50-model-sleep.conf.
+
+[Service]
+ExecStart=%h/src/machine-state/bin/model-sleep-guard
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
