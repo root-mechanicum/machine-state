@@ -23,6 +23,15 @@
       "projected_at": "2026-09-02T20:43:39.358Z",
       "source": "/home/klaas/src/machine-state/canonical/skills/machine-state"
     },
+    "/home/klaas/.config/fish/functions/pi.fish": {
+      "adapter": "fish",
+      "kind": "render",
+      "projected_at": "2026-11-11T16:41:21.467Z",
+      "sha": "ff2411108ba9f6adb81dee9a8ac2d3bc271b288766ec677b201841574dc5a445",
+      "sources": [
+        "canonical/fish/pi.fish"
+      ]
+    },
     "/home/klaas/.config/hypr/config/machine-state.lua": {
       "adapter": "hypr",
       "kind": "render",
@@ -87,6 +96,15 @@
       "sha": "ab37f44f7d207e9ae350a9fc4ce79020a4cd88c0b2a1a49c68c1b286df08aa4b",
       "sources": [
         "canonical/llama-cpp/llama-twin-turbo.service"
+      ]
+    },
+    "/home/klaas/.config/systemd/user/model-sleep-guard.service": {
+      "adapter": "sleep",
+      "kind": "render",
+      "projected_at": "2026-11-11T13:54:50.320Z",
+      "sha": "ef776a14e76e1312cb5d76c612c249574ec555ee3972eea1185acf3bb22e4c2f",
+      "sources": [
+        "canonical/sleep/model-sleep-guard.service"
       ]
     },
     "/home/klaas/.config/systemd/user/strata-flash-next-xxs.service": {
