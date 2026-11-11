@@ -1,0 +1,8 @@
+# fish shell: only the functions we create. config.fish and fish_variables stay the user's and
+# their installers' (Pi's installer adds its PATH line there).
+
+# `pi` runs Pi inside a memory limit, so a runaway command dies alone instead of the terminal.
+[[target]]
+kind = "render"
+path = "~/.config/fish/functions/pi.fish"
+sources = ["canonical/fish/pi.fish"]
