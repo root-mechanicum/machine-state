@@ -190,6 +190,11 @@ def actions():
         if foreign and any(c.startswith("net:") for c in chans):
             die(f"{where}: action {name!r} reads untrusted {', '.join(foreign)} and also "
                 f"declares a net: channel; foreign text and the network never share an action")
+        private = sorted(set(chans) & PRIVATE_CHANNELS)
+        if private and any(c.startswith("net:") for c in chans):
+            die(f"{where}: action {name!r} reads private {', '.join(private)} and also "
+                f"declares a net: channel; what is installed never shares an action with "
+                f"the network")
     return acts
 
 
@@ -1190,12 +1195,43 @@ def fetch_mail(**conf):
     return out
 
 
+PACKAGE_NAME = re.compile(r"^[a-z0-9@_+][a-z0-9@._+-]*$")
+
+
+def fetch_package(name, match):
+    """One item per installed version of a package that matches.
+
+    Local only: pacman's database, no network. A package that is not installed
+    yields nothing rather than failing, so an interest can wait for one.
+    """
+    use("packages:read")
+    if not PACKAGE_NAME.match(name):
+        raise ValueError(f"{name!r} is not a package name")
+    try:
+        r = subprocess.run(["pacman", "-Q", "--", name], capture_output=True, text=True,
+                           timeout=30)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"pacman -Q {name} did not answer in 30 s")
+    if r.returncode != 0:
+        if "was not found" in r.stderr:
+            return []
+        raise RuntimeError(f"pacman -Q {name}: {r.stderr.strip() or r.returncode}")
+    got, _, version = r.stdout.strip().partition(" ")
+    if got != name or not version:
+        raise RuntimeError(f"pacman -Q {name}: unexpected output {r.stdout.strip()[:80]!r}")
+    if not _pattern(match).search(version):
+        return []
+    return [{"id": f"package:{name}:{version}", "title": f"{name} {version}"}]
+
+
 # Source kinds: the arguments each takes and the channels it needs. A kind not
 # listed here is rejected at load, so a declaration cannot run ahead of its code.
 SOURCE_KINDS = {
     "huggingface": {"args": ("author", "match"), "channels": ["net:huggingface.co"],
                     "fetch": fetch_huggingface},
     "mail": {"args": ("from",), "channels": ["mail:read"], "fetch": fetch_mail},
+    "package": {"args": ("name", "match"), "channels": ["packages:read"],
+                "fetch": fetch_package},
 }
 
 # alert delivers as soon as something is fetched; digest waits for the morning
@@ -1230,6 +1266,8 @@ def check_interest(name, it, where):
         # quote or a second command.
         if kind == "mail" and not MAIL_ADDRESS.match(conf["from"]):
             die(f"{where}: interest {name!r}: {conf['from']!r} is not a plain mail address")
+        if kind == "package" and not PACKAGE_NAME.match(conf["name"]):
+            die(f"{where}: interest {name!r}: {conf['name']!r} is not a package name")
         if "match" in conf:
             try:
                 _pattern(conf["match"])
@@ -2405,7 +2443,7 @@ UNATTENDED_AVAILABLE = False
 # agent-writable repository, so code changes are review's job, not this check's.
 
 LOCAL_CHANNELS = {"journal", "model:local", "notify", "inbox", "mail:read", "desktop:read",
-                  "browser:read", "notifications:read"}
+                  "browser:read", "notifications:read", "packages:read"}
 CLASS_RANK = {"observe": 0, "report": 1, "adjust": 2, "commit": 3}
 
 # Channels that bring in text written by strangers. The same rule as untrusted
@@ -2418,6 +2456,11 @@ UNTRUSTED_CHANNELS = {"mail:read", "desktop:read", "browser:read", "notification
 # is on screen. Untrusted text, but only read, and observations never write,
 # notify or reach the network. Mail is not context: it stays out.
 OBSERVE_CHANNELS = {"desktop:read", "browser:read"}
+
+# Channels that read facts about this machine that are nobody else's business:
+# what is installed says what is vulnerable. Not foreign text, but the same
+# rule: an action declaring one may not declare any net: channel.
+PRIVATE_CHANNELS = {"packages:read"}
 
 
 def valid_channel(c):

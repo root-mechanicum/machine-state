@@ -31,3 +31,14 @@ category    = "Interests"
 mutating    = false
 consequence = "report"
 channels    = ["model:local", "inbox"]
+
+# Installed package versions (machine-state-6ko). Local only: what is installed
+# says what is vulnerable, so this action holds no net: channel and cap refuses
+# one that would hold both.
+[action."interests.packages"]
+implementation = "interests.fetch"
+label       = "Check installed package versions against interests (local only); alert on a match"
+category    = "Interests"
+mutating    = false
+consequence = "report"
+channels    = ["packages:read", "notify", "inbox"]

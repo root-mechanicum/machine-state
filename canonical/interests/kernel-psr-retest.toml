@@ -1,0 +1,16 @@
+# Asked for by the user, 2026-11-12 (machine-state-2eg, machine-state-6ko).
+# linux-cachyos 7.3.3 booted to a black screen with only a cursor; the
+# workaround is i915.enable_psr=0, set in /etc/limine-entry-tool.d/50-i915-psr.conf
+# and costing some battery on a still screen. A later kernel may fix it.
+#
+# When a newer kernel is installed: boot it once with the option removed (E in
+# the limine menu, delete i915.enable_psr=0, F10). Screen fine -> delete the
+# drop-in, run `sudo limine-update`, and delete this file. Still black -> keep
+# it; this alerts again on the next kernel.
+
+[interest.kernel-psr-retest]
+label   = "New kernel installed: try it once without i915.enable_psr=0"
+urgency = "alert"
+sources = [
+  { package = { name = "linux-cachyos", match = '^(?!7\.3\.3-)' } },
+]

@@ -18,3 +18,9 @@ action = "journal.digest"
 [[event_binding]]
 event  = "time.hourly"
 action = "interests.fetch"
+
+# Installed package versions, hourly, so a reminder about a new kernel arrives
+# before the restart that boots it. Local only.
+[[event_binding]]
+event  = "time.hourly"
+action = "interests.packages"
