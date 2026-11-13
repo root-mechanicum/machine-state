@@ -111,10 +111,37 @@ The replacement is a class declared on the capability, before it ever runs:
 | --- | --- | --- |
 | `observe` | nothing | always |
 | `report` | adds a record a human will read — a bead, a notification | always |
+| `maintain` | durable, local, additive writes to **one declared location** — a backup snapshot | only where a grant names the action **and** that location |
 | `adjust` | reversible session or desktop state — layout, volume, theme | only where a binding grants it |
 | `commit` | durable or outward — files, packages, anything leaving the machine | never; raises for a human |
 
 Two properties decide the class: **reversibility** and **whether the effect leaves the machine**.
+
+### `maintain`, added 2026-11-13 by the first real case
+
+The daily home backup (`backup.home`, bead `machine-state-yqm`) exposed a gap. It is autonomic
+work — no agent, nobody to ask — yet it writes durable data. Calling it `report` because its
+result is additive would have made that class less truthful; calling it `commit` would mean a
+backup that never runs on its own. So `maintain` sits between them, deliberately narrow:
+
+- **Local and additive.** It adds to one place and deletes or changes nothing there. Pruning old
+  backups deletes, so it is not `maintain`; it stays a separate step run by hand.
+- **One declared location.** The action declares `writes = "<absolute path>"`, and only a
+  `maintain`-class action may declare it. The provider takes its destination from that
+  declaration, never from an argument.
+- **Granted by name, never by ceiling.** `[maintain]` in `/etc/machine-state/grants.toml` maps
+  an action to the path it may write, and both must match. A `ceiling = "maintain"` grants nothing
+  extra. Each durable write is a separate decision a human made with `sudo`.
+- **Three outcomes.** A run that made a snapshot but could not read some files is *incomplete*,
+  not successful, and says which files. A run that never happened cannot report itself, so a
+  separate check on a different timer (`backup.freshness`) speaks up when the newest snapshot is
+  too old.
+
+What it does **not** give is a sandbox. The declared location and the private channels
+(`home:read`, `keyring:read`, which may never share an action with `net:`) are checks on what the
+action *declares* and how `cap` invokes the program. Nothing at the process level stops that
+program writing elsewhere or using the network; that would need a real boundary, which `cap`
+does not have yet.
 
 This is what reconciles wanting unattended operation with `yxb`'s rejection of auto-approved
 agents. **Unattended is not auto-approved.** An `observe` capability firing at 3am holds no

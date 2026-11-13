@@ -67,7 +67,9 @@ EVENT_SOURCES = {"timer", "hypr", "dbus", "fs", "agent", "human"}
 
 # The classes an event may ever trigger in this phase. A grant cannot widen this:
 # adjust waits for machine-state-bru.5, and commit never runs unattended.
-EVENT_CLASSES = {"observe", "report"}
+# maintain is here, but no ceiling grants it: only a [maintain] entry naming the
+# action and its one write location does (grant_for).
+EVENT_CLASSES = {"observe", "report", "maintain"}
 
 # The local model. Loopback only — "no network" means nothing leaves the machine,
 # and model_url() refuses any override that would.
@@ -160,9 +162,14 @@ def roles():
     return out
 
 
-VALID_CONSEQUENCE = {"observe", "report", "adjust", "commit"}
+VALID_CONSEQUENCE = {"observe", "report", "maintain", "adjust", "commit"}
 
-HOSTNAME = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+# Where a maintain-class action writes: one absolute path, plain characters only,
+# because it is handed to a program as an argument and compared with the grant
+# as a string. No "..", no trailing slash, no spaces or quotes.
+WRITE_PATH = re.compile(r"^(/[A-Za-z0-9._-]+)+$")
+
+HOSTNAME =re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 
 
 def actions():
@@ -193,8 +200,19 @@ def actions():
         private = sorted(set(chans) & PRIVATE_CHANNELS)
         if private and any(c.startswith("net:") for c in chans):
             die(f"{where}: action {name!r} reads private {', '.join(private)} and also "
-                f"declares a net: channel; what is installed never shares an action with "
+                f"declares a net: channel; private data never shares an action with "
                 f"the network")
+        # A maintain-class action says where it writes, and only it says so: a
+        # `writes` on any other class would read as a limit nothing enforces.
+        w = a.get("writes")
+        if c == "maintain":
+            if (not isinstance(w, str) or not WRITE_PATH.match(w)
+                    or any(p in (".", "..") for p in w.split("/"))):
+                die(f"{where}: maintain-class action {name!r} must declare writes, one "
+                    f"absolute path of plain characters, got {w!r}")
+        elif w is not None:
+            die(f"{where}: action {name!r} declares writes, but only maintain-class "
+                f"actions write durably")
     return acts
 
 
@@ -2349,6 +2367,264 @@ def do_disks():
     return plan, "ok" if fs else "failed"
 
 
+# ---------------------------------------------------------------- backup
+
+# THE FIRST UNATTENDED ACTION THAT WRITES (machine-state-yqm). A backup is not a
+# report: it writes durable data. It is maintain-class: it adds a snapshot to one
+# declared repository and deletes or changes nothing there, and a grant must name
+# the action and that repository (grant_for). Forgetting and pruning delete, so
+# they are not here, and they never run unattended.
+#
+# WHAT CONFINES IT, AND WHAT DOES NOT. cap passes restic the declared repository
+# and nothing else, with --no-cache so restic keeps no second write location
+# (~/.cache/restic), and refuses to start unless the repository exists on a
+# filesystem other than the home folder's. That is a controlled invocation, not
+# a sandbox: nothing in the kernel stops restic writing elsewhere or using the
+# network. The private channels make the intent checkable, not impossible to
+# break.
+#
+# THREE OUTCOMES, NOT TWO. restic exits 3 when it made a snapshot but could not
+# read some files. That snapshot is real and incomplete, and calling it success
+# would hide exactly the files that are not backed up. Checked against restic
+# 0.19.1 on 2026-11-13: 0 complete, 3 incomplete (summary has a snapshot_id, one
+# "error" line per unreadable file), 10 no repository, 12 wrong password, 1 the
+# password command failed.
+#
+# A RUN THAT NEVER HAPPENED CANNOT REPORT ITSELF. backup.freshness, on a
+# different timer, reads what the last run recorded and speaks up when the newest
+# snapshot is too old, or when none was ever recorded.
+
+BACKUP_EXCLUDE = REPO / "canonical" / "restic" / "home.exclude"
+BACKUP_STATE = INBOX.parent / "backup-home.json"
+BACKUP_STALE = INBOX.parent / "backup-home-stale.json"
+BACKUP_STALE_HOURS = 36            # a daily run may be a day late before it counts
+BACKUP_TIMEOUT = 40 * 60           # daily runs take seconds; a first or late one, minutes
+BACKUP_LISTED = 50                 # unreadable paths kept in the state and the note
+
+
+def _backup_state():
+    try:
+        st = json.loads(BACKUP_STATE.read_text())
+        return st if isinstance(st, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_json(path, doc):
+    """Replace a small state file whole, so a crash never leaves half of one."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(doc, indent=1) + "\n")
+    tmp.replace(path)
+
+
+def _when(stamp):
+    """A timestamp written by now(), as an aware datetime; None if it is not one."""
+    try:
+        return datetime.datetime.fromisoformat(stamp)
+    except (TypeError, ValueError):
+        return None
+
+
+def _backup_repo():
+    if ACTIVE_WRITES is None:
+        raise PermissionError("this action declares no write location")
+    return pathlib.Path(ACTIVE_WRITES)
+
+
+def _backup_blocked(repo, home):
+    """Why the backup cannot start, or None. Checked before restic runs."""
+    if not (repo / "config").is_file():
+        return f"no restic repository at {repo}; is the backup disk mounted and unlocked?"
+    if repo.stat().st_dev == home.stat().st_dev:
+        return f"{repo} is on the same filesystem as {home}, so it would not survive that disk"
+    if not BACKUP_EXCLUDE.is_file():
+        return f"the exclude list {BACKUP_EXCLUDE} is missing"
+    return None
+
+
+def requires_backup():
+    for tool in ("restic", "secret-tool", "timeout"):
+        if not shutil.which(tool):
+            return False, f"{tool} is not installed"
+    return requires_desktop()
+
+
+def plan_backup_home():
+    repo, home = _backup_repo(), pathlib.Path.home()
+    blocked = _backup_blocked(repo, home)
+    if blocked:
+        return {"branch": "blocked", "repository": str(repo),
+                "detail": f"cannot back up: {blocked}"}
+    return {"branch": "backup", "repository": str(repo),
+            "detail": f"back up {home} to {repo} (restic, leaving out what "
+                      f"{BACKUP_EXCLUDE.relative_to(REPO)} lists)"}
+
+
+def _backup_tell(title, body, urgency, heading, text):
+    """Notify, and leave the same news in the inbox. (notified, note)."""
+    use("notify")
+    r = subprocess.run(["notify-send", "--app-name=cap", f"--urgency={urgency}", title, body],
+                       capture_output=True, timeout=10)
+    use("inbox")
+    INBOX.mkdir(parents=True, exist_ok=True)
+    note = INBOX / f"{now().replace(':', '')[:15]}-backup.md"
+    note.write_text("---\n"
+                    f"action: backup\nevent: {EVENT_ID or 'none'}\ngenerated: {now()}\n"
+                    f"---\n\n# {heading}\n\n{text}\n")
+    return r.returncode == 0, note
+
+
+def _fenced(lines):
+    """Paths as literal text: a file name is not markup, and not an instruction."""
+    body = "\n".join(l.replace("`", "'") for l in lines)
+    return f"```\n{body}\n```"
+
+
+def do_backup_home():
+    plan = plan_backup_home()
+    repo, home = pathlib.Path(plan["repository"]), pathlib.Path.home()
+    prev = _backup_state()
+    state = {"at": now(), "repository": str(repo),
+             "last_snapshot_at": prev.get("last_snapshot_at"),
+             "last_complete_at": prev.get("last_complete_at"),
+             "told_unreadable": prev.get("told_unreadable", [])}
+
+    def failed(reason, exit_code=None):
+        state.update(status="failed", exit=exit_code, reason=reason)
+        _write_json(BACKUP_STATE, state)
+        told, note = _backup_tell(
+            "Backup failed", f"{reason}. Details: cap inbox", "critical", "Backup failed",
+            f"The home backup to `{repo}` did not make a snapshot.\n\n{_fenced([reason])}\n\n"
+            f"Last snapshot: {state['last_snapshot_at'] or 'none recorded'}.")
+        plan.update(outcome_detail=f"{reason}; wrote {note}"
+                    + ("" if told else "; the notification was not delivered"))
+        return plan, "failed"
+
+    if plan["branch"] == "blocked":
+        return failed(plan["detail"].removeprefix("cannot back up: "))
+
+    use("home:read")
+    use("keyring:read")
+    # The password comes from the keyring by fixed attributes; `timeout` because a
+    # locked keyring would otherwise wait for a prompt nobody is there to answer.
+    cmd = ["restic", "backup", str(home), "--repo", str(repo),
+           "--password-command",
+           f"timeout 30 secret-tool lookup service restic repository {repo}",
+           "--exclude-file", str(BACKUP_EXCLUDE), "--one-file-system", "--exclude-caches",
+           "--no-cache", "--tag", "home", "--json", "--quiet"]
+    env = {k: v for k, v in os.environ.items() if not k.startswith("RESTIC_")}
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=BACKUP_TIMEOUT, env=env)
+    except subprocess.TimeoutExpired:
+        return failed(f"restic did not finish within {BACKUP_TIMEOUT // 60} minutes")
+
+    msgs = []
+    for line in (r.stdout + "\n" + r.stderr).splitlines():
+        try:
+            m = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(m, dict):
+            msgs.append(m)
+    summary = next((m for m in msgs if m.get("message_type") == "summary"), {})
+    snapshot = summary.get("snapshot_id")
+    if r.returncode not in (0, 3) or not snapshot:
+        said = next((m.get("message") for m in msgs if m.get("message_type") == "exit_error"),
+                    None) or (r.stderr.strip().splitlines() or [""])[-1]
+        reason = (said.splitlines()[0] if said else "") or f"restic exited {r.returncode}"
+        if r.returncode in (0, 3):
+            reason = f"restic exited {r.returncode} but reported no snapshot"
+        return failed(reason, r.returncode)
+
+    unreadable = [m.get("item") or (m.get("error") or {}).get("message", "?")
+                  for m in msgs if m.get("message_type") == "error"]
+    state.update(exit=r.returncode, snapshot=snapshot[:8], last_snapshot_at=state["at"],
+                 files=summary.get("total_files_processed"),
+                 added_bytes=summary.get("data_added"))
+    plan["snapshot"] = snapshot[:8]
+    if r.returncode == 0:
+        state.update(status="complete", last_complete_at=state["at"], unreadable=[],
+                     told_unreadable=[])
+        _write_json(BACKUP_STATE, state)
+        plan["outcome_detail"] = (f"snapshot {snapshot[:8]}: {summary.get('files_new', 0)} new, "
+                                  f"{summary.get('files_changed', 0)} changed, "
+                                  f"{summary.get('data_added', 0) / 1e6:.1f} MB added")
+        return plan, "ok"
+
+    # Incomplete. Say so when the set of unreadable files changes, not every day:
+    # the same unreadable file each morning teaches the reader to ignore it, and
+    # the note already lists it.
+    shown = unreadable[:BACKUP_LISTED]
+    state.update(status="incomplete", unreadable=shown, unreadable_count=len(unreadable))
+    new = sorted(set(shown) - set(state["told_unreadable"]))
+    detail = f"snapshot {snapshot[:8]} is missing {len(unreadable)} unreadable file(s)"
+    if new or (not shown and not state["told_unreadable"]):
+        told, note = _backup_tell(
+            "Backup incomplete", f"{len(unreadable)} file(s) could not be read. Details: cap inbox",
+            "normal", "Backup incomplete",
+            f"Snapshot `{snapshot[:8]}` in `{repo}` was made, but restic could not read "
+            f"{len(unreadable)} file(s), so they are **not** in it:\n\n{_fenced(shown)}"
+            + (f"\n\n(and {len(unreadable) - len(shown)} more)" if len(unreadable) > len(shown)
+               else "")
+            + "\n\nEither make them readable, or add them to "
+              f"`{BACKUP_EXCLUDE.relative_to(REPO)}` if they need no backup.")
+        if told:
+            state["told_unreadable"] = shown
+        detail += f"; wrote {note}" + ("" if told else "; the notification was not delivered")
+    else:
+        detail += "; the same files as last time, already reported"
+    _write_json(BACKUP_STATE, state)
+    plan["outcome_detail"] = detail
+    return plan, "incomplete"
+
+
+def plan_backup_freshness():
+    st = _backup_state()
+    last = _when(st.get("last_snapshot_at"))
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    if last is not None:
+        hours = (now_dt - last).total_seconds() / 3600
+        if hours <= BACKUP_STALE_HOURS:
+            return {"branch": "fresh", "hours": round(hours, 1),
+                    "detail": f"newest snapshot {hours:.0f} h old; stay quiet"}
+        what = f"the newest home backup is {hours / 24:.1f} days old"
+    else:
+        what = "no home backup has been recorded yet"
+    try:
+        told = _when(json.loads(BACKUP_STALE.read_text()).get("at"))
+    except (OSError, ValueError, AttributeError):
+        told = None
+    if told is not None and (now_dt - told).total_seconds() < 24 * 3600:
+        return {"branch": "told", "detail": f"{what}; already said so today"}
+    last_run = st.get("status")
+    return {"branch": "stale", "what": what,
+            "detail": f"notify: {what}"
+                      + (f" (last attempt: {last_run}, {st.get('at')})" if last_run else "")}
+
+
+def do_backup_freshness():
+    plan = plan_backup_freshness()
+    if plan["branch"] != "stale":
+        return plan, "skipped"
+    st = _backup_state()
+    reason = f"\n\nLast attempt: {st.get('status')} at {st.get('at')}" + (
+        f": {_fenced([st['reason']])}" if st.get("reason") else ".") if st else ""
+    told, note = _backup_tell(
+        "Backup overdue", f"{plan['what'][0].upper()}{plan['what'][1:]}. Details: cap inbox",
+        "critical", "Backup overdue",
+        f"{plan['what'][0].upper()}{plan['what'][1:]}. The daily backup should run at 08:00, "
+        f"or at the next login after a missed 08:00.{reason}\n\n"
+        "Is the backup disk mounted? Did the daily timer run "
+        "(`systemctl --user list-timers cap-time-daily`)?")
+    if not told:
+        plan["outcome_detail"] = f"wrote {note}; the notification was not delivered"
+        return plan, "failed"
+    _write_json(BACKUP_STALE, {"at": now()})
+    plan["outcome_detail"] = f"wrote {note}"
+    return plan, "ok"
+
+
 def requires_nothing():
     return True, None
 
@@ -2382,6 +2658,8 @@ PROVIDERS = {
     "system.status": (plan_status, do_status, requires_nothing),
     "system.battery": (plan_battery, do_battery, requires_battery),
     "system.disks": (plan_disks, do_disks, requires_nothing),
+    "backup.home": (plan_backup_home, do_backup_home, requires_backup),
+    "backup.freshness": (plan_backup_freshness, do_backup_freshness, requires_desktop),
 }
 
 
@@ -2468,8 +2746,9 @@ UNATTENDED_AVAILABLE = False
 # agent-writable repository, so code changes are review's job, not this check's.
 
 LOCAL_CHANNELS = {"journal", "model:local", "notify", "inbox", "mail:read", "desktop:read",
-                  "browser:read", "notifications:read", "packages:read"}
-CLASS_RANK = {"observe": 0, "report": 1, "adjust": 2, "commit": 3}
+                  "browser:read", "notifications:read", "packages:read", "home:read",
+                  "keyring:read"}
+CLASS_RANK = {"observe": 0, "report": 1, "maintain": 2, "adjust": 3, "commit": 4}
 
 # Channels that bring in text written by strangers. The same rule as untrusted
 # events, applied at load: an action declaring one may not declare any net:
@@ -2483,9 +2762,12 @@ UNTRUSTED_CHANNELS = {"mail:read", "desktop:read", "browser:read", "notification
 OBSERVE_CHANNELS = {"desktop:read", "browser:read"}
 
 # Channels that read facts about this machine that are nobody else's business:
-# what is installed says what is vulnerable. Not foreign text, but the same
-# rule: an action declaring one may not declare any net: channel.
-PRIVATE_CHANNELS = {"packages:read"}
+# what is installed says what is vulnerable; the home folder holds keys, mail and
+# everything else; the keyring holds secrets. Not foreign text, but the same rule:
+# an action declaring one may not declare any net: channel. That is a check on
+# declarations. It does not stop a program the action runs from using the
+# network; only a process-level boundary could, and cap has none.
+PRIVATE_CHANNELS = {"packages:read", "home:read", "keyring:read"}
 
 
 def valid_channel(c):
@@ -2521,8 +2803,16 @@ def grants():
     except (OSError, tomllib.TOMLDecodeError) as exc:
         return None, f"{GRANTS} is unreadable: {exc}"
     bad = f"{GRANTS} is malformed"
-    if set(doc) != {"ceiling", "events", "channels"}:
-        return None, f"{bad}: expected exactly ceiling, [events] and [channels]"
+    if not {"ceiling", "events", "channels"} <= set(doc) <= {"ceiling", "events", "channels",
+                                                             "maintain"}:
+        return None, (f"{bad}: expected ceiling, [events] and [channels], and "
+                      f"optionally [maintain]")
+    mt = doc.get("maintain", {})
+    if (not isinstance(mt, dict)
+            or not all(isinstance(k, str) and isinstance(v, str) and WRITE_PATH.match(v)
+                       for k, v in mt.items())):
+        return None, (f"{bad}: [maintain] maps an action name to the one absolute path "
+                      f"it may write")
     if doc["ceiling"] not in CLASS_RANK:
         return None, f"{bad}: ceiling {doc['ceiling']!r} is not a consequence class"
     ev, ch = doc["events"], doc["channels"]
@@ -2537,8 +2827,16 @@ def grants():
     return doc, None
 
 
-def grant_for(event, a, granted, payload=None):
-    """(granted, reason) for one action answering one event, unattended."""
+def grant_for(event, a, granted, payload=None, *, action):
+    """(granted, reason) for one action answering one event, unattended.
+
+    MAINTAIN IS GRANTED BY NAME, NEVER BY CEILING. observe and report change
+    nothing durable, so a class-wide ceiling is a fair way to grant them. A
+    maintain-class action writes durable data, so the grant must name the action
+    and the one location it declares, and both must match. A ceiling of
+    "maintain" therefore grants nothing extra; raising the ceiling is not how a
+    durable write becomes unattended.
+    """
     cls = a.get("consequence")
     if cls not in EVENT_CLASSES:
         return False, (f"{cls}-class actions never run from an event in this phase "
@@ -2546,7 +2844,14 @@ def grant_for(event, a, granted, payload=None):
     g, why = granted
     if why:
         return False, why
-    if CLASS_RANK[cls] > CLASS_RANK[g["ceiling"]]:
+    if cls == "maintain":
+        named = g.get("maintain", {}).get(action)
+        if named is None:
+            return False, f"[maintain] in the grants does not name {action}"
+        if named != a.get("writes"):
+            return False, (f"{action} is granted to write {named}, but declares "
+                           f"{a.get('writes')}")
+    elif CLASS_RANK[cls] > CLASS_RANK[g["ceiling"]]:
         return False, f"{cls} is above the granted ceiling ({g['ceiling']})"
     if any(fnmatch.fnmatchcase(event, p) for p in g["events"]["trusted"]):
         if payload:
@@ -2580,21 +2885,29 @@ def use(channel):
                               f"({', '.join(sorted(ACTIVE_CHANNELS)) or 'none'})")
 
 
+# Where the running action may write durably: its declared `writes`, for a
+# maintain-class action, and None for every other. Set by run_provider() alone,
+# so a provider takes its destination from the declaration the grant matched,
+# never from an argument or the environment.
+ACTIVE_WRITES = None
+
+
 def run_provider(fn, a, args):
     """Call a provider with the action's declared channels, and only those, open.
 
     `role` stays positional for the desktop providers written before keyword
     arguments existed; everything else is passed by name.
     """
-    global ALLOWED_HOSTS, ACTIVE_CHANNELS
+    global ALLOWED_HOSTS, ACTIVE_CHANNELS, ACTIVE_WRITES
     chans = a.get("channels", [])
     ACTIVE_CHANNELS = frozenset(chans)
     ALLOWED_HOSTS = frozenset(c[4:] for c in chans if c.startswith("net:"))
+    ACTIVE_WRITES = a.get("writes") if a.get("consequence") == "maintain" else None
     try:
         rest = {k: v for k, v in args.items() if k != "role"}
         return fn(*([args["role"]] if "role" in args else []), **rest)
     finally:
-        ALLOWED_HOSTS, ACTIVE_CHANNELS = frozenset(), frozenset()
+        ALLOWED_HOSTS, ACTIVE_CHANNELS, ACTIVE_WRITES = frozenset(), frozenset(), None
 
 
 # ---------------------------------------------------------------- commands
@@ -2694,7 +3007,7 @@ def cmd_list(argv):
             implemented, available, reason = action_state(a)
             # Unattended only through a granted event binding; never via `act`.
             via = [b["event"] for b in evb
-                   if b["action"] == name and grant_for(b["event"], a, granted)[0]]
+                   if b["action"] == name and grant_for(b["event"], a, granted, action=name)[0]]
             out.append({
                 "action": name, "label": a.get("label"), "category": a.get("category"),
                 "args": a.get("args", {}), "mutating": a.get("mutating", True),
@@ -3098,7 +3411,7 @@ def cmd_emit(argv):
                                "unknown", event=EVENT_ID)
             continue
         check_args(act, args, a)
-        ok, why = grant_for(name, a, granted, payload)
+        ok, why = grant_for(name, a, granted, payload, action=act)
         if not ok:
             failures += refuse(act, args, "event", why, "event", "ungranted", event=EVENT_ID)
             continue
@@ -3245,7 +3558,7 @@ def cmd_check(_argv):
             print(f"  NEVER    {label}  <- {a.get('consequence')}-class, not runnable from an event")
             problems.append(f"event binding {label} names a {a.get('consequence')}-class action")
             continue
-        ok, why = grant_for(b["event"], a, granted)
+        ok, why = grant_for(b["event"], a, granted, action=b["action"])
         print(f"  {'granted ' if ok else 'ungrant.'} {label}" + ("" if ok else f"  <- {why}"))
 
     # Interests. A source whose channel interests.fetch does not declare would

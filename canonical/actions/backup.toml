@@ -1,0 +1,28 @@
+# Backups (machine-state-yqm). See canonical/tooling/restic.md for the plan.
+
+# The daily home backup: the first unattended action that writes. maintain-class:
+# it adds one snapshot to the repository named in `writes` and deletes or changes
+# nothing there. A grant must name this action AND that path; no ceiling grants
+# it. Forgetting and pruning delete, so they are separate, by hand, and never here.
+#
+# home:read and keyring:read are private: cap refuses any action holding them and
+# a net: channel. That checks the declaration; restic itself is not sandboxed.
+[action."backup.home"]
+implementation = "backup.home"
+label       = "Back up the home folder to the 4 TB disk (restic); speak up only if it fails or is incomplete"
+category    = "Backup"
+mutating    = true
+consequence = "maintain"
+writes      = "/mnt/data/backup/restic"
+channels    = ["home:read", "keyring:read", "notify", "inbox"]
+
+# The run that never happened cannot report itself, so this one checks, on a
+# different timer, that the newest snapshot is recent. Reads only what
+# backup.home recorded; no restic, no keyring.
+[action."backup.freshness"]
+implementation = "backup.freshness"
+label       = "Say so when the newest home backup is more than 36 hours old"
+category    = "Backup"
+mutating    = false
+consequence = "report"
+channels    = ["notify", "inbox"]
