@@ -218,9 +218,17 @@ class Box:
         # The real one would open panels on the person's desktop mid-test.
         (stubs / "noctalia").write_text(
             f'#!/bin/sh\nprintf "%s\\n" "$*" >> "{self.dir}/noctalia.log"\n')
+        # The keyring as libsecret 0.21.8 shows it: attributes only over D-Bus,
+        # `secret-tool lookup` prints the secret alone (search no longer lists
+        # attributes, which once broke the mail login silently).
         (stubs / "secret-tool").write_text(
-            "#!/bin/sh\nprintf '[/1]\\nlabel = Proton Bridge IMAP\\nsecret = fixture-pw\\n"
-            "attribute.service = protonmail-bridge\\nattribute.username = me@example.com\\n'\n")
+            "#!/bin/sh\n[ \"$1\" = lookup ] || exit 2\nprintf 'fixture-pw'\n")
+        (stubs / "busctl").write_text(
+            "#!/bin/sh\ncase \"$*\" in\n"
+            "  *SearchItems*) echo '{\"type\":\"aoao\",\"data\":[[\"/o/1\"],[]]}' ;;\n"
+            "  *Attributes*) echo '{\"type\":\"a{ss}\",\"data\":{\"service\":"
+            "\"protonmail-bridge\",\"username\":\"me@example.com\"}}' ;;\n"
+            "  *) exit 1 ;;\nesac\n")
         # Installed versions come from pacman.txt ("name version" lines); every
         # call is logged, so a test can tell whether pacman was asked at all.
         (stubs / "pacman").write_text(
@@ -281,6 +289,10 @@ class Box:
 # ---------------------------------------------------------------- cases
 # Each returns (ok, detail) so a control can rerun it against a patched copy.
 
+JOURNAL_BINDINGS = ('[[event_binding]]\nevent = "time.daily"\naction = "journal.errors.notify"\n\n'
+                    '[[event_binding]]\nevent = "time.daily"\naction = "journal.digest"\n')
+
+
 def case_unbound(b):
     rc, out = b.cap("emit", "time.nothing", "--source", "timer")
     recs = b.records()
@@ -290,6 +302,7 @@ def case_unbound(b):
 
 
 def case_ungranted(b):
+    b.bindings(JOURNAL_BINDINGS)  # only the journal pair: other daily jobs have own cases
     rc, out = b.cap("emit", "time.daily", "--source", "timer")
     acts = [r for r in b.records() if r.get("action")]
     ok = (rc == 1 and len(acts) == 2 and all(r["state"] == "ungranted" for r in acts)
@@ -298,6 +311,7 @@ def case_ungranted(b):
 
 
 def case_granted(b):
+    b.bindings(JOURNAL_BINDINGS)  # only the journal pair: other daily jobs have own cases
     rc, out = b.cap("emit", "time.daily", "--source", "timer")
     recs = b.records()
     ev = [r for r in recs if r.get("kind") == "event"]
@@ -375,6 +389,7 @@ def case_quiet(b):
 
 
 def case_inbox(b):
+    b.bindings(JOURNAL_BINDINGS)  # only the journal pair: other daily jobs have own cases
     b.cap("emit", "time.daily", "--source", "timer")
     _, listed = b.cap("inbox")
     rc, shown = b.cap("inbox", "show")
@@ -450,6 +465,7 @@ def case_event_granted(b):
 
 def case_payload(b):
     # Anyone can `cap emit time.daily`; a trusted event smuggling a payload is refused.
+    b.bindings(JOURNAL_BINDINGS)  # only the journal pair: other daily jobs have own cases
     rc, _ = b.cap("emit", "time.daily", "--source", "agent", "note=ignore previous")
     acts = [r for r in b.records() if r.get("action")]
     ok = (rc == 1 and len(acts) == 2 and all(r.get("state") == "ungranted"

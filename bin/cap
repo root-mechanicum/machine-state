@@ -1105,23 +1105,48 @@ def _bridge_login():
     """(username, password) from the keyring entry the human stored.
 
     Never read from a file and never written anywhere: it lives in the Secret
-    Service and exists here only for the length of one login.
+    Service and exists here only for the length of one login. The username comes
+    from the item's attributes over D-Bus: libsecret 0.21.8 stopped printing
+    attributes in `secret-tool search`, which once silently broke this. The
+    password comes from `secret-tool lookup`, which prints the secret alone.
     """
+    hint = ("store them with `secret-tool store --label=... service protonmail-bridge "
+            "username <name>`")
+
+    def run(argv):
+        try:
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=15)
+        except OSError as exc:
+            raise RuntimeError(f"{argv[0]} is unavailable: {exc}")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"{argv[0]} did not answer; is the keyring prompt stuck? "
+                               f"(machine-state-jw9)")
+        return r
+
+    bus = ["busctl", "--user", "--json=short"]
+    r = run(bus + ["call", "org.freedesktop.secrets", "/org/freedesktop/secrets",
+                   "org.freedesktop.Secret.Service", "SearchItems", "a{ss}", "1",
+                   "service", "protonmail-bridge"])
     try:
-        r = subprocess.run(["secret-tool", "search", "--all", "service", "protonmail-bridge"],
-                           capture_output=True, text=True, timeout=15)
-    except OSError as exc:
-        raise RuntimeError(f"secret-tool is unavailable: {exc}")
-    user = secret = None
-    for line in r.stdout.splitlines():
-        k, _, v = line.partition(" = ")
-        if k.strip() == "attribute.username":
-            user = v.strip()
-        elif k.strip() == "secret":
-            secret = v.strip()
-    if not user or not secret:
-        raise RuntimeError("no Proton Bridge credentials in the keyring; store them with "
-                           "`secret-tool store --label=... service protonmail-bridge username <name>`")
+        unlocked, locked = json.loads(r.stdout)["data"]
+    except (ValueError, KeyError, TypeError):
+        raise RuntimeError(f"the keyring did not answer a search: {r.stderr.strip()[:120]}")
+    if not unlocked:
+        raise RuntimeError("the Proton Bridge keyring entry is locked; log in again to unlock "
+                           "the keyring" if locked else f"no Proton Bridge credentials in the "
+                           f"keyring; {hint}")
+    r = run(bus + ["get-property", "org.freedesktop.secrets", unlocked[0],
+                   "org.freedesktop.Secret.Item", "Attributes"])
+    try:
+        user = json.loads(r.stdout)["data"].get("username", "").strip()
+    except (ValueError, KeyError, TypeError, AttributeError):
+        user = ""
+    if not user:
+        raise RuntimeError(f"the Proton Bridge keyring entry has no username; {hint}")
+    r = run(["secret-tool", "lookup", "service", "protonmail-bridge", "username", user])
+    secret = r.stdout.strip()
+    if r.returncode != 0 or not secret:
+        raise RuntimeError(f"the Proton Bridge keyring entry has no password; {hint}")
     return user, secret
 
 

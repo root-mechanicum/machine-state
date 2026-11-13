@@ -24,3 +24,13 @@ action = "interests.fetch"
 [[event_binding]]
 event  = "time.hourly"
 action = "interests.packages"
+
+# Mail from the senders interests declare, read-only through the local Bridge,
+# then the morning digest written by the local model (canonical/tooling/proton-bridge.md).
+[[event_binding]]
+event  = "time.daily"
+action = "interests.mail"
+
+[[event_binding]]
+event  = "time.daily"
+action = "interests.digest"
