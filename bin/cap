@@ -2859,10 +2859,19 @@ OBSERVE_CHANNELS = {"desktop:read", "browser:read"}
 # network; only a process-level boundary could, and cap has none.
 PRIVATE_CHANNELS = {"packages:read", "home:read", "keyring:read"}
 
+# Named groups of hosts that no single net:<host> can express. A group is still
+# a net: channel, so every network rule above applies to it unchanged (never with
+# private or untrusted channels). net:pacman-mirrors is the hosts pacman itself is
+# configured to download from (/etc/pacman.d/*mirrorlist): the update check's
+# download step (machine-state-2eg). It is fetched by pacman, not by cap, so like
+# every channel it is a declaration, not a sandbox.
+NET_GROUPS = {"net:pacman-mirrors"}
+
 
 def valid_channel(c):
     return isinstance(c, str) and (
-        c in LOCAL_CHANNELS or (c.startswith("net:") and bool(HOSTNAME.match(c[4:]))))
+        c in LOCAL_CHANNELS or c in NET_GROUPS
+        or (c.startswith("net:") and bool(HOSTNAME.match(c[4:]))))
 
 def grants_boundary():
     """(intact, reason). The same two-level check bin/ms reports on."""
@@ -2991,7 +3000,8 @@ def run_provider(fn, a, args):
     global ALLOWED_HOSTS, ACTIVE_CHANNELS, ACTIVE_WRITES
     chans = a.get("channels", [])
     ACTIVE_CHANNELS = frozenset(chans)
-    ALLOWED_HOSTS = frozenset(c[4:] for c in chans if c.startswith("net:"))
+    ALLOWED_HOSTS = frozenset(c[4:] for c in chans
+                              if c.startswith("net:") and c not in NET_GROUPS)
     ACTIVE_WRITES = a.get("writes") if a.get("consequence") == "maintain" else None
     try:
         rest = {k: v for k, v in args.items() if k != "role"}
