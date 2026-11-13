@@ -1300,7 +1300,7 @@ def case_ask_thread(b):
     notes = b.notes()
     tid = _thread(b, notes[0]) if notes else ""
     args1 = (b.dir / "pi.args").read_text()
-    threads = b.dir / ".local" / "state" / "agents" / "threads"
+    threads = b.dir / ".pi" / "agent" / "sessions" / "--cap-threads--"
     panel = _panels(b, want=1)
     _eventually(b.dir / "notify.log")
     rc2, _ = b.cap("act", "agent.ask", "prompt=and why?", f"thread={tid}")
@@ -1327,7 +1327,7 @@ def case_ask_thread_rejects(b):
     _agent(b)
     rc, _ = b.cap("act", "agent.ask", "prompt=one")
     tid = _thread(b, b.notes()[0])
-    for f in (b.dir / ".local" / "state" / "agents" / "threads").glob("*.jsonl"):
+    for f in (b.dir / ".pi" / "agent" / "sessions" / "--cap-threads--").glob("*.jsonl"):
         f.unlink()
     (b.dir / "pi.args").unlink()
     rcs = [b.cap("act", "agent.ask", "prompt=two", f"thread={t}")[0]
@@ -1484,7 +1484,7 @@ def case_discuss_hostile(b):
     text = note.read_text()
     tid = _thread(b, note)
     b.cap("act", "agent.ask", "prompt=one", f"thread={tid}")
-    for f in (b.dir / ".local" / "state" / "agents" / "threads").glob("*.jsonl"):
+    for f in (b.dir / ".pi" / "agent" / "sessions" / "--cap-threads--").glob("*.jsonl"):
         f.unlink()
     (b.dir / "pi.args").unlink()
     rc2, _ = b.cap("act", "agent.ask", "prompt=two", f"thread={tid}")
@@ -1824,8 +1824,10 @@ def case_digest_nothing_dropped(b):
 
 def case_digest_context(b):
     # The reader's own context reaches the model, as instructions, not as an item.
-    patch(b.repo / "canonical" / "interests" / "ai-news.toml", 'label   = "AI news"\n',
-          'label   = "AI news"\ncontext = "I build a broker for agents on my own laptop."\n')
+    (b.repo / "canonical" / "interests" / "ai-news.toml").write_text(
+        '[interest.ai-news]\nlabel = "AI news"\nurgency = "digest"\n'
+        'context = "I build a broker for agents on my own laptop."\n'
+        'sources = [ { mail = { from = "lspace@mail.beehiiv.com" } } ]\n')
     _waiting(b, 1)
     rc, _ = b.cap("act", "interests.digest")
     msgs = (Model.last or {}).get("messages", [])
@@ -1843,6 +1845,56 @@ def case_model_units_agree(b):
         return re.findall(r'"([^"]+)"', m.group(1)) if m else None
     a, g = units(b.cap_path), units(b.repo / "bin" / "model-sleep-guard")
     return a is not None and a == g, f"cap={a}, guard={g}"
+
+
+# ---------------------------------------------------------------- every model call leaves a conversation (rrt)
+
+def _sessions(b, kind):
+    d = b.dir / ".pi" / "agent" / "sessions" / f"--cap-{kind}--"
+    return d, (sorted(d.glob("*.jsonl")) if d.is_dir() else [])
+
+
+def _pi_session(f):
+    """The lines, if f reads as a Pi v3 session with a user and an assistant turn."""
+    lines = [json.loads(l) for l in f.read_text().splitlines()]
+    roles = [l["message"]["role"] for l in lines if l.get("type") == "message"]
+    ok = lines[0].get("type") == "session" and lines[0].get("version") == 3 and roles == [
+        "user", "assistant"]
+    return lines if ok else None
+
+
+def case_calls_kept(b):
+    # A newsletter digest and a journal digest: each leaves a Pi session, in its
+    # own owner-only folder, holding what the model was given and what it said.
+    b.bindings(MAIL_BINDINGS + "\n" + JOURNAL_BINDINGS)
+    rc, _, _ = _daily(b, MAIL_BINDINGS + "\n" + JOURNAL_BINDINGS)
+    ud, untrusted = _sessions(b, "untrusted")
+    md, model = _sessions(b, "model")
+    u = _pi_session(untrusted[0]) if len(untrusted) == 1 else None
+    m = _pi_session(model[0]) if len(model) == 1 else None
+    text = lambda s, i: s[i]["message"]["content"][0]["text"] if s else ""
+    ok = (rc == 0 and u is not None and m is not None
+          and "[cap interests.digest" in text(u, 2) and "GPT-6 news" in text(u, 2)
+          and text(u, 3) == "FAKE DIGEST BODY"
+          and "[cap journal.digest" in text(m, 2) and "spd5118" in text(m, 2)
+          and (ud.stat().st_mode & 0o777) == 0o700 and (md.stat().st_mode & 0o777) == 0o700)
+    return ok, f"untrusted={len(untrusted)}, model={len(model)}"
+
+
+def case_untrusted_apart(b):
+    # Stranger-written input never lands with the machine's own: the routing
+    # call (window titles) and a notification summary go to the untrusted folder.
+    _agent(b)
+    _resolve(b, {"action": "journal.digest", "args": {}})
+    _history(b, [_note_entry(5, "Mail", "Meeting", "Thursday?")])
+    b.cap("act", "agent.summarise_notification", "notification=5")
+    args = (b.dir / "pi.args").read_text() if (b.dir / "pi.args").exists() else ""
+    _, untrusted = _sessions(b, "untrusted")
+    _, model = _sessions(b, "model")
+    resolved = [f for f in untrusted if "[cap agent.resolve" in f.read_text()]
+    ok = (len(resolved) == 1 and not model and "--no-session" not in args
+          and "--cap-untrusted--" in args)
+    return ok, f"resolve kept={len(resolved)}, in model={len(model)}, summarise args ok={'--cap-untrusted--' in args}"
 
 
 def main():
@@ -2120,6 +2172,11 @@ def main():
     with Box(grants=GRANT_BOTH) as b:
         check("77 an interest's context reaches the model's instructions",
               *case_digest_context(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("80 every direct model call is kept as a Pi session, owner-only",
+              *case_calls_kept(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("81 calls on stranger-written input are kept apart", *case_untrusted_apart(b))
 
     print("\n  negative controls (the mechanism is broken on purpose):")
 
@@ -2269,7 +2326,7 @@ def main():
         ok, d = case_ask_thread_rejects(b)
         check("31in existing-thread check removed -> assertion 31i fails", not ok, d)
     with Box() as b:
-        patch(b.cap_path, '    THREADS.chmod(0o700)\n', '    THREADS.chmod(0o755)\n')
+        patch(b.cap_path, '    d.chmod(0o700)\n', '    d.chmod(0o755)\n')
         ok, d = case_ask_thread(b)
         check("31hm threads dir not owner-only -> assertion 31h fails", not ok, d)
     with Box() as b:
@@ -2478,6 +2535,18 @@ def main():
               '                if False else "")')
         ok, d = case_digest_context(b)
         check("77n context left out -> assertion 77 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '    keep one direct model call as a Pi-format session.'.capitalize()[:0]
+              + '    a conversation that could not be kept is said on stderr, and the work stands."""\n',
+              '    a conversation that could not be kept is said on stderr, and the work stands."""\n'
+              '    return\n')
+        ok, d = case_calls_kept(b)
+        check("80n calls not kept -> assertion 80 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '        d = _private_dir(SESSIONS_UNTRUSTED if untrusted else SESSIONS_MODEL)',
+              '        d = _private_dir(SESSIONS_MODEL)')
+        ok, d = case_untrusted_apart(b)
+        check("81n one folder for all -> assertion 81 fails", not ok, d)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
