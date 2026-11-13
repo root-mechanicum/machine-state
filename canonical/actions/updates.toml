@@ -1,0 +1,34 @@
+# System updates, step 1: see, never touch (machine-state-2eg). Nothing here
+# installs anything or asks for privilege. Applying updates (system.upgrade,
+# through a polkit "permission slip" the user signs each time) is step 2.
+#
+# Split along the line cap does not let one action cross: what is installed is
+# private, so the two downloads hold no packages:read, and the comparison holds
+# no net: channel. See bin/cap, "updates".
+
+[action."updates.fetch"]
+implementation = "updates.fetch"
+label       = "Download the repositories' package lists (no installed-package data)"
+category    = "Updates"
+mutating    = false
+consequence = "report"
+channels    = ["net:pacman-mirrors"]
+
+[action."updates.news"]
+implementation = "updates.news"
+label       = "Download Arch Linux's news feed"
+category    = "Updates"
+mutating    = false
+consequence = "report"
+channels    = ["net:archlinux.org"]
+
+# Offline. Weekly digest, unless there is a reason to speak now: a manual step
+# from Arch news that applies here, a security fix this machine is below, or a
+# check that has been failing (or never ran) for days.
+[action."updates.check"]
+implementation = "updates.check"
+label       = "Check for updates offline; a weekly digest, sooner only for a reason"
+category    = "Updates"
+mutating    = false
+consequence = "report"
+channels    = ["packages:read", "notify", "inbox"]
