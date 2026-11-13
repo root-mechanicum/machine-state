@@ -31,6 +31,7 @@ the net:<host> channels an action declares.
 import datetime
 import email
 import email.policy
+import email.utils
 import fnmatch
 import html.parser
 import imaplib
@@ -990,16 +991,30 @@ def model_url():
 ALLOWED_HOSTS = frozenset()
 
 
-def _http_json(url, body=None, timeout=10):
+def _check_host(url):
     host = urllib.parse.urlparse(url).hostname
     if host not in ("127.0.0.1", "localhost", "::1") and host not in ALLOWED_HOSTS:
         raise PermissionError(f"{host!r} is not among the hosts this action declares "
                               f"({', '.join(sorted(ALLOWED_HOSTS)) or 'loopback only'})")
+
+
+def _http_json(url, body=None, timeout=10):
+    _check_host(url)
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(url, data=data,
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read())
+
+
+def _http_bytes(url, timeout=30, limit=2_000_000):
+    """A GET's body, under the same host rule as _http_json, and size-capped."""
+    _check_host(url)
+    with urllib.request.urlopen(urllib.request.Request(url), timeout=timeout) as r:
+        data = r.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError(f"{url} returned more than {limit} bytes")
+    return data
 
 
 def requires_model():
@@ -2714,6 +2729,477 @@ def do_backup_freshness():
     return plan, "ok"
 
 
+# ---------------------------------------------------------------- updates
+
+# SYSTEM UPDATES, STEP 1: SEE, NEVER TOUCH (machine-state-2eg, bru.12). Three
+# actions, split along the line cap does not let one action cross: what is
+# installed is private, so it never shares an action with the network.
+#
+#   updates.fetch  net:pacman-mirrors  download the repositories' package lists
+#                                      into cap's own database. The installed
+#                                      database is NOT linked in (checkupdates
+#                                      links it before downloading; we do not).
+#   updates.news   net:archlinux.org   download Arch's news feed.
+#   updates.check  packages:read       offline: compare, check the machine, and
+#                                      decide whether to say anything.
+#
+# A FAILED CHECK IS NEVER "NO UPDATES". fetch records how it failed; check then
+# reports "unknown" with that reason, and says so out loud once the last good
+# download is more than three days old.
+#
+# WEEKLY, UNLESS THERE IS A REASON (the user, 2026-11-13). Routine updates wait
+# for a weekly digest. A reason to speak now: Arch news asking for a manual step
+# that applies here, a security fix this machine is below, or a check that has
+# been failing for days. Each reason is said once.
+#
+# pacman 7 downloads as its sandbox user, which fakeroot cannot become, so this
+# passes --disable-sandbox-filesystem as checkupdates does. Still no root:
+# fakeroot only pretends, and the database written is cap's own.
+
+UPDATES = INBOX.parent / "updates"
+UPDATES_DB = UPDATES / "db"                 # sync databases only, written by fetch
+UPDATES_COMPARE = UPDATES / "compare"       # sync + a link to the installed db, for check
+UPDATES_FETCH = UPDATES / "fetch.json"
+UPDATES_NEWS = UPDATES / "news.json"
+UPDATES_REPORT = UPDATES / "report.json"
+UPDATES_TOLD = UPDATES / "told.json"
+# CAP_ARCHNEWS_URL lets tests stand in a loopback server; like CAP_HF_URL it
+# cannot widen anything, because the host must still be loopback or granted.
+ARCH_NEWS_URL = "https://archlinux.org/feeds/news/"
+UPDATES_STALE_DAYS = 3
+UPDATES_DIGEST_DAYS = 7
+UPDATES_FETCH_TIMEOUT = 300
+SNAPSHOT_HOOKS = ("05-snap-pac-pre.hook", "zz-snap-pac-post.hook")
+NEWS_THRESHOLD = re.compile(r"([A-Za-z0-9@._+-]+)\s*(?:≥|>=)\s*(\d[\w.:+~-]*)")
+NEWS_STOPWORDS = {"update", "updates", "the", "and", "for", "now", "all", "users", "linux",
+                  "arch", "new", "requires", "manual", "intervention", "breaking", "changes"}
+
+
+def _read_json(path):
+    try:
+        doc = json.loads(path.read_text())
+        return doc if isinstance(doc, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _days_since(stamp, now_dt=None, never=None):
+    """Days since a now()-style stamp; `never` when there is no such stamp."""
+    t = _when(stamp)
+    if t is None:
+        return never
+    now_dt = now_dt or datetime.datetime.now(datetime.timezone.utc)
+    return (now_dt - t).total_seconds() / 86400
+
+
+def _update_flag(name):
+    """(what it is, whether it needs a restart) for a package worth naming."""
+    if name.startswith("linux-firmware"):
+        return "firmware", True
+    if name == "linux-api-headers":
+        return None
+    if re.fullmatch(r"linux(-[a-z0-9]+)*", name):
+        return "kernel", True
+    if re.fullmatch(r"(lib32-)?(opencl-)?nvidia(-[a-z0-9]+)*", name):
+        return "NVIDIA driver", True
+    if name in ("systemd", "systemd-libs", "glibc"):
+        return name, True
+    if name in ("pacman", "mkinitcpio") or name.startswith("limine"):
+        return "boot and packaging", False
+    if name in ("hyprland", "mesa") or name.startswith("noctalia"):
+        return "desktop", False
+    if name.endswith("-keyring"):
+        return "keyring", False
+    return None
+
+
+def requires_updates_fetch():
+    for tool in ("pacman", "fakeroot"):
+        if not shutil.which(tool):
+            return False, f"{tool} is not installed"
+    return True, None
+
+
+def plan_updates_fetch():
+    return {"branch": "fetch", "detail": f"download the package lists from pacman's mirrors "
+                                         f"into {UPDATES_DB} (no installed-package data)"}
+
+
+def _fetch_failure(text):
+    low = text.lower()
+    if "unable to lock database" in low:
+        return "lock"
+    if "signature" in low or "invalid or corrupted database" in low:
+        return "signature"
+    if "could not resolve" in low or "failed retrieving" in low or "failed to retrieve" in low:
+        return "network"
+    return "error"
+
+
+def do_updates_fetch():
+    plan = plan_updates_fetch()
+    use("net:pacman-mirrors")
+    (UPDATES_DB / "sync").mkdir(parents=True, exist_ok=True)
+    # This directory is cap's alone, so a lock in it is a leftover of a killed run.
+    (UPDATES_DB / "db.lck").unlink(missing_ok=True)
+    prev = _read_json(UPDATES_FETCH)
+    state = {"at": now(), "ok_at": prev.get("ok_at")}
+    try:
+        r = subprocess.run(["fakeroot", "--", "pacman", "-Sy", "--disable-sandbox-filesystem",
+                            "--dbpath", str(UPDATES_DB), "--logfile", "/dev/null"],
+                           capture_output=True, text=True, timeout=UPDATES_FETCH_TIMEOUT)
+        ok, text = r.returncode == 0, (r.stderr or r.stdout).strip()
+    except subprocess.TimeoutExpired:
+        ok, text = False, f"pacman did not finish within {UPDATES_FETCH_TIMEOUT} s"
+    if ok:
+        state.update(ok=True, ok_at=state["at"])
+        _write_json(UPDATES_FETCH, state)
+        plan["outcome_detail"] = "package lists downloaded"
+        return plan, "ok"
+    kind = "timeout" if "did not finish" in text else _fetch_failure(text)
+    state.update(ok=False, kind=kind, reason=(text.splitlines() or ["?"])[-1][:300])
+    _write_json(UPDATES_FETCH, state)
+    plan["outcome_detail"] = f"{kind}: {state['reason']}"
+    return plan, "failed"
+
+
+def plan_updates_news():
+    return {"branch": "fetch", "detail": "download Arch Linux's news feed"}
+
+
+def do_updates_news():
+    plan = plan_updates_news()
+    import xml.etree.ElementTree as ET
+    url = os.environ.get("CAP_ARCHNEWS_URL", ARCH_NEWS_URL)
+    try:
+        root = ET.fromstring(_http_bytes(url))
+    except PermissionError:
+        raise
+    except (OSError, ValueError, ET.ParseError) as exc:
+        _write_json(UPDATES_NEWS, {**_read_json(UPDATES_NEWS), "at": now(), "ok": False,
+                                   "reason": f"{type(exc).__name__}: {exc}"[:300]})
+        plan["outcome_detail"] = f"news not fetched: {exc}"
+        return plan, "failed"
+    items = []
+    for it in root.iter("item"):
+        title = (it.findtext("title") or "").strip()
+        when = it.findtext("pubDate")
+        try:
+            date = email.utils.parsedate_to_datetime(when).astimezone(
+                datetime.timezone.utc).isoformat() if when else None
+        except (TypeError, ValueError):
+            date = None
+        if title:
+            items.append({"title": title[:300], "link": (it.findtext("link") or "")[:300],
+                          "date": date})
+    _write_json(UPDATES_NEWS, {"at": now(), "ok": True, "ok_at": now(), "items": items[:30]})
+    plan["outcome_detail"] = f"{len(items)} news item(s)"
+    return plan, "ok"
+
+
+def requires_updates_check():
+    for tool in ("pacman", "vercmp"):
+        if not shutil.which(tool):
+            return False, f"{tool} is not installed"
+    return requires_desktop()
+
+
+def _installed():
+    use("packages:read")
+    out = {}
+    for line in _query(["pacman", "-Q"]):
+        name, _, ver = line.partition(" ")
+        if ver:
+            out[name] = ver
+    return out
+
+
+def _pending():
+    """(updates as {name: (old, new)}, None) or (None, why it is unknown)."""
+    use("packages:read")
+    sync = UPDATES_DB / "sync"
+    if not sync.is_dir() or not any(sync.glob("*.db")):
+        return None, "the package lists have never been downloaded"
+    UPDATES_COMPARE.mkdir(parents=True, exist_ok=True)
+    for name, target in (("local", SYSROOT / "var/lib/pacman/local"), ("sync", sync)):
+        link = UPDATES_COMPARE / name
+        if not (link.is_symlink() and os.readlink(link) == str(target)):
+            link.unlink(missing_ok=True)
+            link.symlink_to(target)
+    try:
+        r = subprocess.run(["pacman", "-Qu", "--dbpath", str(UPDATES_COMPARE)],
+                           capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return None, "pacman -Qu did not answer in 60 s"
+    lines = [l for l in r.stdout.splitlines() if l.strip() and "[ignored]" not in l]
+    if r.returncode != 0 and (lines or r.stderr.strip()):
+        return None, f"pacman -Qu: {(r.stderr.strip() or 'exit ' + str(r.returncode))[:200]}"
+    out = {}
+    for l in lines:
+        m = re.match(r"^(\S+) (\S+) -> (\S+)$", l.strip())
+        if m:
+            out[m[1]] = (m[2], m[3])
+    return out, None
+
+
+def _vercmp(a, b):
+    try:
+        r = subprocess.run(["vercmp", a, b], capture_output=True, text=True, timeout=10)
+        return int(r.stdout.strip())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def _last_upgrade():
+    """When pacman last started a full upgrade, from its own log."""
+    last = None
+    try:
+        with open(SYSROOT / "var/log/pacman.log", errors="replace") as f:
+            for line in f:
+                if "] starting full system upgrade" in line:
+                    last = line[1:line.index("]")]
+    except OSError:
+        return None
+    t = _when(last) if last else None
+    # UTC, so it compares as a string with the news dates (also UTC).
+    return t.astimezone(datetime.timezone.utc).isoformat() if t else None
+
+
+def _news_relevance(item, installed, since):
+    """What a news item asks, and whether it touches this machine."""
+    title, low = item["title"], item["title"].lower()
+    if "manual intervention" in low or "breaking change" in low:
+        kind = "manual"
+    elif low.startswith("update to ") and "prevent" in low:
+        kind = "security"
+    else:
+        kind = "info"
+    touches = []
+    pairs = NEWS_THRESHOLD.findall(title)
+    for name, threshold in pairs:
+        name = name.lower()
+        if name in installed:
+            c = _vercmp(installed[name], threshold.rstrip("."))
+            touches.append({"package": name, "installed": installed[name],
+                            "threshold": threshold, "below": c is None or c < 0})
+    if not pairs:
+        words = set(re.findall(r"[a-z0-9][a-z0-9@._+-]+", low)) - NEWS_STOPWORDS
+        touches = [{"package": w, "installed": installed[w], "threshold": None, "below": None}
+                   for w in sorted(words) if len(w) > 2 and w in installed]
+    recent = bool(item.get("date") and since and item["date"] > since)
+    if pairs:
+        applies = any(t["below"] for t in touches)
+    else:
+        applies = bool(touches) and recent
+    return {**item, "kind": kind, "touches": touches, "applies": applies, "recent": recent}
+
+
+def _pacnew():
+    found = []
+    for root, _dirs, files in os.walk(SYSROOT / "etc", onerror=lambda e: None):
+        found += ["/" + str((pathlib.Path(root) / f).relative_to(SYSROOT))
+                  for f in files if f.endswith((".pacnew", ".pacsave"))]
+    return sorted(found)
+
+
+def _machine_checks():
+    """The pre-update checks from the first by-hand run (2eg), read-only."""
+    disks = {}
+    for d in _disks().values():
+        for m in d["mounts"]:
+            if m in ("/", "/boot"):
+                disks[m] = d["avail"]
+    hooks = SYSROOT / "usr/share/libalpm/hooks"
+    release = _sys("/proc/sys/kernel/osrelease")
+    failed = {scope: [l.split()[0] for l in _query(["systemctl", *flag, "--failed", "--plain",
+                                                     "--no-legend"]) if l.strip()]
+              for scope, flag in (("system", []), ("user", ["--user"]))}
+    gpu = _query(["nvidia-smi", "--query-compute-apps=pid,process_name",
+                  "--format=csv,noheader"])
+    return {
+        "free_root_gb": round(disks["/"] / 1e9, 1) if "/" in disks else None,
+        "free_boot_gb": round(disks["/boot"] / 1e9, 2) if "/boot" in disks else None,
+        "on_ac": _on_ac(),
+        "snapshot_hooks": all((hooks / h).exists() for h in SNAPSHOT_HOOKS),
+        "pacman_busy": (SYSROOT / "var/lib/pacman/db.lck").exists(),
+        "failed_units": failed,
+        "pacnew": _pacnew(),
+        "restart_pending": bool(release)
+                           and not (SYSROOT / "usr/lib/modules" / release).is_dir(),
+        "gpu_in_use": [l.split(",")[-1].strip() for l in gpu if l.strip()],
+    }
+
+
+def _updates_report():
+    fetch, news = _read_json(UPDATES_FETCH), _read_json(UPDATES_NEWS)
+    installed = _installed()
+    pending, unknown = _pending()
+    since = _last_upgrade()
+    stale = _days_since(fetch.get("ok_at"))
+    # A failed download is never "no updates": the lists on disk are older than
+    # today, so the status is unknown, and what they show is kept as a hint only.
+    unknown_note = None
+    if unknown is None and fetch.get("ok") is False:
+        unknown = f"today's download failed ({fetch.get('kind')})"
+        unknown_note = (f"the lists below are from the last good download, "
+                        f"{fetch.get('ok_at') or 'never'}")
+    packages = []
+    for name, (old, new) in sorted((pending or {}).items()):
+        flag = _update_flag(name)
+        packages.append({"name": name, "old": old, "new": new,
+                         "flag": flag[0] if flag else None, "restart": bool(flag and flag[1])})
+    items = [_news_relevance(i, installed, since) for i in news.get("items", [])]
+    return {
+        "at": now(),
+        "status": "unknown" if unknown else ("available" if pending else "none"),
+        "unknown": unknown,
+        "stale_note": unknown_note,
+        "fetch": {"ok": fetch.get("ok"), "ok_at": fetch.get("ok_at"), "kind": fetch.get("kind"),
+                  "reason": fetch.get("reason"), "days_since_ok": None if stale is None
+                  else round(stale, 1)},
+        "news_ok_at": news.get("ok_at"),
+        "last_full_upgrade": since,
+        "count": len(packages),
+        "packages": packages,
+        "restart_after": sorted({p["flag"] for p in packages if p["restart"]}),
+        "news": [i for i in items if i["applies"] or i["recent"]],
+        "checks": _machine_checks(),
+    }
+
+
+def plan_updates_check():
+    return {"branch": "check", "detail": "compare installed packages with the downloaded lists "
+                                         "(offline), check the machine, and decide whether to "
+                                         "say anything"}
+
+
+def _reasons(report, told):
+    """What is worth saying now, each with the key that marks it said."""
+    out = []
+    for n in report["news"]:
+        if n["applies"] and n["kind"] in ("manual", "security") and n["link"] not in told["news"]:
+            out.append(("news", n["link"], n))
+    f = report["fetch"]
+    # Failing for days, or never downloaded at all (not granted, never run): a
+    # check that cannot see must not stay silent, or silence would mean two things.
+    failing = ((f["ok"] is False and (f["days_since_ok"] is None
+                                      or f["days_since_ok"] > UPDATES_STALE_DAYS))
+               or (report["status"] == "unknown" and f["ok"] is None))
+    if failing and _days_since(told.get("failing_at"), never=float("inf")) >= 1:
+        out.append(("failing", None, f))
+    return out
+
+
+def _updates_note(report, reasons, heading):
+    c, lines = report["checks"], []
+    if report["status"] == "unknown":
+        lines.append(f"**Could not tell whether updates are waiting:** {report['unknown']}.")
+    elif report["status"] == "none":
+        lines.append("No updates are waiting.")
+    else:
+        restart = (f" A restart is needed afterwards ({', '.join(report['restart_after'])})."
+                   if report["restart_after"] else "")
+        lines.append(f"**{report['count']} update(s) waiting.**{restart}")
+    if report["stale_note"]:
+        lines.append(f"Note: {report['stale_note']}.")
+    for kind, _key, what in reasons:
+        if kind == "news":
+            label = "Security" if what["kind"] == "security" else "Manual step needed"
+            touched = ", ".join(f"{t['package']} {t['installed']}" for t in what["touches"])
+            lines.append(f"\n## {label}\n\n{_fenced([what['title']])}\n\n"
+                         f"Installed here: {touched or 'see the article'}. Read it first: "
+                         f"<{what['link']}>")
+        elif kind == "failing" and what["ok"] is None:
+            lines.append("\n## The update check cannot see\n\n"
+                         "The package lists have never been downloaded. Does `cap check` "
+                         "show `updates.fetch` as granted (it needs `net:pacman-mirrors`)?")
+        elif kind == "failing":
+            lines.append(f"\n## The update check is failing\n\n"
+                         f"The package lists could not be downloaded "
+                         f"({what['kind']}): {_fenced([what['reason'] or '?'])}\n"
+                         f"Last good download: {what['ok_at'] or 'never'}.")
+    named = [p for p in report["packages"] if p["flag"]]
+    if named:
+        lines.append("\n## Worth knowing\n\n" + "\n".join(
+            f"- {p['name']} {p['old']} → {p['new']} ({p['flag']})" for p in named))
+    rest = report["count"] - len(named)
+    if rest > 0 and named:
+        lines.append(f"\nAnd {rest} other package(s).")
+    elif rest > 0:
+        lines.append(f"\nNone of them is the kernel, a driver or the desktop.")
+    other_news = [n for n in report["news"] if not any(n["link"] == k for _, k, _ in reasons)]
+    if other_news:
+        lines.append("\n## Arch news since the last full upgrade\n\n" + _fenced(
+            [f"{n['date'][:10] if n['date'] else '?'}  {n['title']}" for n in other_news]))
+    checks = [
+        ("free on /", f"{c['free_root_gb']} GB" if c["free_root_gb"] is not None else "?"),
+        ("free on /boot", f"{c['free_boot_gb']} GB" if c["free_boot_gb"] is not None else "?"),
+        ("power", {True: "on AC", False: "on battery", None: "?"}[c["on_ac"]]),
+        ("snapshot before update", "yes" if c["snapshot_hooks"] else "**no hooks found**"),
+        ("pacman busy", "yes" if c["pacman_busy"] else "no"),
+        ("failed services", ", ".join(c["failed_units"]["system"] + c["failed_units"]["user"])
+         or "none"),
+        ("config files to review", str(len(c["pacnew"]))),
+        ("restart pending from before", "yes" if c["restart_pending"] else "no"),
+        ("GPU in use", ", ".join(c["gpu_in_use"]) or "no"),
+    ]
+    lines.append("\n## Checks\n\n| | |\n| --- | --- |\n"
+                 + "\n".join(f"| {k} | {v.replace('|', '/')} |" for k, v in checks))
+    lines.append("\nTo update, for now: `sudo pacman -Syu` in a terminal. If the screen stays "
+                 "black after a kernel update, choose the LTS entry in the boot menu.")
+    return f"# {heading}\n\n" + "\n".join(lines)
+
+
+def do_updates_check():
+    plan = plan_updates_check()
+    report = _updates_report()
+    _write_json(UPDATES_REPORT, report)
+    told = {"news": [], **_read_json(UPDATES_TOLD)}
+    reasons = _reasons(report, told)
+    digest_due = (report["status"] == "available"
+                  and _days_since(told.get("digest_at"), never=float("inf"))
+                  >= UPDATES_DIGEST_DAYS)
+    summary = {"available": f"{report['count']} update(s) waiting",
+               "none": "no updates waiting",
+               "unknown": f"unknown: {report['unknown']}"}[report["status"]]
+    plan.update(status=report["status"], count=report["count"])
+    if not reasons and not digest_due:
+        plan["outcome_detail"] = f"{summary}; nothing to say now"
+        return plan, "skipped"
+    security = any(k == "news" and w["kind"] == "security" for k, _, w in reasons)
+    if reasons:
+        title = ("Security update waiting" if security else
+                 "Update: a manual step is needed" if any(k == "news" for k, _, _ in reasons)
+                 else "Update check failing")
+        urgency = "critical" if security else "normal"
+    else:
+        title = "Updates ready"
+        urgency = "low"
+    text = _updates_note(report, reasons, title)
+    use("notify")
+    r = subprocess.run(["notify-send", "--app-name=cap", f"--urgency={urgency}", title,
+                        f"{summary}. Details: cap inbox"], capture_output=True, timeout=10)
+    use("inbox")
+    INBOX.mkdir(parents=True, exist_ok=True)
+    note = INBOX / f"{now().replace(':', '')[:15]}-updates.md"
+    note.write_text("---\n"
+                    f"action: updates.check\nevent: {EVENT_ID or 'none'}\ngenerated: {now()}\n"
+                    f"status: {report['status']}\ncount: {report['count']}\n---\n\n{text}\n")
+    if r.returncode != 0:
+        plan["outcome_detail"] = f"wrote {note}; the notification was not delivered"
+        return plan, "failed"
+    # Remember what was said only once it was said.
+    for kind, key, _ in reasons:
+        if kind == "news":
+            told["news"] = [*told["news"], key][-200:]
+        elif kind == "failing":
+            told["failing_at"] = now()
+    told["digest_at"] = now()
+    _write_json(UPDATES_TOLD, told)
+    plan["outcome_detail"] = f"{summary}; wrote {note}"
+    return plan, "ok"
+
+
 def requires_nothing():
     return True, None
 
@@ -2750,6 +3236,9 @@ PROVIDERS = {
     "system.disks": (plan_disks, do_disks, requires_nothing),
     "backup.home": (plan_backup_home, do_backup_home, requires_backup),
     "backup.freshness": (plan_backup_freshness, do_backup_freshness, requires_desktop),
+    "updates.fetch": (plan_updates_fetch, do_updates_fetch, requires_updates_fetch),
+    "updates.news": (plan_updates_news, do_updates_news, requires_nothing),
+    "updates.check": (plan_updates_check, do_updates_check, requires_updates_check),
 }
 
 

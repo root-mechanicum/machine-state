@@ -48,3 +48,18 @@ action = "interests.digest"
 [[event_binding]]
 event  = "time.hourly"
 action = "backup.freshness"
+
+# System updates, step 1 (machine-state-2eg): download, then compare offline.
+# In this order, so the check reads today's lists. Quiet unless the weekly digest
+# is due or there is a reason (canonical/actions/updates.toml).
+[[event_binding]]
+event  = "time.daily"
+action = "updates.fetch"
+
+[[event_binding]]
+event  = "time.daily"
+action = "updates.news"
+
+[[event_binding]]
+event  = "time.daily"
+action = "updates.check"
