@@ -21,6 +21,9 @@ Type=simple
 # instead of ~1, at 106 tok/s instead of 136 (model-bench results/2026-11-09/tps). Same weights,
 # same answers. Back to the faster mode: point --config at strata-iq3_s.json.
 ExecStart=%h/.local/share/strata/app/.venv/bin/python %h/.local/share/strata/app/serve/server.py --engine strata --config %h/.local/share/strata/app/strata-iq3_s-resident.json --port 8000
+# Started means answering: until then the unit is "activating", so After= in
+# cap-time-daily.service waits for a loaded model (bin/model-ready, machine-state-dty).
+ExecStartPost=%h/src/machine-state/bin/model-ready 8000
 WorkingDirectory=%h/.local/share/strata/app
 # Loading locks ~47 GB of RAM; give it time to load and to let go.
 TimeoutStartSec=600

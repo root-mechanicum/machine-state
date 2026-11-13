@@ -3,6 +3,18 @@
 
 [interest.ai-news]
 label   = "AI news"
+# What the catch-up should relate the news to: the reader's own work, in their
+# words. Drafted by Claude 2026-11-13 from the session; the user corrects it.
+context = """
+I run my own laptop (CachyOS, Hyprland, a 24 GB laptop GPU) as a workstation that agents
+help operate. I build machine-state: the machine's configuration kept as one canonical
+repository, and cap, a broker that lets agents act only through declared actions, events
+and root-owned grants, with text written by strangers kept away from the network. Models
+run locally (Qwen3.8 through llama.cpp and Strata); privacy matters, so local first.
+What bears on this: local inference, quantisation and small fast models (for routing and
+decisions, not only chat), agent safety and prompt injection, agent tooling and protocols
+(MCP, Pi, Claude Code, Codex), and how a person and agents share one machine.
+"""
 urgency = "digest"
 sources = [
   { mail = { from = "lspace@mail.beehiiv.com" } },   # Latent Space

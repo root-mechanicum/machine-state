@@ -26,11 +26,11 @@ channels    = ["mail:read", "notify", "inbox"]
 # whatever a newsletter says, nothing leaves the machine.
 [action."interests.digest"]
 implementation = "interests.digest"
-label       = "Write one catch-up note per digest interest with the local model"
+label       = "Write one catch-up note per digest interest with the local model, and say so"
 category    = "Interests"
 mutating    = false
 consequence = "report"
-channels    = ["model:local", "inbox"]
+channels    = ["model:local", "inbox", "notify"]
 
 # Installed package versions (machine-state-6ko). Local only: what is installed
 # says what is vulnerable, so this action holds no net: channel and cap refuses

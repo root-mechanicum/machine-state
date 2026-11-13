@@ -63,3 +63,19 @@ action = "updates.news"
 [[event_binding]]
 event  = "time.daily"
 action = "updates.check"
+
+# Digests retry hourly (machine-state-dty). The daily run comes at login or
+# wake, when the model may still be loading; each digest is written once a day
+# from 08:00 (bin/cap, "DIGESTS REACH THE PERSON"), so these are quiet once it
+# is. Mail is fetched hourly too, so a digest has the morning's issue.
+[[event_binding]]
+event  = "time.hourly"
+action = "interests.mail"
+
+[[event_binding]]
+event  = "time.hourly"
+action = "interests.digest"
+
+[[event_binding]]
+event  = "time.hourly"
+action = "journal.digest"
