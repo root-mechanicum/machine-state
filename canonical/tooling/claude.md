@@ -29,6 +29,7 @@ Ours by narrow region only:
 - Shared skills are linked per-skill, so another installer can populate `~/.claude/skills/`
   alongside us.
 - `~/.claude/settings.json` stays hand-owned; see `canonical/tooling/dcg.md`.
+- It sets `cleanupPeriodDays: 36500` (2026-11-13): Claude Code otherwise deletes transcripts after 30 days, before cass has read them. See `canonical/tooling/cass.md`.
 
 ## Verification
 
