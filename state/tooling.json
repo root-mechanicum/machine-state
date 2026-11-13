@@ -1,6 +1,12 @@
 {
   "schema": 1,
   "tooling": {
+    "asusctl": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "files intact",
+      "version": "6.5.0"
+    },
     "beads": {
       "binary": "bd",
       "path": "/home/klaas/.local/bin/bd",
@@ -12,14 +18,14 @@
       "guarded": true,
       "path": "/home/klaas/.local/bin/claude",
       "status": "integrated",
-      "version": "2.1.263"
+      "version": "2.1.323"
     },
     "codex": {
       "binary": "codex",
       "guarded": true,
       "path": "/usr/bin/codex",
       "status": "installed",
-      "version": "0.151.0"
+      "version": "0.167.2"
     },
     "dcg": {
       "binary": "dcg",
@@ -27,47 +33,95 @@
       "status": "active",
       "version": "0.13.9"
     },
+    "ee": {
+      "binary": "ee",
+      "path": "/home/klaas/.local/bin/ee",
+      "status": "runs",
+      "version": "0.18.0"
+    },
     "gnome-keyring": {
       "binary": "pacman",
       "path": "/usr/bin/pacman",
       "status": "secret service answers",
-      "version": "50.0"
+      "version": "51.1"
     },
     "hypr": {
       "binary": "hyprctl",
       "path": "/usr/bin/hyprctl",
-      "status": "template pristine",
-      "version": "0.56.2"
+      "status": "template diverged",
+      "version": "0.57.2"
+    },
+    "libratbag": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "files intact",
+      "version": "0.18"
     },
     "noctalia": {
       "binary": "noctalia",
       "path": "/usr/bin/noctalia",
       "status": "config valid",
-      "version": "5.0.0"
+      "version": "5.4.1"
+    },
+    "opensnitch": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "files intact",
+      "version": "1.7.2"
+    },
+    "proton-bridge": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "running",
+      "version": "3.27.1"
     },
     "proton-drive": {
       "binary": "proton-drive",
       "path": "/home/klaas/.local/bin/proton-drive",
       "status": "responds",
-      "version": "0.8.0"
+      "version": "0.9.0"
     },
     "proton-mail": {
       "binary": "pacman",
       "path": "/usr/bin/pacman",
       "status": "files intact",
-      "version": "1.13.4"
+      "version": "1.16.1"
     },
     "proton-pass": {
       "binary": "pacman",
       "path": "/usr/bin/pacman",
       "status": "files intact",
-      "version": "1.39.1"
+      "version": "1.43.1"
+    },
+    "restic": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "files intact",
+      "version": "0.19.1"
     },
     "steam": {
       "binary": "pacman",
       "path": "/usr/bin/pacman",
       "status": "files intact",
       "version": "1.0.0.87"
+    },
+    "tailscale": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "files intact",
+      "version": "1.104.6"
+    },
+    "tesseract": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "files intact",
+      "version": "5.5.4"
+    },
+    "trickle": {
+      "binary": "pacman",
+      "path": "/usr/bin/pacman",
+      "status": "files intact",
+      "version": "1.07"
     }
   }
 }
