@@ -27,3 +27,9 @@ id = "hub"
 entry = "hub.luau"
 width = 560
 height = 600
+
+[[panel]]
+id = "summary"
+entry = "summary.luau"
+width = 560
+height = 400

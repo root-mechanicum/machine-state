@@ -51,6 +51,16 @@ local function discuss(id)
 	end, 15000)
 end
 
+local function summarise(id)
+	problem = nil
+	noctalia.runAsync(cap("act", "agent.summarise_notification", "notification=" .. tostring(id)), function(res)
+		if res.exitCode ~= 0 then
+			problem = "Could not summarise: " .. noctalia.string.trim(res.stdout or res.stderr or "")
+			if open then render() end
+		end
+	end, 960000)
+end
+
 local function reopen(name)
 	noctalia.runAsync(cap("inbox", "panel", name), function() end, 10000)
 end
@@ -82,7 +92,10 @@ render = function()
 		local body = (tostring(n.body or ""):match("^[^\n]*") or "")
 		if body ~= "" then main = main .. " · " .. body end
 		items[#items + 1] = entry(tostring(n.app or "?") .. " · " .. when(n.received), main,
-			ui.button({ text = "Chat", onClick = function() discuss(n.id) end }))
+			ui.row({ gap = 6 }, {
+				ui.button({ text = "Summarise", onClick = function() summarise(n.id) end }),
+				ui.button({ text = "Chat", onClick = function() discuss(n.id) end }),
+			}))
 	end
 	items[#items + 1] = heading("Conversations")
 	if chats == nil then

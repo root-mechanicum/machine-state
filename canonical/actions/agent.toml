@@ -22,10 +22,19 @@ channels    = ["desktop:read", "browser:read", "model:local", "notify", "inbox"]
 implementation = "agent.discuss"
 label       = "Talk about a notification"
 category    = "Agent"
-args        = { notification = "its id in Noctalia's history (cap notifications)" }
+args        = { notification = "its id in Noctalia's history (cap notifications)", card = "optional summary card id" }
 mutating    = false
 consequence = "report"
 channels    = ["notifications:read", "inbox", "notify"]
+
+[action."agent.summarise_notification"]
+implementation = "agent.summarise_notification"
+label = "Summarise a notification"
+category = "Agent"
+args = { notification = "its id in Noctalia's history" }
+mutating = false
+consequence = "report"
+channels = ["notifications:read", "model:local", "inbox", "notify"]
 
 # The quick-ask box: the launcher, opened in /ask mode (canonical/noctalia/plugins/ask).
 # Opening it changes nothing but the screen; the question is a separate act.

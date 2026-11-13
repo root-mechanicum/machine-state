@@ -974,6 +974,32 @@ def case_notifications(b):
     return ok, f"rc={rc},{rc2},{rc3} ids={[i['id'] for i in items]}"
 
 
+def case_summary_card(b):
+    _agent(b)
+    _history(b, [_note_entry(5, "Mail", "Meeting", "Thursday?")])
+    pi = b.dir / ".pi" / "agent" / "bin" / "pi"
+    pi.write_text('#!/bin/sh\nprintf \'%s\' \'{"type":"summary_card","title":"Meeting","summary":"A meeting is proposed."}\'\n')
+    rc, out = b.cap("act", "agent.summarise_notification", "notification=5")
+    cards = list((b.dir / ".local" / "state" / "agents" / "presentations").glob("*.json"))
+    card = json.loads(cards[0].read_text()) if cards else {}
+    log = (b.dir / "noctalia.log").read_text() if (b.dir / "noctalia.log").exists() else ""
+    # The original may have disappeared from Noctalia by the time the person
+    # escalates to a conversation; the card retains its own context.
+    _history(b, [_note_entry(6, "Other", "Other", "Other")])
+    rc2, _ = b.cap("act", "agent.discuss", "notification=5", f"card={card.get('id', '')}")
+    notes = b.notes()
+    rc3, _ = b.cap("act", "agent.discuss", "notification=6", f"card={card.get('id', '')}")
+    _history(b, [_note_entry(5, "Mail", "Meeting", "Thursday?")])
+    pi.write_text('#!/bin/sh\nprintf \'%s\' \'{"type":"summary_card","title":"X","summary":"Y","command":"bad"}\'\n')
+    rc4, _ = b.cap("act", "agent.summarise_notification", "notification=5")
+    ok = (rc == 0 and card.get("version") == 1 and card.get("notification") == "5"
+          and "machine-state/hub:summary" in log and rc2 == 0
+          and len(notes) == 1 and "Agent summary: A meeting is proposed." in notes[0].read_text()
+          and "Thursday?" in notes[0].read_text()
+          and rc3 != 0 and rc4 != 0 and len(list(cards[0].parent.glob("*.json"))) == 1)
+    return ok, f"rc={rc},{rc2},{rc3},{rc4} {out[-120:]}"
+
+
 def _discuss(b, entry, answer="Sure."):
     _agent(b, answer=answer)
     _history(b, [entry])
@@ -1356,6 +1382,9 @@ def main():
     with Box() as b:
         check("37 notifications: Noctalia's history, newest first, terminal-safe",
               *case_notifications(b))
+    with Box() as b:
+        check("37b structured summary: valid card, discussion and rejected commands",
+              *case_summary_card(b))
     with Box() as b:
         check("38 discuss: a notification opens a thread, by id, without asking the agent",
               *case_discuss(b))
