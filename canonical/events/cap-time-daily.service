@@ -8,4 +8,6 @@ After=strata-flash-next.service llama-twin-turbo.service vllm-qwen38.service
 [Service]
 Type=oneshot
 ExecStart=%h/src/machine-state/bin/cap emit time.daily --source timer
-TimeoutStartSec=15min
+# The home backup runs first and may take up to 40 min after a long absence
+# (bin/cap BACKUP_TIMEOUT); the digests after it need their own few minutes.
+TimeoutStartSec=60min

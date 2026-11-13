@@ -5,6 +5,13 @@
 # written, independently. A binding authorises nothing by itself; a root-owned
 # grant in /etc/machine-state/grants.toml must name it too (see bin/cap).
 
+# The home backup, first: the responses share the unit's time limit, and a slow
+# digest must not be what stops a backup. maintain-class, so it runs only if
+# [maintain] in the grants names it and its repository (canonical/actions/backup.toml).
+[[event_binding]]
+event  = "time.daily"
+action = "backup.home"
+
 [[event_binding]]
 event  = "time.daily"
 action = "journal.errors.notify"
@@ -34,3 +41,10 @@ action = "interests.mail"
 [[event_binding]]
 event  = "time.daily"
 action = "interests.digest"
+
+# Whether the daily backup actually happened, on the hourly timer: a daily run
+# that never fired cannot say so itself. Quiet unless the newest snapshot is over
+# 36 hours old, and then at most once a day.
+[[event_binding]]
+event  = "time.hourly"
+action = "backup.freshness"

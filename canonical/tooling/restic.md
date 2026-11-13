@@ -15,25 +15,37 @@ they protect. Bead `machine-state-yqm`.
 A tool, not a service. What runs it, when, and on what is the backup plan below; the schedule goes
 through `cap`, never a timer of its own.
 
-**Planned layout (not yet in place, except the disk):**
+**Layout:**
 
 | What | Repository | Cadence |
 | --- | --- | --- |
-| home folder | `/mnt/data/backup/restic` (4 TB M.2) | daily, via `cap` |
-| home, off the laptop | the WD Elements disk, by `restic copy` from the 4 TB | weekly, when plugged in |
-| old-PC archive (`/mnt/data/archive/old-pc`) | the WD Elements disk | after changes |
+| home folder | `/mnt/data/backup/restic` (4 TB M.2), repository `da4d8fdae9` | daily, `cap` action `backup.home` |
+| home, off the laptop | the WD Elements disk, by `restic copy` from the 4 TB | weekly, when plugged in (not yet built) |
+| old-PC archive (`/mnt/data/archive/old-pc`) | the WD Elements disk | after changes (not yet built) |
 
-**Copies that exist now (2026-11-13), none of them restic yet:**
+**The daily run** is `backup.home` (`canonical/actions/backup.toml`), bound to `time.daily`:
+`restic backup ~ --exclude-file canonical/restic/home.exclude --one-file-system --exclude-caches
+--no-cache`, password from the keyring (`service=restic repository=<repo>`). It is the first
+`maintain`-class action (`CAPABILITIES.md` §4): it runs unattended only while
+`/etc/machine-state/grants.toml` names it and this repository under `[maintain]`. Silent when
+complete. Notifies and writes an inbox note when it fails, or when it is *incomplete* (restic exit 3:
+snapshot made, some files unreadable; said once per new set of files). Each run's result is in
+`~/.local/state/agents/backup-home.json`. `backup.freshness`, on `time.hourly`, says so once a day
+when the newest snapshot is over 36 hours old or none was ever recorded. By hand: `cap act backup.home`.
+Pruning (`restic forget --prune`) deletes, so it is not part of this and is done by hand.
+
+**Copies that exist now (2026-11-13):**
 
 | Data | Copies | Checked |
 | --- | --- | --- |
+| Laptop home (less `home.exclude`): 112,938 files, 9.6 GiB | restic snapshot `462b12f6`, 4 TB | restored `.ssh .gnupg` keyrings `Documents src/machine-state`: identical; `restic check` clean; Proton Pass copy of the password opens it |
 | Old PC (Extreme SSD, exFAT): 416,708 files, 311,824,839,195 bytes | original; WD `old-pc-copy-2026-11-13/`; 4 TB `/mnt/data/archive/old-pc/` | both: file count and bytes equal the original |
 | Laptop home essentials (`src .config Documents Drive .ssh .gnupg` keyrings, `.claude .pi .codex`) | WD `quick-copy-2026-11-13/home-essentials.tar.zst`, 7.6 GB | read back, 150,666 entries |
 | Models | main SSD; WD `Models/<org>--<repo>/` | SHA-256 (see `strata.md`) |
 
-**The quick copy is unencrypted and holds SSH/GPG keys and the keyring.** It is a stopgap: delete it
-once the first restic backup of home has been restore-tested. Until then, the home folder's only
-off-SSD copy is a one-off from 2026-11-13 that grows staler every day.
+**The quick copy is unencrypted and holds SSH/GPG keys and the keyring.** It was a stopgap until
+the first restic backup was restore-tested, which it now is: delete it the next time the WD disk is
+plugged in.
 
 **The password** opens the repository's master key; it is not the encryption key itself, so
 `restic key add` / `key remove` change it without re-encrypting, but do not undo a leak of the
@@ -81,9 +93,10 @@ disks it wrote to; removing the program leaves them, and any restic build can re
 
 ## Verification
 
-Installed 2026-11-13. A restore test — not a successful backup — is what counts as a working
-backup; until the first one, this record only proves the program is intact. When the daily run
-exists, its freshness (age of the newest snapshot) should become the check.
+Installed 2026-11-13; first snapshot restore-tested the same day (above). The check below only
+proves the program is intact. Whether backups are *happening* is `backup.freshness`'s job, and an
+`ms status` line reading the age of the last recorded run would be a third, timer-independent
+observer (not built yet).
 
 ```toml
 group      = "Applications"
