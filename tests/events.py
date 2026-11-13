@@ -1024,6 +1024,18 @@ def case_updates_security(b):
     return ok, f"notified={n.strip()[:80]!r}"
 
 
+def case_updates_click(b):
+    # Clicking the digest's popup opens its note in the answer panel.
+    _updates_box(b, installed="foo 1-1\n", pending="foo 1-1 -> 2-1\n")
+    (b.dir / "click").write_text("")
+    rc, _ = _updates_run(b)
+    note = b.notes()[0].name if b.notes() else "?"
+    panel = _eventually(b.dir / "noctalia.log")
+    ok = (rc == 0 and "--action=default=Open" in b.notified()
+          and "machine-state/ask:answer" in panel and "Updates ready" in panel)
+    return ok, f"note={note} panel={panel.strip()[:80]!r}"
+
+
 def case_updates_split(b):
     patch(b.repo / "canonical" / "actions" / "updates.toml",
           'channels    = ["net:pacman-mirrors"]',
@@ -1921,6 +1933,8 @@ def main():
               *case_updates_security(b))
     with Box() as b:
         check("66 the download cannot declare installed-package access", *case_updates_split(b))
+    with Box(grants="") as b:
+        check("67 clicking the update popup opens its note", *case_updates_click(b))
 
     print("\n  negative controls (the mechanism is broken on purpose):")
 
@@ -2237,6 +2251,11 @@ def main():
               'PRIVATE_CHANNELS = {"home:read", "keyring:read"}')
         ok, d = case_updates_split(b)
         check("66n packages:read not private -> assertion 66 fails", not ok, d)
+    with Box(grants="") as b:
+        patch(b.cap_path, '''                     '[ "$out" = default ] && exec "$CAP" inbox panel "$NOTE"\\nexit 0',''',
+              '''                     'exit 0',''')
+        ok, d = case_updates_click(b)
+        check("67n click handler removed -> assertion 67 fails", not ok, d)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
