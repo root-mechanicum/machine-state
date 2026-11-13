@@ -14,6 +14,9 @@ Type=simple
 # changed from setup's default, to match IQ3_S: --spec 2 (setup: 4). setup's original is kept
 # beside it as strata-iq3_xxs.json.setup-default. --max-context 262144 was given to setup.
 ExecStart=%h/.local/share/strata/app/.venv/bin/python %h/.local/share/strata/app/serve/server.py --engine strata --config %h/.local/share/strata/app/strata-iq3_xxs.json --port 8000
+# Started means answering: until then the unit is "activating", so After= in
+# cap-time-daily.service waits for a loaded model (bin/model-ready, machine-state-dty).
+ExecStartPost=%h/src/machine-state/bin/model-ready 8000
 WorkingDirectory=%h/.local/share/strata/app
 TimeoutStartSec=600
 TimeoutStopSec=120

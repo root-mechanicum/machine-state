@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Wait until the local model server answers; then exit 0.
+
+Used as ExecStartPost= in each model unit, so systemd reports the unit
+"activating" while the model loads and "active" only once it answers. Before
+this, a model unit was "active" the moment its process started, and anything
+ordered After= it (cap's daily run) ran against a server still loading
+(machine-state-dty). The unit's TimeoutStartSec bounds the wait; this never
+gives up on its own.
+
+    model-ready [port]      default 8000, loopback only
+"""
+
+import sys
+import time
+import urllib.request
+
+port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+url = f"http://127.0.0.1:{port}/v1/models"
+while True:
+    try:
+        with urllib.request.urlopen(url, timeout=3) as r:
+            if r.status == 200:
+                sys.exit(0)
+    except OSError:
+        pass
+    time.sleep(2)

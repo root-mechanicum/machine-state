@@ -15,6 +15,11 @@ Type=simple
 # Port 8000 on purpose: "the local model" (cap's model:local, /ask, /do, Pi) is whatever answers
 # there. llama-server serves its one model whatever name a request uses.
 ExecStart=%h/.local/share/llama.cpp/bin/llama-server -m %h/.local/share/llama.cpp/models/esatapedico/Qwen3.8-27B-TWIN-TURBO-NVFP4-GGUF/Qwen3.8-27B-TWIN-TURBO-Fable-Cold-Fusion-709-L-Uncensored-NVFP4-MID-HIGH.gguf --mmproj %h/.local/share/llama.cpp/models/ggml-org/Qwen3.8-27B-GGUF/mmproj-Qwen3.8-27B-Q8_0.gguf --alias qwen3.8-27b-twin-turbo -ngl 99 -fa on -fit off -c 147456 -np 1 --ctx-checkpoints 4 --load-mode none --jinja --cache-type-k q8_0 --cache-type-v q8_0 --spec-type draft-mtp --spec-draft-n-max 3 --reasoning-effort xhigh --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --host 127.0.0.1 --port 8000
+# Started means answering: until then the unit is "activating", so After= in
+# cap-time-daily.service waits for a loaded model (bin/model-ready, machine-state-dty).
+ExecStartPost=%h/src/machine-state/bin/model-ready 8000
+# Loading may outlast systemd's default 90 s.
+TimeoutStartSec=600
 TimeoutStopSec=30
 Restart=on-failure
 RestartSec=30

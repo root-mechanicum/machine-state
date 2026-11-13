@@ -45,6 +45,7 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 import urllib.error
 import urllib.parse
@@ -1017,10 +1018,12 @@ def _http_bytes(url, timeout=30, limit=2_000_000):
     return data
 
 
-def requires_model():
+def requires_journal():
+    """journal.digest: the model is waited for when it runs, not required here,
+    so a model that is off is a skipped digest rather than a refused one."""
     if not shutil.which("journalctl"):
         return False, "journalctl is not installed"
-    return requires_local_model()
+    return True, None
 
 
 def requires_local_model():
@@ -1029,6 +1032,92 @@ def requires_local_model():
         return True, None
     except (OSError, ValueError):
         return False, f"the local model is not answering on {model_url()}"
+
+
+# DIGESTS REACH THE PERSON (machine-state-dty). Until 2026-11-13 no interest
+# digest had ever been written: the daily run catches up at login or wake, just
+# as the model server is starting, and one 3-second probe gave up until the
+# next day. Now:
+#
+#   once a day     unattended, a digest is written once per local day, from
+#                  DIGEST_HOUR. The daily timer tries first; the hourly one
+#                  retries, so a slow morning costs an hour, not a day. By hand
+#                  (cap act), it runs now.
+#   waits          while a model server is loading, up to MODEL_WAIT. Loading is
+#                  "activating": each server counts as started only once it
+#                  answers (ExecStartPost=bin/model-ready). Never starts one.
+#   down is quiet  a model that is off is not a failure: on battery the servers
+#                  do not start at all (ConditionACPower). The digest is skipped,
+#                  and interests.digest says so once items have waited more
+#                  than DIGEST_STALE_HOURS.
+DIGEST_HOUR = 8                    # cap-time-daily.timer's hour
+DIGEST_STATE = INBOX.parent / "digests.json"
+DIGEST_STALE_HOURS = 36
+# As bin/model-sleep-guard lists them; tests/events.py checks the two agree.
+MODEL_UNITS = [
+    "strata-flash-next.service",
+    "strata-flash-next-xxs.service",
+    "llama-twin-turbo.service",
+    "vllm-qwen38.service",
+]
+MODEL_WAIT = 600                   # Strata's TimeoutStartSec
+MODEL_POLL = 5
+
+
+def _model_loading():
+    """The model unit that is starting, or None."""
+    for unit in MODEL_UNITS:
+        try:
+            r = subprocess.run(["systemctl", "--user", "is-active", unit],
+                               capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if r.stdout.strip() == "activating":
+            return unit
+    return None
+
+
+def _await_model():
+    """None once the local model answers; otherwise why not. Waits only while a
+    model server is loading, and at most MODEL_WAIT seconds."""
+    deadline = time.monotonic() + MODEL_WAIT
+    while True:
+        ok, why = requires_local_model()
+        if ok:
+            return None
+        unit = _model_loading()
+        if unit is None:
+            return why
+        if time.monotonic() >= deadline:
+            return f"{why}; {unit} was still loading after {MODEL_WAIT // 60} min"
+        time.sleep(MODEL_POLL)
+
+
+def _digest_state():
+    try:
+        st = json.loads(DIGEST_STATE.read_text())
+        return st if isinstance(st, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _digest_not_yet(key):
+    """Why an unattended digest is not written now, or None to write it."""
+    if EVENT_ID is None:
+        return None                # asked for by hand
+    local = datetime.datetime.now().astimezone()
+    if local.hour < DIGEST_HOUR:
+        return f"not before {DIGEST_HOUR:02d}:00"
+    last = _when(_digest_state().get(key, {}).get("written"))
+    if last and last.astimezone().date() == local.date():
+        return "already written today"
+    return None
+
+
+def _digest_written(key):
+    st = _digest_state()
+    st.setdefault(key, {})["written"] = now()
+    _write_json(DIGEST_STATE, st)
 
 
 def ask_model(system, user, max_tokens=1200):
@@ -1062,12 +1151,21 @@ def plan_digest():
 
 def do_digest():
     plan = plan_digest()
+    not_yet = _digest_not_yet("journal")
+    if not_yet:
+        plan["outcome_detail"] = not_yet
+        return plan, "skipped"
     groups = journal_errors()
     if groups:
         listing = "\n".join(f"{g['count']:>4}x  {g['source']}: {g['message'][:300]}"
                             for g in groups[:60])
         if len(groups) > 60:
             listing += f"\n(and {len(groups) - 60} rarer distinct messages)"
+        down = _await_model()
+        if down:
+            # journal.errors.notify already speaks for new errors; this note can wait.
+            plan["outcome_detail"] = f"waiting for the local model: {down}"
+            return plan, "skipped"
         model, body = ask_model(DIGEST_PROMPT,
                                 f"Errors from the last 24 hours, grouped:\n\n{listing}")
         if not body:
@@ -1084,6 +1182,7 @@ def do_digest():
         f"model: {model or 'none'}\ngenerated: {now()}\n"
         f"distinct_errors: {len(groups)}\n"
         "---\n\n# Journal digest\n\n" + body + "\n")
+    _digest_written("journal")
     plan["note"] = str(note)
     plan["outcome_detail"] = f"wrote {note}"
     return plan, "ok"
@@ -1300,8 +1399,10 @@ URGENCIES = {"alert", "digest"}
 def check_interest(name, it, where):
     if not INTEREST_NAME.match(name):
         die(f"{where}: interest {name!r} must be lowercase letters, digits and dashes")
-    _want(it, where, f"interest {name!r}", ("label", "urgency", "sources"))
+    _want(it, where, f"interest {name!r}", ("label", "urgency", "sources"), ("context",))
     _str(it["label"], where, f"interest {name!r} label")
+    if "context" in it:
+        _str(it["context"], where, f"interest {name!r} context")
     if it["urgency"] not in URGENCIES:
         die(f"{where}: interest {name!r} urgency {it['urgency']!r} is not supported; "
             f"expected {', '.join(sorted(URGENCIES))}")
@@ -1468,13 +1569,30 @@ group: what happened, why it matters, and which item is worth reading in full. L
 with the most important. Markdown, no preamble, under 400 words. Do not invent \
 facts the items do not contain."""
 
-# Enough for several newsletter issues, well inside the model's 64K context.
-DIGEST_BUDGET = 48000
+# An interest's `context` is the reader's own account of what they work on, so
+# the catch-up can say what bears on it. Written by the person in canonical/; it
+# shapes a summary and grants nothing.
+INTEREST_CONTEXT = """
+
+The reader's own work, in their words:
+{context}
+
+For each group, end with one line "**For you:**" saying concretely whether and \
+how it bears on that work: a decision it informs, something to try, something to \
+avoid. Write "**For you:** nothing" when it does not; a stretched link is worse \
+than none. Lead with the groups that bear on their work. Under 500 words."""
+
+# About 30K tokens: a busy day of newsletters, well inside either model server's
+# context (Strata 256K, llama.cpp 144K). What does not fit is not dropped: it
+# stays pending and leads the next catch-up.
+DIGEST_BUDGET = 120000
 
 
 def _digest_listing(pending):
-    out, used = [], 0
-    for i in sorted(pending, key=lambda i: i["fetched"], reverse=True):
+    """(text for the model, the items in it). Oldest first, in the order they
+    were fetched, so a backlog is read in order and nothing waits forever."""
+    out, seen, used = [], [], 0
+    for i in pending:
         block = (f"### {i['title']}\n(source: {i['source']}"
                  + (f", from {i['from']}" if i.get("from") else "")
                  + (f", {i['date']}" if i.get("date") else "") + ")\n"
@@ -1482,8 +1600,37 @@ def _digest_listing(pending):
         if used + len(block) > DIGEST_BUDGET and out:
             break
         out.append(block)
+        seen.append(i)
         used += len(block)
-    return "\n".join(out), len(out)
+    return "\n".join(out), seen
+
+
+def _digest_overdue(key, it, pending, why):
+    """Say once a day that a catch-up is overdue, and why. True if said.
+
+    Overdue means the oldest waiting item was fetched more than
+    DIGEST_STALE_HOURS ago. The popup names counts and the reason, never item
+    text: titles are written by strangers."""
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    oldest = min(filter(None, (_when(i.get("fetched")) for i in pending)), default=None)
+    if oldest is None or (now_dt - oldest).total_seconds() <= DIGEST_STALE_HOURS * 3600:
+        return False
+    st = _digest_state()
+    told = _when(st.get(key, {}).get("told"))
+    if told and (now_dt - told).total_seconds() < 86400:
+        return False
+    use("notify")
+    since = oldest.astimezone().strftime("%a %d %b")
+    r = subprocess.run(["notify-send", "--app-name=cap", "--urgency=normal",
+                        f"{it['label']}: no catch-up yet",
+                        f"{len(pending)} item(s) waiting since {since}. "
+                        f"The catch-up could not be written: {why}"],
+                       capture_output=True, timeout=10)
+    if r.returncode != 0:
+        return False
+    st.setdefault(key, {})["told"] = now()
+    _write_json(DIGEST_STATE, st)
+    return True
 
 
 def plan_interests_digest():
@@ -1500,10 +1647,12 @@ def do_interests_digest():
     """One catch-up note per digest interest; items delivered only once noted.
 
     Reads only the local stores the fetch actions filled. It holds no net:
-    channel, so whatever the items say, nothing leaves the machine.
+    channel, so whatever the items say, nothing leaves the machine. When and
+    whether it runs unattended: see "DIGESTS REACH THE PERSON".
     """
     plan = plan_interests_digest()
-    failures, written = [], []
+    failures, written, waiting, told = [], [], [], []
+    down = ...                     # asked of the model once, and only if needed
     for name, it in interests().items():
         if it["urgency"] != "digest":
             continue
@@ -1511,15 +1660,30 @@ def do_interests_digest():
         pending = [i for i in items if not i["delivered"]]
         if not pending:
             continue
-        listing, used = _digest_listing(pending)
+        key = f"interest:{name}"
+        not_yet = _digest_not_yet(key)
+        if not_yet:
+            waiting.append(f"{name}: {not_yet}")
+            continue
+        if down is ...:
+            down = _await_model()
+        if down:
+            waiting.append(f"{name}: waiting for the local model ({down})")
+            if _digest_overdue(key, it, pending, down):
+                told.append(name)
+            continue
+        listing, seen = _digest_listing(pending)
         try:
-            model, body = ask_model(INTEREST_PROMPT.format(label=it["label"]), listing,
-                                    max_tokens=1500)
+            system = INTEREST_PROMPT.format(label=it["label"]) + (
+                INTEREST_CONTEXT.format(context=it["context"].strip())
+                if it.get("context") else "")
+            model, body = ask_model(system, listing, max_tokens=1800)
+            if not body:
+                raise ValueError("the model returned nothing")
         except (OSError, ValueError, KeyError) as exc:
             failures.append(f"{name}: {type(exc).__name__}: {exc}")
-            continue
-        if not body:
-            failures.append(f"{name}: the model returned nothing")
+            if _digest_overdue(key, it, pending, f"the model failed ({type(exc).__name__})"):
+                told.append(name)
             continue
         use("inbox")
         INBOX.mkdir(parents=True, exist_ok=True)
@@ -1527,22 +1691,28 @@ def do_interests_digest():
         note.write_text(
             "---\n"
             f"action: interests.digest\ninterest: {name}\nevent: {EVENT_ID or 'none'}\n"
-            f"model: {model}\ngenerated: {now()}\nitems: {len(pending)}\n"
+            f"model: {model}\ngenerated: {now()}\nitems: {len(seen)}\n"
             "---\n\n"
             f"# {it['label']}\n\n{body}\n\n## Sources\n\n"
-            + "".join(_item_line(i) for i in pending)
-            + (f"\n(The model saw the newest {used} of {len(pending)}.)\n"
-               if used < len(pending) else ""))
-        for i in pending:
+            + "".join(_item_line(i) for i in seen)
+            + (f"\n({len(pending) - len(seen)} more item(s) did not fit; they lead the "
+               f"next catch-up.)\n" if len(seen) < len(pending) else ""))
+        for i in seen:
             i["delivered"] = True
         _save_items(name, items)
-        written.append(f"{name} ({len(pending)}) -> {note.name}")
+        _digest_written(key)
+        popped = _notify_note(f"{it['label']}: catch-up ready",
+                              f"{len(seen)} new item(s), summarised.", "low", note)
+        written.append(f"{name} ({len(seen)}) -> {note.name}"
+                       + ("" if popped else " (the popup was not delivered)"))
     plan["failures"] = failures
-    plan["outcome_detail"] = "; ".join([f"wrote {w}" for w in written]
-                                       + [f"FAILED {f}" for f in failures]) or "nothing due"
+    plan["outcome_detail"] = "; ".join(
+        [f"wrote {w}" for w in written] + [f"FAILED {f}" for f in failures]
+        + [f"not yet: {w}" for w in waiting] + [f"told: {t} is overdue" for t in told]
+    ) or "nothing due"
     if failures:
         return plan, "failed"
-    return plan, "ok" if written else "skipped"
+    return plan, "ok" if written or told else "skipped"
 
 
 # ---------------------------------------------------------------- the agent
@@ -3238,9 +3408,9 @@ PROVIDERS = {
     "desktop.window.move": (plan_move, do_move, requires_hyprland),
     "desktop.text.insert": (plan_insert, do_insert, requires_wtype),
     "journal.errors.notify": (plan_errors_notify, do_errors_notify, requires_journal_and_desktop),
-    "journal.digest": (plan_digest, do_digest, requires_model),
+    "journal.digest": (plan_digest, do_digest, requires_journal),
     "interests.fetch": (plan_interests_fetch, do_interests_fetch, requires_desktop),
-    "interests.digest": (plan_interests_digest, do_interests_digest, requires_local_model),
+    "interests.digest": (plan_interests_digest, do_interests_digest, requires_nothing),
     "agent.ask": (plan_ask, do_ask, requires_agent),
     "agent.discuss": (plan_discuss, do_discuss, requires_agent),
     "agent.summarise_notification": (plan_summarise_notification, do_summarise_notification, requires_agent),

@@ -124,6 +124,13 @@ class Imap(socketserver.StreamRequestHandler):
             self._out(f"{tag} OK done")
 
 
+def local_hour(hour):
+    """A TZ value in which the local hour is `hour` right now."""
+    off = (hour - datetime.datetime.now(datetime.timezone.utc).hour) % 24
+    off = off - 24 if off > 12 else off
+    return f"UTC{-off:+d}"         # POSIX: UTC-5 is five hours ahead of UTC
+
+
 def grant(trusted='"time.*"', untrusted="", channels=None, ceiling="report"):
     chans = channels or ["journal", "model:local", "notify", "inbox", "net:huggingface.co",
                          "mail:read"]
@@ -149,6 +156,7 @@ HF_FIXTURE = [{"modelId": "Qwen/Qwen4-27B"}, {"modelId": "Qwen/Qwen3.8-27B"},
 
 class Model(http.server.BaseHTTPRequestHandler):
     fail = False
+    down = False                   # /v1/models fails: a model server off or loading
     answer = "FAKE DIGEST BODY"
     last = None
 
@@ -174,6 +182,8 @@ class Model(http.server.BaseHTTPRequestHandler):
             if "author=fail" in self.path:
                 return self._send(500, {"error": "down"})
             return self._send(200, HF_FIXTURE)
+        if Model.down:
+            return self._send(503, {"error": "loading"})
         self._send(200, {"data": [{"id": "fake-model"}]})
 
     def do_POST(self):
@@ -276,6 +286,12 @@ class Box:
             '  wrongpw) echo \'{"message_type":"exit_error","code":12,"message":"Fatal: wrong '
             'password or no key found"}\' >&2; exit 12 ;;\n'
             'esac\n')
+        # systemctl --user is-active <unit>: "activating" for a unit named in
+        # loading (a model server still loading), else inactive. Never the real one.
+        (stubs / "systemctl").write_text(
+            f'#!/bin/sh\nfor u; do :; done\n'
+            f'grep -qx "$u" "{self.dir}/loading" 2>/dev/null && {{ echo activating; exit 3; }}\n'
+            f'echo inactive; exit 3\n')
         (stubs / "fakeroot").write_text('#!/bin/sh\n[ "$1" = "--" ] && shift\nexec "$@"\n')
         for f in stubs.iterdir():
             f.chmod(0o755)
@@ -290,7 +306,10 @@ class Box:
                     "CAP_MODEL_URL": f"http://127.0.0.1:{self.server.server_port}/v1",
                     "CAP_HF_URL": f"http://127.0.0.1:{self.server.server_port}",
                     "CAP_ARCHNEWS_URL": f"http://127.0.0.1:{self.server.server_port}/feeds/news/",
-                    "CAP_IMAP_ADDR": f"127.0.0.1:{self.imap.server_address[1]}"}
+                    "CAP_IMAP_ADDR": f"127.0.0.1:{self.imap.server_address[1]}",
+                    # Midday, wherever and whenever the suite runs: digests are
+                    # written once a day from 08:00 local (machine-state-dty).
+                    "TZ": local_hour(12)}
         return self
 
     def __exit__(self, *_):
@@ -299,7 +318,7 @@ class Box:
         self.server.shutdown()
         self.imap.shutdown()
         self.imap.server_close()
-        Model.fail, Model.answer, Model.last = False, "FAKE DIGEST BODY", None
+        Model.fail, Model.answer, Model.last, Model.down = False, "FAKE DIGEST BODY", None, False
         Model.news = b""
         shutil.rmtree(self.dir, ignore_errors=True)
 
@@ -1678,6 +1697,154 @@ def case_observe_gate(b):
     return rc == 1 and "not an assistant observation" in out, f"rc={rc}"
 
 
+# ---------------------------------------------------------------- digests reach the person (dty)
+
+DIGEST_ONLY = ('[[event_binding]]\nevent = "time.daily"\naction = "interests.digest"\n\n'
+               '[[event_binding]]\nevent = "time.hourly"\naction = "interests.digest"\n')
+
+
+def _waiting(b, n, hours_ago=1, text="item text", start=0):
+    """Put n undelivered ai-news items in the store, fetched hours_ago."""
+    at = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours_ago))
+    stamp = at.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    p = b.dir / ".local" / "state" / "agents" / "interests" / "ai-news.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    old = p.read_text() if p.exists() else ""
+    new = "".join(json.dumps({"id": f"mail:<{start + k}@t>", "title": f"Issue {start + k}",
+                              "url": "", "from": "lspace@mail.beehiiv.com", "date": "",
+                              "text": text, "source": "mail", "fetched": stamp,
+                              "delivered": False}) + "\n" for k in range(n))
+    p.write_text(old + new)
+
+
+def _emit(b, event, **env):
+    before = len(b.records())
+    rc, out = b.cap("emit", event, "--source", "timer", **env)
+    return rc, out, [r for r in b.records()[before:] if r.get("action") == "interests.digest"]
+
+
+def _ai_notes(b):
+    return [n for n in b.notes() if n.name.endswith("-ai-news.md")]
+
+
+def case_digest_retry(b):
+    # Morning: the model is off. Quiet, not failed. An hour later it answers:
+    # the digest is written and said. The hour after: nothing more.
+    b.bindings(DIGEST_ONLY)
+    _waiting(b, 2)
+    Model.down = True
+    rc1, _, r1 = _emit(b, "time.daily")
+    none_yet = not _ai_notes(b) and not b.notified()
+    Model.down = False
+    rc2, _, r2 = _emit(b, "time.hourly")
+    notes = _ai_notes(b)
+    said = b.notified()
+    rc3, _, r3 = _emit(b, "time.hourly")
+    outs = [r.get("outcome") for r in r1 + r2 + r3]
+    ok = (rc1 == rc2 == rc3 == 0 and none_yet and len(notes) == 1 and len(_ai_notes(b)) == 1
+          and "catch-up ready" in said and "Click to open" in said
+          and b.notified() == said and outs == ["skipped", "ok", "skipped"])
+    return ok, f"outcomes={outs}, notes={len(_ai_notes(b))}, popup={'catch-up' in said}"
+
+
+def case_digest_once_a_day(b):
+    # Written this morning; a new issue arrives at noon. It waits for tomorrow.
+    b.bindings(DIGEST_ONLY)
+    _waiting(b, 1)
+    _emit(b, "time.daily")
+    _waiting(b, 1, start=10)
+    rc, _, r = _emit(b, "time.hourly")
+    pending = [i for i in b.store("ai-news") if not i["delivered"]]
+    ok = (rc == 0 and len(_ai_notes(b)) == 1 and len(pending) == 1
+          and r and r[0].get("outcome") == "skipped"
+          and "already written today" in r[0].get("plan", {}).get("outcome_detail", ""))
+    return ok, f"notes={len(_ai_notes(b))}, pending={len(pending)}"
+
+
+def case_digest_morning(b):
+    # 03:00: an unattended digest waits for 08:00. Asked for by hand, it runs.
+    b.bindings(DIGEST_ONLY)
+    _waiting(b, 1)
+    early = local_hour(3)
+    rc1, _, r1 = _emit(b, "time.hourly", TZ=early)
+    waited = not _ai_notes(b)
+    rc2, _ = b.cap("act", "interests.digest", TZ=early)
+    ok = (rc1 == 0 and waited and r1 and r1[0].get("outcome") == "skipped"
+          and "not before 08:00" in r1[0].get("plan", {}).get("outcome_detail", "")
+          and rc2 == 0 and len(_ai_notes(b)) == 1)
+    return ok, f"waited={waited}, by hand={len(_ai_notes(b))}"
+
+
+def case_digest_waits_loading(b):
+    # Just after wake: the model server is loading. The digest waits for it.
+    b.bindings(DIGEST_ONLY)
+    _waiting(b, 1)
+    patch(b.cap_path, "MODEL_POLL = 5\n", "MODEL_POLL = 0.3\n")
+    (b.dir / "loading").write_text("strata-flash-next.service\n")
+    Model.down = True
+
+    def loaded():
+        Model.down = False
+        (b.dir / "loading").unlink()
+    timer = threading.Timer(1.5, loaded)
+    timer.start()
+    rc, _, r = _emit(b, "time.daily")
+    timer.join()
+    ok = rc == 0 and len(_ai_notes(b)) == 1 and r and r[0].get("outcome") == "ok"
+    return ok, f"rc={rc}, notes={len(_ai_notes(b))}, outcome={r[0].get('outcome') if r else None}"
+
+
+def case_digest_overdue(b):
+    # The model has been off for days: say so once a day, counts only, never titles.
+    b.bindings(DIGEST_ONLY)
+    _waiting(b, 3, hours_ago=60)
+    Model.down = True
+    rc1, _, r1 = _emit(b, "time.hourly")
+    first = b.notified()
+    rc2, _, r2 = _emit(b, "time.hourly")
+    ok = (rc1 == rc2 == 0 and "no catch-up yet" in first and "3 item(s) waiting" in first
+          and "Issue" not in first and b.notified() == first
+          and [r.get("outcome") for r in r1 + r2] == ["ok", "skipped"])
+    return ok, f"told={'no catch-up' in first}, again={b.notified() != first}"
+
+
+def case_digest_nothing_dropped(b):
+    # More than fits: the oldest are read, the rest lead the next catch-up.
+    patch(b.cap_path, "DIGEST_BUDGET = 120000\n", "DIGEST_BUDGET = 350\n")
+    _waiting(b, 3, text="x" * 100)
+    rc1, _ = b.cap("act", "interests.digest")
+    first = b.store("ai-news")
+    note = _ai_notes(b)[0].read_text() if _ai_notes(b) else ""
+    rc2, _ = b.cap("act", "interests.digest")
+    ok = (rc1 == rc2 == 0 and [i["delivered"] for i in first] == [True, True, False]
+          and "1 more item(s) did not fit" in note and "Issue 2" not in note
+          and all(i["delivered"] for i in b.store("ai-news")))
+    return ok, f"after first={[i['delivered'] for i in first]}"
+
+
+def case_digest_context(b):
+    # The reader's own context reaches the model, as instructions, not as an item.
+    patch(b.repo / "canonical" / "interests" / "ai-news.toml", 'label   = "AI news"\n',
+          'label   = "AI news"\ncontext = "I build a broker for agents on my own laptop."\n')
+    _waiting(b, 1)
+    rc, _ = b.cap("act", "interests.digest")
+    msgs = (Model.last or {}).get("messages", [])
+    system = next((m["content"] for m in msgs if m["role"] == "system"), "")
+    user = next((m["content"] for m in msgs if m["role"] == "user"), "")
+    ok = (rc == 0 and "I build a broker for agents" in system and "For you:" in system
+          and "I build a broker" not in user)
+    return ok, f"rc={rc}, in system prompt={'I build a broker' in system}"
+
+
+def case_model_units_agree(b):
+    # cap waits on the units the sleep guard stops: one list, kept twice.
+    def units(path):
+        m = re.search(r"MODEL_UNITS = \[(.*?)\]", path.read_text(), re.S)
+        return re.findall(r'"([^"]+)"', m.group(1)) if m else None
+    a, g = units(b.cap_path), units(b.repo / "bin" / "model-sleep-guard")
+    return a is not None and a == g, f"cap={a}, guard={g}"
+
+
 def main():
     print("event path:")
     with Box() as b:
@@ -1935,6 +2102,24 @@ def main():
         check("66 the download cannot declare installed-package access", *case_updates_split(b))
     with Box(grants="") as b:
         check("67 clicking the update popup opens its note", *case_updates_click(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("70 a digest the model missed is written within the hour, and said",
+              *case_digest_retry(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("71 one digest a day; later items wait for tomorrow", *case_digest_once_a_day(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("72 not before 08:00 unattended; by hand at any hour", *case_digest_morning(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("73 a loading model is waited for", *case_digest_waits_loading(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("74 a catch-up overdue for days is said once a day", *case_digest_overdue(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("75 what does not fit leads the next catch-up", *case_digest_nothing_dropped(b))
+    with Box() as b:
+        check("76 cap and the sleep guard know the same model units", *case_model_units_agree(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("77 an interest's context reaches the model's instructions",
+              *case_digest_context(b))
 
     print("\n  negative controls (the mechanism is broken on purpose):")
 
@@ -2022,9 +2207,10 @@ def main():
         check("24n read-only open removed -> assertion 24 fails", not ok, d)
     with Box(grants=GRANT_BOTH) as b:
         patch(b.cap_path, '            failures.append(f"{name}: {type(exc).__name__}: {exc}")\n'
-                          '            continue',
+                          '            if _digest_overdue(',
+              '            failures.append(f"{name}: {type(exc).__name__}: {exc}")\n'
               '            for i in pending:\n                i["delivered"] = True\n'
-              '            _save_items(name, items)\n            continue')
+              '            _save_items(name, items)\n            if _digest_overdue(')
         ok, d = case_digest_failure(b)
         check("26n mark-before-noted restored -> assertion 26 fails", not ok, d)
     with Box() as b:
@@ -2256,6 +2442,42 @@ def main():
               '''                     'exit 0',''')
         ok, d = case_updates_click(b)
         check("67n click handler removed -> assertion 67 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '        if down:\n            waiting.append(',
+              '        if down:\n            raise RuntimeError(down)\n            waiting.append(')
+        ok, d = case_digest_retry(b)
+        check("70n model-down-is-quiet removed -> assertion 70 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '        return "already written today"', '        return None')
+        ok, d = case_digest_once_a_day(b)
+        check("71n once-a-day guard removed -> assertion 71 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, "    if local.hour < DIGEST_HOUR:", "    if False:")
+        ok, d = case_digest_morning(b)
+        check("72n 08:00 gate removed -> assertion 72 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '        if r.stdout.strip() == "activating":', '        if False:')
+        ok, d = case_digest_waits_loading(b)
+        check("73n loading not recognised -> assertion 73 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, "    if told and (now_dt - told).total_seconds() < 86400:",
+              "    if False:")
+        ok, d = case_digest_overdue(b)
+        check("74n told-today memory removed -> assertion 74 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, "        for i in seen:\n            i[\"delivered\"] = True",
+              "        for i in pending:\n            i[\"delivered\"] = True")
+        ok, d = case_digest_nothing_dropped(b)
+        check("75n unseen marked delivered -> assertion 75 fails", not ok, d)
+    with Box() as b:
+        patch(b.repo / "bin" / "model-sleep-guard", '    "vllm-qwen38.service",\n', '')
+        ok, d = case_model_units_agree(b)
+        check("76n lists drift apart -> assertion 76 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '                if it.get("context") else "")',
+              '                if False else "")')
+        ok, d = case_digest_context(b)
+        check("77n context left out -> assertion 77 fails", not ok, d)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
