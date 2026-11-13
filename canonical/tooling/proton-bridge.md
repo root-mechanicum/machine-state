@@ -30,7 +30,10 @@ systemctl --user enable --now protonmail-bridge
 ```
 
 The GUI (`protonmail-bridge`) is for sign-in and settings only, and cannot run alongside the
-service. Stop the service before opening it.
+service. Stop the service before opening it, and keep its **Open on startup** setting off: it
+is on by default, and writes `~/.config/autostart/Proton Mail Bridge.desktop`, which starts a
+second Bridge at every login that finds the service running and exits with an error (seen and
+removed 2026-11-13).
 
 Until 2026-11-12 nothing started Bridge, so after the first restart it was simply off and the
 mailbox it had synced was unreachable. The decision to use Bridge over direct-API clients, and
