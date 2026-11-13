@@ -56,8 +56,8 @@
     "/home/klaas/.config/systemd/user/cap-time-daily.service": {
       "adapter": "events",
       "kind": "render",
-      "projected_at": "2026-11-10T15:26:06.053Z",
-      "sha": "5b092fb1a22486bc5302cabce7d93f292730adb9504b759724937e077510ab02",
+      "projected_at": "2026-11-13T15:15:23.949Z",
+      "sha": "89e8746ae3973621502fc791c4ab5b60c8495d500bb21bfd2f79b6b5a83f477b",
       "sources": [
         "canonical/events/cap-time-daily.service"
       ]
