@@ -27,7 +27,7 @@ through `cap`, never a timer of its own.
 
 | Data | Copies | Checked |
 | --- | --- | --- |
-| Old PC (Extreme SSD, exFAT): 416,708 files, 311,824,839,195 bytes | original; WD `old-pc-copy-2026-11-13/`; 4 TB `/mnt/data/archive/old-pc/` (copying) | WD: file count and bytes equal the original |
+| Old PC (Extreme SSD, exFAT): 416,708 files, 311,824,839,195 bytes | original; WD `old-pc-copy-2026-11-13/`; 4 TB `/mnt/data/archive/old-pc/` | both: file count and bytes equal the original |
 | Laptop home essentials (`src .config Documents Drive .ssh .gnupg` keyrings, `.claude .pi .codex`) | WD `quick-copy-2026-11-13/home-essentials.tar.zst`, 7.6 GB | read back, 150,666 entries |
 | Models | main SSD; WD `Models/<org>--<repo>/` | SHA-256 (see `strata.md`) |
 

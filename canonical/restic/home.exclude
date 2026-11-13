@@ -1,0 +1,15 @@
+# What the daily home backup leaves out (restic --exclude-file). See canonical/tooling/restic.md.
+# Models: large, unchanging, copied to the WD disk with SHA-256 (strata.md).
+/home/klaas/.local/share/strata
+/home/klaas/.local/share/llama.cpp
+/home/klaas/.local/share/vllm-qwen38
+# Games: re-downloadable.
+/home/klaas/.local/share/Steam
+# Caches.
+/home/klaas/.cache
+/home/klaas/.nv
+/home/klaas/.npm
+# Bridge's local mail store: Proton re-syncs it.
+/home/klaas/.local/share/protonmail
+# Trash.
+/home/klaas/.local/share/Trash
