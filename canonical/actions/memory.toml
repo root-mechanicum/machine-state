@@ -1,0 +1,12 @@
+# Who the person is, from what agents learned working with them (machine-state-ewk).
+# Reads cm's session diaries (memory:read, private) and writes the profile under
+# ~/.local/state/agents; the model on 127.0.0.1 is the only thing it talks to.
+# interests.digest reads that profile to say what bears on the person's work.
+
+[action."profile.update"]
+implementation = "profile.update"
+label       = "Merge what new agent sessions show about the person into their profile"
+category    = "Memory"
+mutating    = false
+consequence = "report"
+channels    = ["memory:read", "model:local"]

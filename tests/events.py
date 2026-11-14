@@ -1897,6 +1897,88 @@ def case_untrusted_apart(b):
     return ok, f"resolve kept={len(resolved)}, in model={len(model)}, summarise args ok={'--cap-untrusted--' in args}"
 
 
+# ---------------------------------------------------------------- the profile (ewk)
+
+def _diary(b, did, prefs, session="/home/x/.claude/projects/-home-x/s.jsonl", at="2026-11-14T09:00:00Z"):
+    d = b.dir / ".local" / "share" / "cass-memory" / "diary"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{did}.json").write_text(json.dumps({"id": did, "sessionPath": session,
+                                               "timestamp": at, "preferences": prefs}))
+
+
+def _profile(b):
+    return b.dir / ".local" / "state" / "agents" / "profile.md"
+
+
+def _user_turn():
+    msgs = (Model.last or {}).get("messages", [])
+    return next((m["content"] for m in msgs if m["role"] == "user"), "")
+
+
+def case_profile_from_diaries(b):
+    # Two sessions with the person and one of cap's own: only the person's
+    # observations reach the model; the profile is written owner-only; each
+    # diary is read once, so the next run has nothing to do.
+    _diary(b, "diary-a", ["Prefers plain language over jargon."], at="2026-11-14T09:00:00Z")
+    _diary(b, "diary-b", ["Is interested in Edelman-inspired learning."], at="2026-11-14T09:05:00Z")
+    _diary(b, "diary-c", ["Prefers concise Markdown under 300 words."],
+           session="/home/x/.pi/agent/sessions/--cap-model--/c.jsonl", at="2026-11-14T09:10:00Z")
+    Model.answer = "## How they work with assistants\n- Plain words."
+    rc1, _ = b.cap("act", "profile.update")
+    user = _user_turn()
+    prof = _profile(b)
+    text = prof.read_text() if prof.exists() else ""
+    Model.last = None
+    rc2, _ = b.cap("act", "profile.update")
+    ok = (rc1 == rc2 == 0 and "plain language" in user and "Edelman" in user
+          and "300 words" not in user
+          and user.index("plain language") < user.index("Edelman")
+          and "Edit freely" in text and "- Plain words." in text
+          and (prof.stat().st_mode & 0o777) == 0o600 and Model.last is None)
+    return ok, f"rc={rc1},{rc2}, own kept out={'300 words' not in user}, again asked={Model.last is not None}"
+
+
+def case_profile_edits_kept(b):
+    # The person's own line is what the model is told to keep.
+    prof = _profile(b)
+    prof.parent.mkdir(parents=True, exist_ok=True)
+    prof.write_text("# Profile\n\n- Owns a cat called Turing (added by hand).\n")
+    _diary(b, "diary-a", ["Prefers plain language over jargon."])
+    rc, _ = b.cap("act", "profile.update")
+    user = _user_turn()
+    ok = (rc == 0 and "Current profile" in user and "Turing" in user
+          and user.index("Turing") < user.index("New observations"))
+    return ok, f"rc={rc}, hand line given={'Turing' in user}"
+
+
+def case_digest_reads_profile(b):
+    # With a profile, the catch-up is told who the reader is from it, not from
+    # the interest's hand-written context.
+    (b.repo / "canonical" / "interests" / "ai-news.toml").write_text(
+        '[interest.ai-news]\nlabel = "AI news"\nurgency = "digest"\n'
+        'context = "I build a broker for agents on my own laptop."\n'
+        'sources = [ { mail = { from = "lspace@mail.beehiiv.com" } } ]\n')
+    prof = _profile(b)
+    prof.parent.mkdir(parents=True, exist_ok=True)
+    prof.write_text("# Profile\n\n- Studies Neural Darwinism.\n")
+    _waiting(b, 1)
+    rc, _ = b.cap("act", "interests.digest")
+    msgs = (Model.last or {}).get("messages", [])
+    system = next((m["content"] for m in msgs if m["role"] == "system"), "")
+    ok = (rc == 0 and "Neural Darwinism" in system and "I build a broker" not in system
+          and "For you:" in system)
+    return ok, f"rc={rc}, profile used={'Neural Darwinism' in system}"
+
+
+def case_memory_private(b):
+    # Memory never shares an action with the network.
+    patch(b.repo / "canonical" / "actions" / "memory.toml",
+          'channels    = ["memory:read", "model:local"]',
+          'channels    = ["memory:read", "model:local", "net:example.com"]')
+    rc, out = b.cap("check")
+    return rc == 2 and "private data never shares" in out, f"rc={rc}"
+
+
 def main():
     print("event path:")
     with Box() as b:
@@ -2177,6 +2259,17 @@ def main():
               *case_calls_kept(b))
     with Box(grants=GRANT_BOTH) as b:
         check("81 calls on stranger-written input are kept apart", *case_untrusted_apart(b))
+    with Box() as b:
+        check("82 the profile is built from the person's sessions only, each read once",
+              *case_profile_from_diaries(b))
+    with Box() as b:
+        check("83 the person's own edits are handed to the model to keep",
+              *case_profile_edits_kept(b))
+    with Box(grants=GRANT_BOTH) as b:
+        check("84 a catch-up learns who the reader is from the profile",
+              *case_digest_reads_profile(b))
+    with Box() as b:
+        check("85 memory:read is private: never with a net: channel", *case_memory_private(b))
 
     print("\n  negative controls (the mechanism is broken on purpose):")
 
@@ -2424,7 +2517,7 @@ def main():
         ok, d = case_backup_same_disk(b)
         check("47n same-filesystem check removed -> assertion 47 fails", not ok, d)
     with Box() as b:
-        patch(b.cap_path, 'PRIVATE_CHANNELS = {"packages:read", "home:read", "keyring:read"}',
+        patch(b.cap_path, 'PRIVATE_CHANNELS = {"packages:read", "home:read", "keyring:read", "memory:read"}',
               'PRIVATE_CHANNELS = {"packages:read"}')
         ok, d = case_backup_net_split(b)
         check("48n home and keyring not private -> assertion 48 fails", not ok, d)
@@ -2490,7 +2583,7 @@ def main():
         ok, d = case_updates_security(b)
         check("65n security urgency removed -> assertion 65 fails", not ok, d)
     with Box() as b:
-        patch(b.cap_path, 'PRIVATE_CHANNELS = {"packages:read", "home:read", "keyring:read"}',
+        patch(b.cap_path, 'PRIVATE_CHANNELS = {"packages:read", "home:read", "keyring:read", "memory:read"}',
               'PRIVATE_CHANNELS = {"home:read", "keyring:read"}')
         ok, d = case_updates_split(b)
         check("66n packages:read not private -> assertion 66 fails", not ok, d)
@@ -2531,8 +2624,8 @@ def main():
         ok, d = case_model_units_agree(b)
         check("76n lists drift apart -> assertion 76 fails", not ok, d)
     with Box(grants=GRANT_BOTH) as b:
-        patch(b.cap_path, '                if it.get("context") else "")',
-              '                if False else "")')
+        patch(b.cap_path, '                     if it.get("context") else "")',
+              '                     if False else "")')
         ok, d = case_digest_context(b)
         check("77n context left out -> assertion 77 fails", not ok, d)
     with Box(grants=GRANT_BOTH) as b:
@@ -2547,6 +2640,24 @@ def main():
               '        d = _private_dir(SESSIONS_MODEL)')
         ok, d = case_untrusted_apart(b)
         check("81n one folder for all -> assertion 81 fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '        own = "/--cap-" in str(d.get("sessionPath", ""))',
+              '        own = False')
+        ok, d = case_profile_from_diaries(b)
+        check("82n cap's own sessions read -> assertion 82 fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, '        current = _profile_text() or', '        current = "" or')
+        ok, d = case_profile_edits_kept(b)
+        check("83n current profile not given -> assertion 83 fails", not ok, d)
+    with Box(grants=GRANT_BOTH) as b:
+        patch(b.cap_path, '            profile = _profile_text()\n', '            profile = ""\n')
+        ok, d = case_digest_reads_profile(b)
+        check("84n profile ignored -> assertion 84 fails", not ok, d)
+    with Box() as b:
+        patch(b.cap_path, 'PRIVATE_CHANNELS = {"packages:read", "home:read", "keyring:read", "memory:read"}',
+              'PRIVATE_CHANNELS = {"packages:read", "home:read", "keyring:read"}')
+        ok, d = case_memory_private(b)
+        check("85n memory:read not private -> assertion 85 fails", not ok, d)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} assertions passed")
