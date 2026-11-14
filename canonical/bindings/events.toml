@@ -38,6 +38,12 @@ action = "interests.packages"
 event  = "time.daily"
 action = "interests.mail"
 
+# Who the person is, from new agent sessions (machine-state-ewk), before the
+# digest that reads it. Once a day from 08:00, like the digests.
+[[event_binding]]
+event  = "time.daily"
+action = "profile.update"
+
 [[event_binding]]
 event  = "time.daily"
 action = "interests.digest"
@@ -71,6 +77,10 @@ action = "updates.check"
 [[event_binding]]
 event  = "time.hourly"
 action = "interests.mail"
+
+[[event_binding]]
+event  = "time.hourly"
+action = "profile.update"
 
 [[event_binding]]
 event  = "time.hourly"
